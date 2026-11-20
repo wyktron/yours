@@ -240,6 +240,47 @@ You sort incoming email into inbox categories. The categories are:
 - Pitch: cold outreach from a person asking for the reader's time (partnership, sponsorship, a demo, a quick call).
 Anything that is normal personal or business correspondence is not one of these categories.";
 
+/// Subjects that are transactional or security notices, not marketing.
+///
+/// These are judged per thread, before the sender-domain cache: a domain that
+/// also sends marketing (Perplexity, GitHub, banks) would otherwise label its
+/// sign-in codes and receipts with that domain's category.
+pub fn is_transactional_subject(subject: &str) -> bool {
+    const PATTERNS: &[&str] = &[
+        "sign in",
+        "sign-in",
+        "signin",
+        "log in",
+        "login code",
+        "verification code",
+        "security code",
+        "one-time",
+        "one time code",
+        "otp",
+        "2fa",
+        "two-factor",
+        "verify your",
+        "confirm your",
+        "password reset",
+        "reset your password",
+        "new sign-in",
+        "new login",
+        "security alert",
+        "unusual activity",
+        "reconnect your",
+        "receipt",
+        "order confirmation",
+        "your order",
+        "shipping confirmation",
+        "invoice",
+        "statement is ready",
+        "appointment confirmation",
+        "booking confirmation",
+    ];
+    let subject = subject.to_lowercase();
+    PATTERNS.iter().any(|pattern| subject.contains(pattern))
+}
+
 /// Build the classifier prompt from the user's category description (or the
 /// default) plus the email's headers and snippet. The model must answer with a
 /// single category word or `None`.

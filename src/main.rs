@@ -7,6 +7,7 @@ mod app_icon;
 #[cfg(test)]
 mod account_removal_tests;
 mod app_runtime;
+mod speech;
 mod attachment_controller;
 mod attachment_reminder;
 mod auto_replies;
@@ -7175,6 +7176,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
         &email_renderer,
         use_wgpu,
         platform.external_urls.clone(),
+        runtime.clone(),
     );
     let state_for_report = Rc::clone(&state);
     rendering_report::register(

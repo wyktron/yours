@@ -805,6 +805,29 @@ export component MailReadingPane inherits FocusScope {
                                 accessible-id: "message-toolbar-forward-button";
                                 clicked => { root.compose_message_action("forward"); }
                             }
+                            if !root.selected_is_draft : ToolbarIconButton {
+                                interactive: root.has_selected && EmailReader.available;
+                                compact: root.compact;
+                                icon: @image-url("../icons/lucide/outline/volume-2.svg");
+                                icon-color: root.secondary-text;
+                                hover-background: root.muted-control-bg;
+                                tooltip-text: @tr("Read aloud (select text to start there)");
+                                accessible-id: "message-toolbar-read-aloud-button";
+                                clicked => { EmailReader.command("read-aloud"); }
+                            }
+                            if EmailReader.speaking : ToolbarIconButton {
+                                compact: root.compact;
+                                icon: EmailReader.speech-paused
+                                    ? @image-url("../icons/lucide/outline/play.svg")
+                                    : @image-url("../icons/lucide/outline/pause.svg");
+                                icon-color: root.secondary-text;
+                                hover-background: root.muted-control-bg;
+                                tooltip-text: EmailReader.speech-paused
+                                    ? @tr("Resume reading")
+                                    : @tr("Pause reading");
+                                accessible-id: "message-toolbar-pause-reading-button";
+                                clicked => { EmailReader.command("read-aloud-pause"); }
+                            }
                             if root.show-primary-actions && !LocalMailUi.selected : ToolbarIconButton {
                                 visible: !root.selected_is_draft;
                                 interactive: root.has_selected;

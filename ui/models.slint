@@ -528,6 +528,10 @@ export struct ReaderImage { x: float, y: float, width: float, height: float, alt
 export struct ReaderCaret { x: float, y: float, height: float, valid: bool }
 export global EmailReader {
     in-out property <bool> available: false;
+    /// Read-aloud is starting or speaking.
+    in-out property <bool> speaking: false;
+    /// Read-aloud is paused; the same button resumes it.
+    in-out property <bool> speech-paused: false;
     in-out property <bool> body-pending: false;
     in-out property <ReaderCaret> selection-start;
     in-out property <ReaderCaret> selection-end;

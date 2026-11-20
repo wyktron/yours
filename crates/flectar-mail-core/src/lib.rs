@@ -9457,6 +9457,12 @@ impl Core {
                 continue;
             }
 
+            // Sign-in codes, receipts and account notices are judged on their
+            // own subject: a marketing-heavy domain must not label them.
+            if route::is_transactional_subject(&facts.subject) {
+                resolved.push((tid, None, Vec::new()));
+                continue;
+            }
             let category: Option<autolabel::Category> = if let Some(hit) = cache.get(&domain) {
                 // Cache stores the category keyword, "" = no category.
                 autolabel::Category::from_keyword(hit)

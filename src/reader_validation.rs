@@ -77,6 +77,7 @@ fn automatic_selection_hydrates_and_reader_controls_are_responsive_and_keyboard_
             recorded_urls.lock().unwrap().push(url.to_owned());
             Err("test host unavailable".into())
         }),
+        runtime.handle().clone(),
     );
     app.invoke_open_email_link("https://example.com/external".into());
     assert_eq!(

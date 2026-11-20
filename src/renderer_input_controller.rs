@@ -79,6 +79,7 @@ pub(super) fn register_renderer_input_callbacks(
     renderer: &Rc<RefCell<GpuEmailRenderer>>,
     gpu: bool,
     opener: ExternalUrlOpener,
+    runtime: tokio::runtime::Handle,
 ) {
     let weak = app.as_weak();
     let appearance_renderer = renderer.clone();
@@ -248,6 +249,63 @@ pub(super) fn register_renderer_input_callbacks(
         });
     let weak = app.as_weak();
     let r = renderer.clone();
+    let speech = crate::speech::Speech::default();
+    let speech_doc: Rc<RefCell<Option<crate::renderer::SpeechDocument>>> =
+        Rc::new(RefCell::new(None));
+    let speech_word: Rc<std::cell::Cell<Option<(usize, usize)>>> = Rc::new(std::cell::Cell::new(None));
+    {
+        let weak = app.as_weak();
+        let r = renderer.clone();
+        let speech = speech.clone();
+        let speech_doc = speech_doc.clone();
+        let speech_word = speech_word.clone();
+        let timer = Timer::default();
+        timer.start(
+            slint::TimerMode::Repeated,
+            Duration::from_millis(100),
+            move || {
+                let Some(app) = weak.upgrade() else {
+                    return;
+                };
+                let reader = app.global::<EmailReader>();
+                if reader.get_speaking() != speech.is_active() {
+                    reader.set_speaking(speech.is_active());
+                }
+                if reader.get_speech_paused() != speech.is_paused() {
+                    reader.set_speech_paused(speech.is_paused());
+                }
+                if !speech.is_active() {
+                    if speech_word.replace(None).is_some() {
+                        r.borrow_mut().clear_speech_highlight();
+                        repaint_reader(&app, &r, gpu);
+                    }
+                    return;
+                }
+                let Some(current) = speech.current_word() else {
+                    return;
+                };
+                let key = (current.doc_start, current.doc_end);
+                if speech_word.get() == Some(key) {
+                    return;
+                }
+                let spans = speech_doc
+                    .borrow()
+                    .as_ref()
+                    .map(|document| document.spans.clone());
+                let Some(spans) = spans else {
+                    return;
+                };
+                if r.borrow_mut().highlight_bytes(key.0, key.1, &spans) {
+                    speech_word.set(Some(key));
+                    repaint_reader(&app, &r, gpu);
+                }
+            },
+        );
+        std::mem::forget(timer);
+    }
+    let speech_for_command = speech.clone();
+    let speech_doc_for_command = speech_doc.clone();
+    let speech_word_for_command = speech_word.clone();
     app.global::<EmailReader>().on_command(move |command| {
         let Some(app) = weak.upgrade() else {
             return;
@@ -260,6 +318,46 @@ pub(super) fn register_renderer_input_callbacks(
             command.as_str()
         };
         match command {
+            "read-aloud" => {
+                if speech_for_command.is_active() {
+                    speech_for_command.stop();
+                    speech_word_for_command.set(None);
+                    r.borrow_mut().clear_speech_highlight();
+                    repaint_reader(&app, &r, gpu);
+                } else {
+                    let prepared = {
+                        let mut reader = r.borrow_mut();
+                        reader.speech_document().map(|document| {
+                            let start = reader
+                                .selection_start_global(&document.spans)
+                                .unwrap_or(0);
+                            (document, start)
+                        })
+                    };
+                    let Some((document, start)) = prepared else {
+                        return;
+                    };
+                    let from = document
+                        .words
+                        .partition_point(|(word_start, _)| *word_start <= start)
+                        .saturating_sub(1);
+                    speech_word_for_command.set(None);
+                    speech_doc_for_command.borrow_mut().replace(document.clone());
+                    speech_for_command.start(
+                        &runtime,
+                        document.text,
+                        document.words,
+                        from,
+                    );
+                }
+            }
+            "read-aloud-pause" => {
+                if speech_for_command.is_paused() {
+                    speech_for_command.resume();
+                } else {
+                    speech_for_command.pause();
+                }
+            }
             "viewport" => repaint_reader(&app, &r, gpu),
             "zoom-set" | "zoom-in" | "zoom-out" | "zoom-reset" | "fit" => {
                 let old = r.borrow().zoom;

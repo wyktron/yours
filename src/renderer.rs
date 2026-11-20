@@ -162,6 +162,15 @@ pub struct RenderedEmail {
     pub links: Vec<EmailLink>,
 }
 
+/// Read-aloud view of the rendered document: the text in reading order, the
+/// text-node spans it was assembled from, and every word's byte range.
+#[derive(Clone)]
+pub struct SpeechDocument {
+    pub text: String,
+    pub spans: Vec<(NodeId, usize, usize)>,
+    pub words: Vec<(usize, usize)>,
+}
+
 pub struct GpuEmailRenderer {
     suspended: bool,
     email: Option<PreparedEmail>,
@@ -811,6 +820,77 @@ impl GpuEmailRenderer {
         self.email
             .as_ref()
             .and_then(|email| email.document.get_selected_text())
+    }
+
+    /// The rendered email as one string, the text-node spans it came from, and
+    /// each word's byte range. Read-aloud maps spoken words back through this.
+    pub fn speech_document(&mut self) -> Option<SpeechDocument> {
+        let email = self.email.as_mut()?;
+        let mut text = String::new();
+        let mut spans = Vec::new();
+        email.document.visit(|id, node| {
+            if !visible(node) {
+                return;
+            }
+            let Some(inline) = node
+                .element_data()
+                .and_then(|element| element.inline_layout_data.as_ref())
+            else {
+                return;
+            };
+            if inline.text.trim().is_empty() {
+                return;
+            }
+            if !text.is_empty() {
+                text.push('\n');
+            }
+            let start = text.len();
+            text.push_str(&inline.text);
+            spans.push((id, start, inline.text.len()));
+        });
+        let words = crate::speech::word_ranges(&text);
+        Some(SpeechDocument { text, spans, words })
+    }
+
+    /// Byte offset in [`Self::speech_document`]'s text where the selection starts.
+    pub fn selection_start_global(&self, spans: &[(NodeId, usize, usize)]) -> Option<usize> {
+        let ranges = self.email.as_ref()?.document.get_text_selection_ranges();
+        let (node, offset, _) = *ranges.first()?;
+        spans
+            .iter()
+            .find(|(id, _, _)| *id == node)
+            .map(|(_, start, _)| start + offset)
+    }
+
+    /// Paint `start..end` (document bytes) as the text selection, in place.
+    pub fn highlight_bytes(&mut self, start: usize, end: usize, spans: &[(NodeId, usize, usize)]) -> bool {
+        let Some(email) = self.email.as_mut() else {
+            return false;
+        };
+        let locate = |byte: usize| -> Option<(NodeId, usize)> {
+            spans.iter().find_map(|(id, span_start, span_len)| {
+                let span_end = span_start + span_len;
+                (byte >= *span_start && byte < span_end).then(|| (*id, byte - span_start))
+            })
+        };
+        let Some((anchor_node, anchor_offset)) = locate(start) else {
+            return false;
+        };
+        let (focus_node, focus_offset) = locate(end.saturating_sub(1))
+            .map(|(node, offset)| (node, offset + 1))
+            .unwrap_or((anchor_node, anchor_offset));
+        email
+            .document
+            .set_text_selection(anchor_node, anchor_offset, focus_node, focus_offset);
+        self.paint_dirty = true;
+        true
+    }
+
+    pub fn clear_speech_highlight(&mut self) {
+        if let Some(email) = self.email.as_mut() {
+            email.document.clear_text_selection();
+            self.paint_dirty = true;
+        }
     }
 
     pub fn has_selection(&self) -> bool {
