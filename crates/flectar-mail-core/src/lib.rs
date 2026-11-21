@@ -9637,6 +9637,17 @@ impl Core {
         self.db.read(|conn| repo::settings::get(conn)).await
     }
 
+    pub async fn get_app_lock(&self) -> Result<Option<String>> {
+        self.db.read(|conn| repo::settings::get_lock(conn)).await
+    }
+
+    pub async fn set_app_lock(&self, hash: &str) -> Result<()> {
+        let hash = hash.to_owned();
+        self.db
+            .write(move |conn| repo::settings::set_lock(conn, &hash))
+            .await
+    }
+
     pub async fn set_settings(&self, settings: Settings) -> Result<()> {
         let oauth_settings = settings.clone();
         let now_ms = chrono::Utc::now().timestamp_millis();

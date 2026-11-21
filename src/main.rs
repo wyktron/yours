@@ -169,6 +169,7 @@ use rich_compose::{ComposeSelection, RichComposeDocument};
 use settings_controller::register_settings_preference_callbacks;
 use sidebar_model::{SidebarAnimation, SidebarModel, refresh_sidebar, refresh_sidebar_with_motion};
 use slint::{DataTransfer, Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, Timer, VecModel};
+use sha2::{Digest, Sha256};
 use startup::{
     PendingCoreUpdates, StartupCalendarSnapshot, StartupSnapshot, StartupUpdate,
     WarmStartCacheWriter, WarmStartCursor, WarmStartProjection, WarmStartSnapshot, apply_settings,
@@ -4623,6 +4624,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                         account_configs,
                         local_mail,
                         settings,
+                        app_lock,
                     } = snapshot;
 
                     let allow_remote_images = remote_images_enabled
@@ -4649,6 +4651,10 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                             .as_ref()
                             .map(|settings| settings.mark_read)
                             .unwrap_or_default();
+                        let has_app_lock = app_lock.is_some();
+                        eprintln!("app lock: has_password={has_app_lock}");
+                        app.set_lock_has_password(has_app_lock);
+                        app.set_locked(true);
                         state.grouping = core.grouping();
                         state.favicon_loader = if allow_remote_images {
                             match FaviconLoader::new(&startup_paths_for_ui.cache_dir) {
@@ -7178,6 +7184,71 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
         platform.external_urls.clone(),
         runtime.clone(),
     );
+
+    {
+        let state = Rc::clone(&state);
+        let runtime = runtime.clone();
+        let weak = app.as_weak();
+        app.on_unlock_app(move |password| {
+            let Some(core) = state.borrow().core.as_ref().map(CoreMailSource::file_core) else {
+                return;
+            };
+            let weak = weak.clone();
+            runtime.spawn(async move {
+                let stored = core.get_app_lock().await.ok().flatten();
+                let ok = stored
+                    .as_deref()
+                    .is_some_and(|stored| verify_app_lock(stored, password.as_str()));
+                eprintln!(
+                    "app lock: unlock attempt len={} ok={ok}",
+                    password.chars().count()
+                );
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(app) = weak.upgrade() {
+                        if ok {
+                            app.set_locked(false);
+                            app.set_lock_error(Default::default());
+                        } else {
+                            app.set_lock_error("Wrong password".into());
+                        }
+                    }
+                });
+            });
+        });
+    }
+    {
+        let state = Rc::clone(&state);
+        let runtime = runtime.clone();
+        let weak = app.as_weak();
+        app.on_set_app_lock(move |password| {
+            if password.chars().count() < 4 {
+                if let Some(app) = weak.upgrade() {
+                    app.set_lock_error("Use at least 4 characters".into());
+                }
+                return;
+            }
+            let Some(core) = state.borrow().core.as_ref().map(CoreMailSource::file_core) else {
+                return;
+            };
+            let weak = weak.clone();
+            runtime.spawn(async move {
+                let hash = make_app_lock(password.as_str());
+                let saved = core.set_app_lock(&hash).await.is_ok();
+                eprintln!("app lock: set saved={saved} len={}", hash.len());
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(app) = weak.upgrade() {
+                        if saved {
+                            app.set_lock_has_password(true);
+                            app.set_locked(false);
+                            app.set_lock_error(Default::default());
+                        } else {
+                            app.set_lock_error("Could not save the password".into());
+                        }
+                    }
+                });
+            });
+        });
+    }
     let state_for_report = Rc::clone(&state);
     rendering_report::register(
         &app,
@@ -8244,4 +8315,27 @@ mod tests {
 pub fn suspend_file_preview() {
     files_controller::suspend();
     attachment_controller::suspend();
+}
+
+fn hex_digest(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// Salted SHA-256 in the form "salt$hash".
+fn make_app_lock(password: &str) -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_nanos())
+        .unwrap_or_default();
+    let salt = format!("{:x}{nanos:x}", std::process::id());
+    let digest = Sha256::digest(format!("{salt}:{password}").as_bytes());
+    format!("{salt}${}", hex_digest(&digest))
+}
+
+fn verify_app_lock(stored: &str, password: &str) -> bool {
+    let Some((salt, expected)) = stored.split_once('$') else {
+        return false;
+    };
+    let digest = Sha256::digest(format!("{salt}:{password}").as_bytes());
+    hex_digest(&digest) == expected
 }

@@ -2908,8 +2908,7 @@ pub struct Settings {
     /// What AI agents on this computer may do with mail through the local
     /// MCP server. Off until the user turns it on.
     #[serde(default)]
-    pub agent_access: AgentAccess,
-}
+    pub agent_access: AgentAccess,}
 
 /// What AI agents may see and do through `flectar-mail mcp`, the same for
 /// every agent. Reading is the only right that comes with access itself.

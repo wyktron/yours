@@ -1791,6 +1791,13 @@ impl CoreMailSource {
             .map_err(|error| error.to_string())
     }
 
+    pub async fn load_app_lock(&self) -> Result<Option<String>, String> {
+        self.core
+            .get_app_lock()
+            .await
+            .map_err(|error| error.to_string())
+    }
+
     pub async fn set_notification_settings(
         &self,
         notifications_enabled: bool,

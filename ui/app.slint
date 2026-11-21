@@ -3051,4 +3051,62 @@ export component AppWindow inherits Window {
         border-width: 1px;
         border-color: AppTheme.control-border;
     }
+
+    // App lock: covers the window until the password is entered.
+    in-out property <bool> locked: true;
+    in-out property <bool> lock-has-password: false;
+    in-out property <string> lock-error: "";
+    callback unlock-app(string);
+    callback set-app-lock(string);
+
+    if root.locked : Rectangle {
+        z: 60000;
+        width: root.width;
+        height: root.height;
+        background: root.page-bg;
+        VerticalLayout {
+            alignment: center;
+            HorizontalLayout {
+                alignment: center;
+            Rectangle {
+                width: 360px;
+                height: lock-card.preferred-height;
+                background: AppTheme.surface-raised;
+                border-radius: 14px;
+                border-width: 1px;
+                border-color: AppTheme.control-border;
+                lock-card := VerticalLayout {
+                    padding: 24px;
+                    spacing: 12px;
+                    Text {
+                        text: root.lock-has-password ? @tr("Flectar Mail is locked") : @tr("Set an app password");
+                        font-size: 18px;
+                        color: AppTheme.body;
+                    }
+                    Text { text: @tr("Password"); color: AppTheme.muted; font-size: 13px; }
+                    lock-field := TextInput {
+                        input-type: password;
+                        edited() => { root.lock-error = ""; }
+                        accepted() => {
+                            if root.lock-has-password { root.unlock-app(lock-field.text); }
+                            else { root.set-app-lock(lock-field.text); }
+                        }
+                    }
+                    if root.lock-error != "" : Text {
+                        text: root.lock-error;
+                        color: #e5484d;
+                        font-size: 13px;
+                    }
+                    Button {
+                        text: root.lock-has-password ? @tr("Unlock") : @tr("Set password");
+                        clicked => {
+                            if root.lock-has-password { root.unlock-app(lock-field.text); }
+                            else { root.set-app-lock(lock-field.text); }
+                        }
+                    }
+                }
+            }
+            }
+        }
+    }
 }

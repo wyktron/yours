@@ -567,6 +567,7 @@ pub(crate) struct StartupSnapshot {
     pub(crate) account_configs: Vec<AccountConfig>,
     pub(crate) local_mail: Option<flectar_mail_core::models::LocalMail>,
     pub(crate) settings: Option<Settings>,
+    pub(crate) app_lock: Option<String>,
 }
 
 pub(crate) struct StartupCalendarSnapshot {
@@ -644,6 +645,7 @@ pub(crate) async fn load_startup_snapshot(
     metrics.emit("core_opened", serde_json::Value::Null);
     // The first page shows only the active profile's accounts.
     let settings = core.load_settings().await.ok();
+    let app_lock = core.load_app_lock().await.ok().flatten();
     // The first page is listed the way the saved preference groups mail.
     let _ = core.set_grouping(
         settings
@@ -682,6 +684,7 @@ pub(crate) async fn load_startup_snapshot(
         account_configs: configs.unwrap_or_default(),
         local_mail: local_mail.ok().flatten(),
         settings,
+        app_lock,
     })
 }
 

@@ -25,6 +25,28 @@ pub fn set(conn: &Connection, settings: &Settings) -> Result<()> {
     Ok(())
 }
 
+/// The app lock's salt and hash, stored apart from the settings blob so a
+/// settings save can never drop it.
+pub fn get_lock(conn: &Connection) -> Result<Option<String>> {
+    let hash: Option<String> = conn
+        .query_row(
+            "SELECT value FROM app_settings WHERE key = 'app_lock'",
+            [],
+            |r| r.get(0),
+        )
+        .optional()?;
+    Ok(hash.filter(|hash| !hash.is_empty()))
+}
+
+pub fn set_lock(conn: &Connection, hash: &str) -> Result<()> {
+    conn.execute(
+        "INSERT INTO app_settings (key, value) VALUES ('app_lock', ?1)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        params![hash],
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
