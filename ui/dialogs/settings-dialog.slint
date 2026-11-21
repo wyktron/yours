@@ -492,6 +492,8 @@ export component SettingsDialog inherits Rectangle {
     in property <color> title-color;
     // Closing goes back to the screen Settings was opened from.
     callback close-requested();
+    // Opens the OAuth app-key dialog from Settings, not only onboarding.
+    callback open-signin-settings();
     // Shows the app-lock screen so the password can be replaced.
     callback change_app_password();
     in-out property <string> settings_tab: "General";
@@ -2714,6 +2716,11 @@ export component SettingsDialog inherits Rectangle {
                                         text: @tr("Cancel sign-in");
                                         clicked => { root.cancel_oauth(); }
                                     }
+                                    Button {
+                                        height: 44px;
+                                        text: @tr("Sign-in settings");
+                                        clicked => { root.open-signin-settings(); }
+                                    }
                                 }
                                 if root.compact : VerticalBox {
                                     padding: 14px;
@@ -2722,6 +2729,7 @@ export component SettingsDialog inherits Rectangle {
                                     ProviderButton { text: @tr("Add Outlook"); icon: @image-url("../icons/brand/outlook.svg"); enabled: !root.account_setup_in_progress && !root.oauth_in_progress && !root.oauth_settings_saving && root.microsoft_oauth_available; tooltip-text: root.microsoft_oauth_available ? "" : @tr("Add app keys in Sign-in settings to enable this provider."); foreground: root.body-text; muted: root.muted-text; surface: root.surface-raised; hover-surface: root.accent-soft; button-border: root.border-subtle; clicked => { root.start_oauth("microsoft"); } }
                                     ProviderButton { text: @tr("Add mail account"); icon: @image-url("../icons/lucide/outline/mail.svg"); colorize-icon: true; enabled: !root.account_setup_in_progress && !root.oauth_in_progress && !root.oauth_settings_saving; foreground: root.body-text; muted: root.muted-text; surface: root.surface-raised; hover-surface: root.accent-soft; button-border: root.border-subtle; clicked => { root.open_new_mail_account(); } }
                                     if root.oauth_in_progress : Button { height: 44px; text: @tr("Cancel sign-in"); clicked => { root.cancel_oauth(); } }
+                                    Button { height: 40px; text: @tr("Sign-in settings"); clicked => { root.open-signin-settings(); } }
                                 }
                             }
                             if root.oauth_in_progress && root.oauth_authorization_url != "" : OAuthBrowserHelp {

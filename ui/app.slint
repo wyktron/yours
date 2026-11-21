@@ -34,6 +34,7 @@ export { InterfaceText } from "typography.slint";
 import { AppTheme, LayoutMetrics, MotionSettings } from "design-system.slint";
 import { Button } from "components/button.slint";
 import { LoadingSkeletonBlock } from "components/loading-skeleton.slint";
+import { OAuthSetupDialog } from "dialogs/oauth-setup-dialog.slint";
 import { AccountRow, CalendarAgendaRow, CalendarAgendaFilterRow, CalendarDay, CalendarEventRow, CalendarSourceRow, CalendarWeekDay, ComposeAttachment, ComposeContact, ComposeEditorTile, ContactSidebarRow, ContactRow, ContactSyncState, ContactValueRow, EmailLink, EmailRow, EmailTemplateRow, EmailTile, LocalizedMessage, MailListEntry, MailProfileRow, ProfileMemberRow, SidebarRow, MailLabelRow, StorageUsageRow, ThreadMessageRow } from "models.slint";
 export { EmailReader, ReaderCaret, ReaderImage, ReaderItem, MailDragApi } from "models.slint";
 export { MailListNavigation, MailNavigationTarget } from "models.slint";
@@ -2233,6 +2234,7 @@ export component AppWindow inherits Window {
             available-height: parent.height;
 
         SettingsDialog {
+            open-signin-settings => { root.oauth_setup_open = true; }
             change_app_password => {
                 root.lock_changing = true;
                 root.lock_has_password = false;
@@ -3055,6 +3057,27 @@ export component AppWindow inherits Window {
         z: 50001;
         border-width: 1px;
         border-color: AppTheme.control-border;
+    }
+
+    OAuthSetupDialog {
+        open <=> root.oauth_setup_open;
+        z: 59000;
+        x: root.content-x;
+        y: root.content-y;
+        width: root.content-width;
+        height: root.content-height;
+        saving: root.oauth_settings_saving;
+        save-error <=> root.oauth_settings_error;
+        google-available: root.google_oauth_available;
+        microsoft-available: root.microsoft_oauth_available;
+        google-bundled: root.google_oauth_bundled;
+        microsoft-bundled: root.microsoft_oauth_bundled;
+        google-client-id: root.google_client_id;
+        google-client-secret: root.google_client_secret;
+        ms-client-id: root.ms_client_id;
+        save(google-id, google-secret, microsoft-id) => {
+            root.save_oauth_apps(google-id, google-secret, microsoft-id);
+        }
     }
 
     // App lock: covers the window until the password is entered.
