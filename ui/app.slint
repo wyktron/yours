@@ -2233,6 +2233,11 @@ export component AppWindow inherits Window {
             available-height: parent.height;
 
         SettingsDialog {
+            change_app_password => {
+                root.lock_changing = true;
+                root.lock_has_password = false;
+                root.locked = true;
+            }
             compact: root.compact-layout;
             x: 0px;
             y: 0px;
@@ -3055,6 +3060,8 @@ export component AppWindow inherits Window {
     // App lock: covers the window until the password is entered.
     in-out property <bool> locked: true;
     in-out property <bool> lock-has-password: false;
+    // True while the lock screen is replacing an existing password.
+    in-out property <bool> lock-changing: false;
     in-out property <string> lock-error: "";
     callback unlock-app(string);
     callback set-app-lock(string);
@@ -3079,17 +3086,29 @@ export component AppWindow inherits Window {
                     padding: 24px;
                     spacing: 12px;
                     Text {
-                        text: root.lock-has-password ? @tr("Flectar Mail is locked") : @tr("Set an app password");
+                        text: root.lock-changing ? @tr("Change app password") : root.lock-has-password ? @tr("Flectar Mail is locked") : @tr("Set an app password");
                         font-size: 18px;
                         color: AppTheme.body;
                     }
                     Text { text: @tr("Password"); color: AppTheme.muted; font-size: 13px; }
-                    lock-field := TextInput {
-                        input-type: password;
-                        edited() => { root.lock-error = ""; }
-                        accepted() => {
-                            if root.lock-has-password { root.unlock-app(lock-field.text); }
-                            else { root.set-app-lock(lock-field.text); }
+                    Rectangle {
+                        height: 36px;
+                        background: AppTheme.control-bg;
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: AppTheme.control-border;
+                        lock-field := TextInput {
+                            x: 10px;
+                            width: parent.width - 20px;
+                            height: parent.height;
+                            vertical-alignment: center;
+                            input-type: password;
+                            init => { self.focus(); }
+                            edited() => { root.lock-error = ""; }
+                            accepted() => {
+                                if root.lock-has-password { root.unlock-app(lock-field.text); }
+                                else { root.set-app-lock(lock-field.text); }
+                            }
                         }
                     }
                     if root.lock-error != "" : Text {

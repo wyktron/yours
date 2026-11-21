@@ -492,6 +492,8 @@ export component SettingsDialog inherits Rectangle {
     in property <color> title-color;
     // Closing goes back to the screen Settings was opened from.
     callback close-requested();
+    // Shows the app-lock screen so the password can be replaced.
+    callback change_app_password();
     in-out property <string> settings_tab: "General";
     // An account to sign in again as soon as its card shows, as the sidebar's
     // Sign in again asks.
@@ -2005,6 +2007,68 @@ export component SettingsDialog inherits Rectangle {
                                                 enabled: root.download_directory != "";
                                                 clicked => { root.clear_download_directory(); }
                                             }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: @tr("App lock");
+                                color: root.title-color;
+                                font-size: TypeScale.subtitle;
+                                font-weight: 600;
+                            }
+                            Rectangle {
+                                height: self.preferred-height;
+                                background: root.surface;
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: root.border-subtle;
+                                VerticalBox {
+                                    padding: 16px;
+                                    if !root.compact : HorizontalBox {
+                                        spacing: 20px;
+                                        VerticalBox {
+                                            horizontal-stretch: 1;
+                                            spacing: 2px;
+                                            Text {
+                                                text: @tr("App password");
+                                                color: root.body-text;
+                                                font-size: TypeScale.body;
+                                                font-weight: 600;
+                                                overflow: elide;
+                                            }
+                                            Text {
+                                                text: @tr("Flectar asks for it when the app opens.");
+                                                color: root.faint-text;
+                                                font-size: TypeScale.caption;
+                                                overflow: elide;
+                                            }
+                                        }
+                                        Button {
+                                            width: max(152px, self.content-width);
+                                            text: @tr("Change password…");
+                                            clicked => { root.change_app_password(); }
+                                        }
+                                    }
+                                    if root.compact : VerticalBox {
+                                        spacing: 7px;
+                                        Text {
+                                            text: @tr("App password");
+                                            color: root.body-text;
+                                            font-size: TypeScale.body;
+                                            font-weight: 600;
+                                            wrap: word-wrap;
+                                        }
+                                        Text {
+                                            text: @tr("Flectar asks for it when the app opens.");
+                                            color: root.faint-text;
+                                            font-size: TypeScale.caption;
+                                            wrap: word-wrap;
+                                        }
+                                        Button {
+                                            text: @tr("Change password…");
+                                            clicked => { root.change_app_password(); }
                                         }
                                     }
                                 }

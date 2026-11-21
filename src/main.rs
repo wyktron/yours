@@ -7207,6 +7207,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                     if let Some(app) = weak.upgrade() {
                         if ok {
                             app.set_locked(false);
+                            app.set_lock_changing(false);
                             app.set_lock_error(Default::default());
                         } else {
                             app.set_lock_error("Wrong password".into());
@@ -7240,6 +7241,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                         if saved {
                             app.set_lock_has_password(true);
                             app.set_locked(false);
+                            app.set_lock_changing(false);
                             app.set_lock_error(Default::default());
                         } else {
                             app.set_lock_error("Could not save the password".into());
