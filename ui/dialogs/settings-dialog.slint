@@ -413,6 +413,16 @@ export component SettingsDialog inherits Rectangle {
     callback save_tts_model(string);
     callback save_tts_announce(bool);
     callback preview_tts_voice();
+    // AI assistant: the model, where it runs, and the phishing screen.
+    in-out property <bool> ai_phishing: false;
+    in property <bool> ai_key_saved: false;
+    in-out property <string> ai_model: "";
+    in-out property <string> ai_endpoint: "";
+    in-out property <string> ai_key_draft: "";
+    callback save_ai_phishing(bool);
+    callback save_ai_model(string);
+    callback save_ai_endpoint(string);
+    callback save_ai_key(string);
     in property <string> time_format_sample: "13:30";
     in-out property <bool> monochrome_sidebar_icons: false;
     in-out property <bool> notifications_enabled: true;
@@ -3368,6 +3378,64 @@ export component SettingsDialog inherits Rectangle {
                             spacing: 12px;
 
                             SettingsPageTitle { label: @tr("AI agents"); title-color: root.title-color; }
+                            Text { height: max(root.compact ? 34px : 17px, self.preferred-height); text: @tr("The assistant that reads mail for you: it sorts, screens and answers with the model set here."); color: root.secondary-text; font-size: TypeScale.secondary; wrap: word-wrap; }
+                            Rectangle {
+                                height: self.preferred-height;
+                                background: root.surface;
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: root.border-subtle;
+                                VerticalBox {
+                                    padding: 16px;
+                                    spacing: 8px;
+                                    SettingsSwitchRow {
+                                        compact: root.compact;
+                                        title: @tr("Check new mail for phishing");
+                                        description: @tr("Judges recent mail with the model above and marks a message it distrusts in red. Nothing is moved or blocked: you decide what to do with it.");
+                                        checked: root.ai_phishing;
+                                        title-color: root.body-text;
+                                        description-color: root.faint-text;
+                                        toggled(checked) => { root.save_ai_phishing(checked); }
+                                    }
+                                    Text { text: @tr("Model"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                    HorizontalBox {
+                                        spacing: 8px;
+                                        LineEdit {
+                                            horizontal-stretch: 1;
+                                            text <=> root.ai_model;
+                                            placeholder-text: "gemma4:e4b";
+                                        }
+                                        Button { text: @tr("Save"); clicked => { root.save_ai_model(root.ai_model); } }
+                                    }
+                                    Text { text: @tr("Endpoint"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                    HorizontalBox {
+                                        spacing: 8px;
+                                        LineEdit {
+                                            horizontal-stretch: 1;
+                                            text <=> root.ai_endpoint;
+                                            placeholder-text: @tr("http://127.0.0.1:11434/v1");
+                                        }
+                                        Button { text: @tr("Save"); clicked => { root.save_ai_endpoint(root.ai_endpoint); } }
+                                    }
+                                    Text { text: @tr("API key, for a hosted model"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                    HorizontalBox {
+                                        spacing: 8px;
+                                        LineEdit {
+                                            horizontal-stretch: 1;
+                                            text <=> root.ai_key_draft;
+                                            input-type: password;
+                                            placeholder-text: @tr("Not needed for a model on this machine");
+                                        }
+                                        Button { text: @tr("Save key"); clicked => { root.save_ai_key(root.ai_key_draft); } }
+                                    }
+                                    Text {
+                                        text: root.ai_key_saved ? @tr("A key is saved.") : @tr("No key is saved.");
+                                        color: root.faint-text;
+                                        font-size: TypeScale.caption;
+                                        wrap: word-wrap;
+                                    }
+                                }
+                            }
                             AgentAccessPage {
                                 compact: root.compact;
                                 surface: root.surface;

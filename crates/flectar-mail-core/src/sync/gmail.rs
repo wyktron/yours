@@ -2237,6 +2237,7 @@ async fn store_resources(
                         list_id: resource.headers.list_id.clone(),
                         sender_addr: resource.headers.via.clone(),
                         sender_verification: resource.headers.sender_verification,
+                        security_evidence: resource.headers.security_evidence.clone(),
                         receipt_to: resource.headers.receipt_to.clone(),
                         receipt_confirm: resource.headers.receipt_confirm,
                         // Gmail keeps no keywords for it; this device

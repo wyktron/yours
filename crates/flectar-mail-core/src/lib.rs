@@ -784,6 +784,8 @@ enum Scenario {
     QuickReply,
     /// Sorting incoming mail into categories at sync (short prompt, per-email).
     Categorize,
+    /// Screening incoming mail for phishing (short prompt, per-email).
+    Security,
 }
 
 impl Scenario {
@@ -795,6 +797,7 @@ impl Scenario {
             Scenario::Voice => "voice",
             Scenario::Command => "command",
             Scenario::QuickReply => "quick_reply",
+            Scenario::Security => "security",
             Scenario::Categorize => "automation",
         }
     }
@@ -808,8 +811,9 @@ fn resolve_ai_model(settings: &Settings, scenario: Scenario) -> String {
         Scenario::Summarize => settings.ai_tier_summarize.as_str(),
         Scenario::Voice => settings.ai_tier_voice.as_str(),
         Scenario::Categorize => settings.ai_tier_categorize.as_str(),
-        // Palette parsing and reply chips want the fastest model available.
-        Scenario::Command | Scenario::QuickReply => "instant",
+        // Palette parsing, reply chips and the phishing screen want the
+        // fastest model available; they run on every message or keystroke.
+        Scenario::Command | Scenario::QuickReply | Scenario::Security => "instant",
     };
     match tier {
         "instant" => &settings.ai_model_instant,
@@ -5850,6 +5854,7 @@ impl Core {
                             list_id: None,
                             sender_addr: None,
                             sender_verification: Default::default(),
+                            security_evidence: String::new(),
                             receipt_to,
                             receipt_confirm: false,
                             receipt_handled: false,
@@ -8367,6 +8372,71 @@ impl Core {
     pub async fn ai_command(&self, query: String) -> Result<AiIntent> {
         let cfg = self.ai_config(Scenario::Command).await?;
         ai::intent(&cfg, &query).await
+    }
+
+    /// Judge recent mail for phishing with the configured model and record
+    /// the verdict on each message. Returns how many were judged. Stops at the
+    /// first failure so a down model costs one request, not a batch.
+    pub async fn scan_security(&self, limit: usize) -> Result<usize> {
+        let settings = self.db.read(|conn| repo::settings::get(conn)).await?;
+        if !settings.ai_phishing_enabled {
+            return Ok(0);
+        }
+        let since = now_ms() - repo::security::SCAN_DAYS * 86_400_000;
+        let pending = self
+            .db
+            .read(move |conn| repo::security::pending(conn, since, limit as i64))
+            .await?;
+        if pending.is_empty() {
+            return Ok(0);
+        }
+        let cfg = self.ai_config_from(&settings, Scenario::Security).await?;
+        let mut judged = 0;
+        let mut threads = Vec::new();
+        for mail in pending {
+            let input = ai::SecurityMail {
+                from_name: &mail.from_name,
+                from_addr: &mail.from_addr,
+                subject: &mail.subject,
+                received: mail.received,
+                body: &mail.body,
+                evidence: &mail.evidence,
+            };
+            match ai::classify_security(&cfg, &input).await {
+                Ok((verdict, reason)) => {
+                    let checked_at = now_ms();
+                    let model = cfg.model.clone();
+                    let message_id = mail.id;
+                    let stored = self
+                        .db
+                        .write(move |conn| {
+                            repo::security::store(
+                                conn,
+                                message_id,
+                                verdict.as_str(),
+                                &reason,
+                                &model,
+                                checked_at,
+                            )
+                        })
+                        .await?;
+                    if let Some(thread_id) = stored {
+                        threads.push(thread_id);
+                    }
+                    judged += 1;
+                }
+                Err(error) => {
+                    tracing::warn!(message_id = mail.id, %error, "security scan stopped");
+                    break;
+                }
+            }
+        }
+        if !threads.is_empty() {
+            self.bus.emit(CoreEvent::MailUpdated {
+                thread_ids: threads,
+            });
+        }
+        Ok(judged)
     }
 
     pub async fn ai_summarize(&self, thread_id: i64) -> Result<crate::models::AiThreadSummary> {

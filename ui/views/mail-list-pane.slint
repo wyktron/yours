@@ -1146,7 +1146,11 @@ export component MailListPane inherits FocusScope {
                                 border-radius: 6px;
                                 clip: true;
                                 opacity: !entry.is_header && row-drag.dragging ? 0.55 : 1;
-                                background: entry.is_header ? root.surface : mail-data.checked ? root.accent-soft : mail-data.selected ? root.selected-row : root.surface;
+                                background: entry.is_header ? root.surface
+                                    : mail-data.security != "" ? (mail-data.security == "phishing" ? #ff3b3026 : #ff8a0026)
+                                    : mail-data.checked ? root.accent-soft
+                                    : mail-data.selected ? root.selected-row
+                                    : root.surface;
                                 border-width: !entry.is_header && entry.show_row && list-keyboard.focus-visible && root.keyboard-email-id == mail-data.id ? 2px : 0px;
                                 border-color: root.accent;
                                 animate opacity { duration: 120ms; }

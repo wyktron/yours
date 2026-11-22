@@ -1062,6 +1062,9 @@ pub struct ThreadSummary {
     pub first_attachment: Option<AttachmentMeta>,
     /// How many files the thread holds.
     pub attachment_total: i64,
+    /// The strongest phishing judgement on any of its messages: "phishing",
+    /// "suspicious", or empty when nothing looked wrong.
+    pub security: String,
 }
 
 /// Whether mail lists show conversations or each message on its own, like
@@ -1107,6 +1110,9 @@ pub struct MessageSummary {
     /// The message's first file. Inline images are not files.
     pub first_attachment: Option<AttachmentMeta>,
     pub attachment_total: i64,
+    /// The phishing judgement on this message: "phishing", "suspicious", or
+    /// empty when nothing looked wrong.
+    pub security: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2836,6 +2842,10 @@ pub struct Settings {
     /// Empty uses a built-in default prompt.
     #[serde(default)]
     pub ai_category_prompt: String,
+    /// Have the AI model judge recent mail for phishing and mark its row in
+    /// the list. Off by default: it reads mail through the configured model.
+    #[serde(default)]
+    pub ai_phishing_enabled: bool,
     /// Compound workflows matched by the AI. The model only returns rule ids;
     /// every mailbox mutation comes from this explicit, user-owned allow-list.
     #[serde(default)]
@@ -3151,6 +3161,7 @@ impl Default for Settings {
             ai_tier_draft: default_tier_intelligent(),
             ai_tier_summarize: default_tier_instant(),
             ai_tier_voice: default_tier_cheap(),
+            ai_phishing_enabled: false,
             google_client_id: String::new(),
             google_client_secret: String::new(),
             ms_client_id: String::new(),

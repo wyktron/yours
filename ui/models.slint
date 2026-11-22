@@ -159,6 +159,8 @@ export struct EmailRow {
     has_replied: bool,
     // Sent with high importance (#236), for a marker in the list.
     high_importance: bool,
+    // The AI's phishing judgement: "phishing", "suspicious", or empty.
+    security: string,
     message_count: int,
     label_summary: string,
     labels: [MailLabelRow],

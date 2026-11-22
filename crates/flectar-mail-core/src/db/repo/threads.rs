@@ -40,7 +40,17 @@ fn summary_from_row(row: &Row) -> rusqlite::Result<ThreadSummary> {
                 is_inline: false,
             }),
         attachment_total: row.get("attachment_total")?,
+        security: security_from_rank(row.get::<_, Option<i64>>("security_rank")?),
     })
+}
+
+/// The strongest judgement on a conversation, as the list shows it.
+fn security_from_rank(rank: Option<i64>) -> String {
+    match rank.unwrap_or(0) {
+        2 => "phishing".to_owned(),
+        1 => "suspicious".to_owned(),
+        _ => String::new(),
+    }
 }
 
 /// Parse a SQLite `group_concat` result ("1,3,5") into a list of ids.
@@ -81,7 +91,12 @@ const SUMMARY_SELECT: &str = "
               ORDER BY fm.date DESC, f.id LIMIT 1) AS first_attachment,
            (SELECT COUNT(*)
               FROM messages fm JOIN attachments f ON f.message_id = fm.id
-              WHERE fm.thread_id = t.id AND f.is_inline = 0) AS attachment_total
+              WHERE fm.thread_id = t.id AND f.is_inline = 0) AS attachment_total,
+           (SELECT MAX(CASE m.security_verdict
+                         WHEN 'phishing' THEN 2
+                         WHEN 'suspicious' THEN 1
+                         ELSE 0 END)
+              FROM messages m WHERE m.thread_id = t.id) AS security_rank
     FROM threads t
     JOIN accounts a ON a.id = t.account_id
     LEFT JOIN snoozes s ON s.thread_id = t.id";
@@ -626,6 +641,9 @@ fn message_summary_from_row(row: &Row) -> rusqlite::Result<MessageSummary> {
                 is_inline: false,
             }),
         attachment_total: row.get("attachment_total")?,
+        security: row
+            .get::<_, Option<String>>("security")?
+            .unwrap_or_default(),
     })
 }
 
@@ -658,7 +676,8 @@ const MESSAGE_SUMMARY_SELECT: &str = "
               WHERE f.message_id = m.id AND f.is_inline = 0
               ORDER BY f.id LIMIT 1) AS first_attachment,
            (SELECT COUNT(*) FROM attachments f
-              WHERE f.message_id = m.id AND f.is_inline = 0) AS attachment_total
+              WHERE f.message_id = m.id AND f.is_inline = 0) AS attachment_total,
+           m.security_verdict AS security
     FROM messages m
     JOIN threads t ON t.id = m.thread_id
     JOIN accounts a ON a.id = m.account_id

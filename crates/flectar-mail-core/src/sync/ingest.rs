@@ -149,6 +149,7 @@ impl Importer {
             list_id: headers.list_id.clone(),
             sender_addr: headers.via.clone(),
             sender_verification: headers.sender_verification,
+            security_evidence: headers.security_evidence.clone(),
             receipt_to: headers.receipt_to.clone(),
             receipt_confirm: headers.receipt_confirm,
             receipt_handled: delivery.receipt_handled,

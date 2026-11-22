@@ -39,6 +39,9 @@ pub struct NewMessage {
     /// transmitting domain aligns with From:.
     pub sender_addr: Option<String>,
     pub sender_verification: SenderVerification,
+    /// How the message arrived, packed for the phishing screen (see
+    /// mime::ParsedHeaders); empty when the protocol recorded nothing.
+    pub security_evidence: String,
     /// Where a read receipt was asked to go (see mime::ParsedHeaders);
     /// empty when the message asks for none.
     pub receipt_to: Vec<Address>,
@@ -374,8 +377,9 @@ pub fn insert(conn: &Connection, m: &NewMessage, thread_id: i64) -> Result<i64> 
             subject, from_name, from_addr, to_json, cc_json, bcc_json, date, internal_date,
             is_read, is_starred, is_draft, is_outgoing, is_automated, has_attachments, size, snippet,
             list_unsubscribe, list_unsubscribe_post, sender_addr, sender_verification,
-            verification_code, list_id, receipt_to, receipt_confirm, receipt_handled, importance)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33)",
+            verification_code, list_id, receipt_to, receipt_confirm, receipt_handled, importance,
+            security_evidence)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34)",
         params![
             m.account_id,
             thread_id,
@@ -412,6 +416,7 @@ pub fn insert(conn: &Connection, m: &NewMessage, thread_id: i64) -> Result<i64> 
             m.receipt_confirm as i64,
             m.receipt_handled as i64,
             m.importance.as_i64(),
+            m.security_evidence,
         ],
     )?;
     let id = conn.last_insert_rowid();
@@ -1898,6 +1903,7 @@ mod tests {
             list_id: None,
             sender_addr: None,
             sender_verification: SenderVerification::None,
+            security_evidence: String::new(),
             receipt_to: Vec::new(),
             receipt_confirm: false,
             receipt_handled: false,

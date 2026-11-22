@@ -799,6 +799,86 @@ pub(super) fn register_settings_preference_callbacks(
         }
     });
 
+    // AI assistant: one model for every feature, the endpoint it runs on, and
+    // the phishing screen. The model fields behind the tier names are kept in
+    // step, so a model change applies to sorting, summaries and drafts alike.
+    let app_weak = app.as_weak();
+    let state_for_ai = Rc::clone(state);
+    let runtime_for_ai = runtime.clone();
+    app.on_save_ai_phishing(move |checked| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        if save_tts_setting(&app, &state_for_ai, &runtime_for_ai, |settings| {
+            settings.ai_phishing_enabled = checked;
+        }) {
+            app.set_ai_phishing(checked);
+        }
+    });
+
+    let app_weak = app.as_weak();
+    let state_for_ai_model = Rc::clone(state);
+    let runtime_for_ai_model = runtime.clone();
+    app.on_save_ai_model(move |value| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        let model = value.to_string();
+        if save_tts_setting(&app, &state_for_ai_model, &runtime_for_ai_model, |settings| {
+            settings.ai_model_instant = model.clone();
+            settings.ai_model_cheap = model.clone();
+            settings.ai_model_intelligent = model.clone();
+        }) {
+            app.set_ai_model(value);
+        }
+    });
+
+    let app_weak = app.as_weak();
+    let state_for_ai_endpoint = Rc::clone(state);
+    let runtime_for_ai_endpoint = runtime.clone();
+    app.on_save_ai_endpoint(move |value| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        let endpoint = value.to_string();
+        if save_tts_setting(
+            &app,
+            &state_for_ai_endpoint,
+            &runtime_for_ai_endpoint,
+            |settings| settings.ai_base_url = endpoint,
+        ) {
+            app.set_ai_endpoint(value);
+        }
+    });
+
+    let app_weak = app.as_weak();
+    let state_for_ai_key = Rc::clone(state);
+    let runtime_for_ai_key = runtime.clone();
+    app.on_save_ai_key(move |value| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        let Some(core) = state_for_ai_key.borrow().core.as_ref().map(|core| core.file_core()) else {
+            return;
+        };
+        let key = value.to_string();
+        let result = runtime_for_ai_key.block_on(async move {
+            core.set_ai_key(key)
+                .await
+                .map_err(|error| error.to_string())
+        });
+        match result {
+            Ok(()) => {
+                app.set_ai_key_saved(!value.trim().is_empty());
+                app.set_sync_status(UiMessage::plain("AI key saved."));
+            }
+            Err(error) => app.set_sync_status(UiMessage::detail(
+                "Could not save the AI key: {}",
+                error,
+            )),
+        }
+    });
+
     let state_for_tts_preview = Rc::clone(state);
     let runtime_for_tts_preview = runtime.clone();
     app.on_preview_tts_voice(move || {

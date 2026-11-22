@@ -38,6 +38,10 @@ pub struct ParsedHeaders {
     pub via: Option<String>,
     /// Strongest authentication result reported by the receiving MTA.
     pub sender_verification: SenderVerification,
+    /// How the message actually arrived, packed for the phishing screen:
+    /// Authentication-Results, the first Received hops, Return-Path, Reply-To
+    /// and Sender. Never shown in the reader.
+    pub security_evidence: String,
     /// Where a read receipt was asked to go (RFC 8098
     /// Disposition-Notification-To). Empty when the message asks for none,
     /// or for one this client must not send.
@@ -2097,6 +2101,42 @@ fn raw_header(msg: &mail_parser::Message, name: &str) -> Option<String> {
 /// single-header accessor intentionally returns the last occurrence, which is
 /// appropriate for many ordinary fields but unsafe for Authentication-Results:
 /// a receiving MTA prepends its trusted result above any older field.
+/// The technical trail the receiving server left on a message, packed for
+/// the phishing screen: what SPF, DKIM and DMARC said, which hosts handed it
+/// over, and whether the envelope sender matches the visible one.
+fn security_evidence(
+    msg: &mail_parser::Message,
+    authentication: &str,
+    via: Option<&str>,
+) -> String {
+    let clip = |value: &str, limit: usize| -> String { value.trim().chars().take(limit).collect() };
+    let mut lines = Vec::new();
+    if !authentication.trim().is_empty() {
+        lines.push(format!(
+            "Authentication-Results: {}",
+            clip(authentication, 400)
+        ));
+    }
+    let received: Vec<String> = msg
+        .header_as("Received", mail_parser::HeaderForm::Raw)
+        .into_iter()
+        .filter_map(|header| header.as_text().map(|text| collapse_whitespace(text, None)))
+        .take(2)
+        .collect();
+    for (index, hop) in received.iter().enumerate() {
+        lines.push(format!("Received[{}]: {}", index + 1, clip(hop, 300)));
+    }
+    for name in ["Return-Path", "Reply-To", "Sender", "From"] {
+        if let Some(value) = first_raw_header(msg, name) {
+            lines.push(format!("{name}: {}", clip(&value, 200)));
+        }
+    }
+    if let Some(via) = via {
+        lines.push(format!("Transmitted via: {via}"));
+    }
+    lines.join("\n")
+}
+
 fn first_raw_header(msg: &mail_parser::Message, name: &str) -> Option<String> {
     let raw = msg
         .header_as(name, mail_parser::HeaderForm::Raw)
@@ -2433,6 +2473,7 @@ fn parse_headers(msg: &mail_parser::Message) -> ParsedHeaders {
     let authentication_header = without_comments(&authentication_header);
     let authentication_results = authentication_results(&authentication_header);
     let sender_verification = sender_verification(&authentication_results, from.as_ref());
+    let security_evidence = security_evidence(msg, &authentication_header, via.as_deref());
     let (receipt_to, receipt_confirm) = receipt_request(msg);
 
     // multipart/report is the DSN/MDN envelope: bounces and read receipts.
@@ -2499,6 +2540,7 @@ fn parse_headers(msg: &mail_parser::Message) -> ParsedHeaders {
         list_id: raw_header(msg, "List-Id").and_then(|raw| list_id(&raw)),
         via,
         sender_verification,
+        security_evidence,
         receipt_to,
         receipt_confirm,
         disposition_report,

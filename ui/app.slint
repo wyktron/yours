@@ -419,6 +419,8 @@ export global I18n {
         if (key == "Could not save the read-aloud settings: {}") { return @tr("Could not save the read-aloud settings: {}" => "Could not save the read-aloud settings: {}", argument); }
         if (key == "Read-aloud key saved.") { return @tr("Read-aloud key saved."); }
         if (key == "Read aloud failed: {}") { return @tr("Read aloud failed: {}" => "Read aloud failed: {}", argument); }
+        if (key == "AI key saved.") { return @tr("AI key saved."); }
+        if (key == "Could not save the AI key: {}") { return @tr("Could not save the AI key: {}" => "Could not save the AI key: {}", argument); }
         if (key == "Could not save the read-aloud key: {}") { return @tr("Could not save the read-aloud key: {}" => "Could not save the read-aloud key: {}", argument); }
         if (key == "Could not save time format: {}") { return @tr("Could not save time format: {}", argument); }
         if (key == "Sidebar icon style updated for this session.") { return @tr("Sidebar icon style updated for this session."); }
@@ -1034,6 +1036,10 @@ export component AppWindow inherits Window {
     callback save_tts_model(string);
     callback save_tts_announce(bool);
     callback preview_tts_voice();
+    callback save_ai_phishing(bool);
+    callback save_ai_model(string);
+    callback save_ai_endpoint(string);
+    callback save_ai_key(string);
     callback save_sidebar_icon_style(bool);
     callback save_notification_settings(bool, bool, string);
     callback save_unread_badge(bool);
@@ -1433,6 +1439,12 @@ export component AppWindow inherits Window {
     in-out property <bool> tts_announce_mail: false;
     in-out property <string> tts-endpoint: "";
     in-out property <string> tts-model: "";
+    // AI assistant: the model, where it runs, and the phishing screen.
+    in-out property <bool> ai_phishing: false;
+    in property <bool> ai_key_saved: false;
+    in-out property <string> ai_model: "";
+    in-out property <string> ai_endpoint: "";
+    in-out property <string> ai_key_draft: "";
     in property <string> time_format_sample: "13:30";
     in-out property <bool> monochrome_sidebar_icons: false;
     in-out property <bool> notifications_enabled: true;
@@ -2345,6 +2357,11 @@ export component AppWindow inherits Window {
             tts_announce_mail <=> root.tts_announce_mail;
             tts-endpoint <=> root.tts-endpoint;
             tts-model <=> root.tts-model;
+            ai_phishing <=> root.ai_phishing;
+            ai_key_saved: root.ai_key_saved;
+            ai_model <=> root.ai_model;
+            ai_endpoint <=> root.ai_endpoint;
+            ai_key_draft <=> root.ai_key_draft;
             time_format_sample: root.time_format_sample;
             monochrome_sidebar_icons <=> root.monochrome_sidebar_icons;
             notifications_enabled <=> root.notifications_enabled;
@@ -2461,6 +2478,10 @@ export component AppWindow inherits Window {
             save_tts_model(value) => { root.save_tts_model(value); }
             save_tts_announce(checked) => { root.save_tts_announce(checked); }
             preview_tts_voice() => { root.preview_tts_voice(); }
+            save_ai_phishing(checked) => { root.save_ai_phishing(checked); }
+            save_ai_model(value) => { root.save_ai_model(value); }
+            save_ai_endpoint(value) => { root.save_ai_endpoint(value); }
+            save_ai_key(value) => { root.save_ai_key(value); }
             save_sidebar_icon_style(monochrome) => { root.save_sidebar_icon_style(monochrome); }
             save_notification_settings(enabled, sound-enabled, scope) => {
                 root.save_notification_settings(enabled, sound-enabled, scope);

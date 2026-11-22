@@ -74,6 +74,8 @@ pub(crate) struct WarmStartMessage {
     pub(crate) has_replied: bool,
     #[serde(default)]
     pub(crate) high_importance: bool,
+    /// The AI's phishing judgement, kept so a warm start paints the row.
+    pub(crate) security: String,
     #[serde(default)]
     pub(crate) labels: Vec<i64>,
     pub(crate) sender_verification: String,
@@ -107,6 +109,7 @@ impl From<&mail::MailMessage> for WarmStartMessage {
             message_count: message.message_count,
             has_replied: message.has_replied,
             high_importance: message.high_importance,
+            security: message.security.clone(),
             labels: message.labels.clone(),
             sender_verification: message.sender_verification.clone(),
             account_uses_labels: message.account_uses_labels,
@@ -138,6 +141,7 @@ impl From<WarmStartMessage> for mail::MailMessage {
             message_count: message.message_count.max(1),
             has_replied: message.has_replied,
             high_importance: message.high_importance,
+            security: message.security,
             is_outgoing: false,
             labels: message.labels,
             html: None,
@@ -940,6 +944,9 @@ pub(crate) fn apply_settings(app: &AppWindow, settings: &Settings) {
     app.set_time_format(settings.time_format.as_str().into());
     let tts_config = crate::speech::config_from_settings(settings);
     apply_tts(app, settings, &tts_config);
+    app.set_ai_phishing(settings.ai_phishing_enabled);
+    app.set_ai_model(settings.ai_model_intelligent.clone().into());
+    app.set_ai_endpoint(settings.ai_base_url.clone().into());
     crate::apply_language(app, &settings.language);
     app.set_custom_oauth_configured(
         !settings.google_client_id.trim().is_empty() || !settings.ms_client_id.trim().is_empty(),
@@ -1370,6 +1377,7 @@ mod warm_start_tests {
             message_count: 2,
             has_replied: true,
             high_importance: false,
+            security: String::new(),
             is_outgoing: false,
             labels: Vec::new(),
             html: Some("<p>body must not enter warm cache</p>".into()),

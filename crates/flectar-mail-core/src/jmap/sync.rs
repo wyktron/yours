@@ -1577,6 +1577,7 @@ async fn persist_emails(
                         list_id: header_text(&email, "List-Id").and_then(crate::mime::list_id),
                         sender_addr: None,
                         sender_verification: crate::models::SenderVerification::None,
+                        security_evidence: String::new(),
                         receipt_to,
                         receipt_confirm,
                         receipt_handled: receipt_answered,

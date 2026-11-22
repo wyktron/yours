@@ -7,6 +7,7 @@ mod app_icon;
 #[cfg(test)]
 mod account_removal_tests;
 mod app_runtime;
+mod security_scan;
 mod speech;
 mod attachment_controller;
 mod attachment_reminder;
@@ -4763,6 +4764,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                         core.file_core(),
                         startup_notification_host.clone(),
                     );
+                    security_scan::spawn(&startup_runtime, core.file_core());
                     #[cfg(desktop)]
                     agents::core_ready(
                         &startup_runtime,
