@@ -1767,7 +1767,9 @@ const SECURITY_PROMPT: &str = concat!(
     r#"Answer with one JSON object and nothing else, like {"verdict":"phishing","reason":"one short sentence"}. "#,
     "The verdict must be exactly one of: clean, suspicious, phishing. ",
     "Weigh the technical evidence: an aligned dmarc=pass with dkim=pass is strong evidence the sender is genuine; ",
-    "spf=fail, dkim=fail, dmarc=fail, or a Return-Path that does not match From are strong evidence of spoofing."
+    "spf=fail, dkim=fail, dmarc=fail, or a Return-Path that does not match From are strong evidence of spoofing. ",
+    "Call phishing only for a concrete deception: a brand impersonated through a lookalike domain, credentials requested through a link, or failed authentication for a claimed brand. ",
+    "Routine automated mail from a sender that passed authentication and links to its own domain, such as security alerts, sign-in notices and receipts, is clean; merely being about security does not make it phishing."
 );
 
 /// Ask the model whether a message is phishing. Returns the verdict and its
