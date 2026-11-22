@@ -676,7 +676,10 @@ pub(super) fn register_settings_preference_callbacks(
         let Some(app) = app_weak.upgrade() else {
             return;
         };
-        let value = value.to_string();
+        // A list of choices reports the label it showed, so an id is looked
+        // back up; a hand-typed voice (the custom endpoint) is used as given.
+        let value = crate::speech::voice_id_for_label(value.as_str())
+            .unwrap_or_else(|| value.to_string());
         let saved = save_tts_setting(
             &app,
             &state_for_tts_voice,
@@ -695,7 +698,7 @@ pub(super) fn register_settings_preference_callbacks(
         let Some(app) = app_weak.upgrade() else {
             return;
         };
-        let engine = flectar_mail_core::tts::TtsEngine::parse(value.as_str());
+        let engine = flectar_mail_core::tts::TtsEngine::from_label(value.as_str());
         let saved = save_tts_setting(
             &app,
             &state_for_tts_engine,

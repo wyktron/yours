@@ -6,6 +6,7 @@
 //! playback that is replaced is stopped (and its WAV removed) on drop.
 //! Pause is SIGSTOP on the player; the timing clock stops with it.
 
+use std::collections::HashMap;
 use std::io::BufWriter;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -69,6 +70,33 @@ pub fn config_from_settings(settings: &Settings) -> TtsConfig {
             std::path::PathBuf::from(configured)
         },
     }
+}
+
+/// The voices Settings is currently showing, by the label it shows them with.
+/// A list of choices reports the picked label, not the id, so the id has to be
+/// looked back up here.
+static VOICE_LABELS: OnceLock<RwLock<HashMap<String, String>>> = OnceLock::new();
+
+fn voice_labels() -> &'static RwLock<HashMap<String, String>> {
+    VOICE_LABELS.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
+/// Records the labels Settings is about to show for the chosen engine.
+pub fn set_voice_labels(pairs: impl IntoIterator<Item = (String, String)>) {
+    if let Ok(mut labels) = voice_labels().write() {
+        labels.clear();
+        labels.extend(pairs);
+    }
+}
+
+/// The engine voice id behind a label Settings showed, if that label is one
+/// of the voices currently listed.
+pub fn voice_id_for_label(label: &str) -> Option<String> {
+    voice_labels()
+        .read()
+        .ok()?
+        .get(label.trim())
+        .cloned()
 }
 
 /// The clock currently speaking with.
@@ -463,6 +491,24 @@ mod tests {
         assert_eq!(mapped.len(), 3);
         assert_eq!(&text[mapped[2].doc_start..mapped[2].doc_end], "three");
         assert!(mapped[0].end <= mapped[1].end);
+    }
+
+    #[test]
+    fn voice_labels_map_back_to_ids() {
+        set_voice_labels([
+            ("Blackbeard · gritty pirate".to_owned(), "6VgigPFWF0sNZy1BthVg".to_owned()),
+            ("Adam · dominant, firm".to_owned(), "pNInz6obpgDQGcFmaJgB".to_owned()),
+        ]);
+        assert_eq!(
+            voice_id_for_label("Blackbeard · gritty pirate").as_deref(),
+            Some("6VgigPFWF0sNZy1BthVg")
+        );
+        assert_eq!(
+            voice_id_for_label("  Adam · dominant, firm ").as_deref(),
+            Some("pNInz6obpgDQGcFmaJgB")
+        );
+        assert_eq!(voice_id_for_label("a typed custom voice"), None);
+        set_voice_labels(Vec::new());
     }
 
     #[test]

@@ -517,11 +517,11 @@ export component SettingsDialog inherits Rectangle {
     // an online engine needs to reach it.
     in-out property <string> tts_engine: "kokoro";
     in property <[string]> tts-engine-options: ["Kokoro (local)", "Piper (local)", "eSpeak NG (system)", "Edge TTS (online)", "ElevenLabs (online)", "Custom endpoint (online)"];
-    in property <int> tts-engine-index: 0;
+    in-out property <int> tts-engine-index: 0;
     in-out property <string> tts_voice: "";
     in property <[string]> tts-voice-options: [];
     in property <[string]> tts-voice-ids: [];
-    in property <int> tts-voice-index: 0;
+    in-out property <int> tts-voice-index: 0;
     in property <bool> tts-needs-key: false;
     in property <bool> tts-key-present: false;
     in-out property <bool> tts_announce_mail: false;
@@ -1000,19 +1000,6 @@ export component SettingsDialog inherits Rectangle {
                 : root.settings-section-visible("Services") ? "Services"
                 : root.settings-section-visible("About") ? "About" : root.settings_tab;
         }
-    }
-
-    pure function tts-engine-id(index: int) -> string {
-        return index == 1 ? "piper"
-            : index == 2 ? "espeak"
-            : index == 3 ? "edge"
-            : index == 4 ? "elevenlabs"
-            : index == 5 ? "custom"
-            : "kokoro";
-    }
-
-    pure function tts-voice-id(index: int) -> string {
-        return index >= 0 && index < root.tts-voice-ids.length ? root.tts-voice-ids[index] : "";
     }
 
     pure function mail-history-index(value: string) -> int {
@@ -1684,20 +1671,20 @@ export component SettingsDialog inherits Rectangle {
                                         title: @tr("Engine");
                                         description: @tr("The service that speaks a message. Kokoro and Piper run on this machine; the others send the text online.");
                                         choices: root.tts-engine-options;
-                                        selected-index: root.tts-engine-index;
+                                        selected-index <=> root.tts-engine-index;
                                         title-color: root.body-text;
                                         description-color: root.faint-text;
-                                        selected(index, value) => { root.save_tts_engine(root.tts-engine-id(index)); }
+                                        selected(index, value) => { root.save_tts_engine(value); }
                                     }
                                     if root.tts-voice-options.length > 0 : SettingsSelectRow {
                                         compact: root.compact;
                                         title: @tr("Voice");
                                         description: @tr("The voice the selected engine speaks with.");
                                         choices: root.tts-voice-options;
-                                        selected-index: root.tts-voice-index;
+                                        selected-index <=> root.tts-voice-index;
                                         title-color: root.body-text;
                                         description-color: root.faint-text;
-                                        selected(index, value) => { root.save_tts_voice(root.tts-voice-id(index)); }
+                                        selected(index, value) => { root.save_tts_voice(value); }
                                     }
                                     if root.tts_engine == "custom" : VerticalBox {
                                         spacing: 6px;

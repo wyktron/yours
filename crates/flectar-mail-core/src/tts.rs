@@ -29,7 +29,9 @@ pub const KOKORO_DEFAULT_URL: &str = "http://127.0.0.1:8766";
 pub const KOKORO_DEFAULT_VOICE: &str = "bf_emma";
 
 const ELEVENLABS_API: &str = "https://api.elevenlabs.io/v1";
-const ELEVENLABS_DEFAULT_MODEL: &str = "eleven_multilingual_v2";
+/// The model the owner's trailer used; it gives the library voices their
+/// natural read. Settings may override it through the tts_model setting.
+const ELEVENLABS_DEFAULT_MODEL: &str = "eleven_v4";
 const CUSTOM_DEFAULT_MODEL: &str = "tts-1";
 /// Voice a custom endpoint gets before the user names one.
 pub const CUSTOM_DEFAULT_VOICE: &str = "alloy";
@@ -90,6 +92,16 @@ impl TtsEngine {
             "custom" | "openai" => TtsEngine::Custom,
             _ => TtsEngine::Kokoro,
         }
+    }
+
+    /// Parses the name Settings shows, which a list of choices reports back
+    /// instead of the id when the user picks one. Anything unknown falls back
+    /// to the id parser.
+    pub fn from_label(value: &str) -> Self {
+        Self::all()
+            .into_iter()
+            .find(|engine| engine.label() == value.trim())
+            .unwrap_or_else(|| Self::parse(value))
     }
 
     /// Every engine, in the order Settings lists them.
@@ -183,9 +195,13 @@ impl TtsConfig {
     /// voice the new engine has never heard of.
     pub fn resolved_voice(&self) -> String {
         let voice = self.voice.trim();
-        if self.engine == TtsEngine::Custom {
+        // Engines whose voices come from the service cannot be checked
+        // against a local catalog, so their stored voice is used as given:
+        // anything else would silently replace a live voice, such as one from
+        // the user's ElevenLabs library, with the engine's default.
+        if self.engine == TtsEngine::Custom || self.engine == TtsEngine::ElevenLabs {
             return if voice.is_empty() {
-                CUSTOM_DEFAULT_VOICE.to_owned()
+                self.engine.default_voice().to_owned()
             } else {
                 voice.to_owned()
             };
@@ -360,7 +376,13 @@ fn edge_label(id: &str) -> String {
 
 /// Voices known to the ElevenLabs account this machine used; replaced by the
 /// live list whenever the API answers.
-const ELEVENLABS_KNOWN: [(&str, &str); 12] = [
+const ELEVENLABS_KNOWN: [(&str, &str); 15] = [
+    (
+        "6VgigPFWF0sNZy1BthVg",
+        "Blackbeard · gritty pirate (the trailer voice)",
+    ),
+    ("U4Y0Z2HmYcQYMkJB8hrg", "Tom · pirate character"),
+    ("quUxyewn7B4Yzdh2HIJx", "Pirate"),
     ("pNInz6obpgDQGcFmaJgB", "Adam · dominant, firm"),
     ("EXAVITQu4vr4xnSDxMaL", "Sarah · mature, reassuring"),
     ("Xb7hH8MSUJpSbSDYk0k2", "Alice · clear, engaging"),
@@ -463,7 +485,15 @@ pub async fn elevenlabs_voices(api_key: &str) -> Result<Vec<TtsVoice>> {
     Ok(list
         .voices
         .into_iter()
-        .map(|voice| TtsVoice::new(voice.voice_id, voice.name))
+        .map(|voice| {
+            // Voices this build already knows keep the name used for them
+            // here, so the trailer's pirate is recognizable in the list.
+            let label = ELEVENLABS_KNOWN
+                .iter()
+                .find(|(id, _)| *id == voice.voice_id)
+                .map_or(voice.name, |(_, label)| (*label).to_owned());
+            TtsVoice::new(voice.voice_id, label)
+        })
         .collect())
 }
 
@@ -1044,6 +1074,60 @@ mod tests {
         }
         assert_eq!(TtsEngine::parse(""), TtsEngine::Kokoro);
         assert_eq!(TtsEngine::parse("nonsense"), TtsEngine::Kokoro);
+    }
+
+    #[test]
+    fn engine_labels_stay_in_step_with_settings() {
+        let labels = TtsEngine::all().map(TtsEngine::label);
+        assert_eq!(
+            labels,
+            [
+                "Kokoro (local)",
+                "Piper (local)",
+                "eSpeak NG (system)",
+                "Edge TTS (online)",
+                "ElevenLabs (online)",
+                "Custom endpoint (online)",
+            ]
+        );
+        for engine in TtsEngine::all() {
+            assert_eq!(TtsEngine::from_label(engine.label()), engine);
+        }
+        // An id still works, for a caller that has one.
+        assert_eq!(TtsEngine::from_label("edge"), TtsEngine::Edge);
+    }
+
+    #[test]
+    fn a_live_elevenlabs_voice_is_not_replaced_by_the_default() {
+        let pirate = TtsConfig {
+            engine: TtsEngine::ElevenLabs,
+            voice: "6VgigPFWF0sNZy1BthVg".into(),
+            ..Default::default()
+        };
+        assert_eq!(pirate.resolved_voice(), "6VgigPFWF0sNZy1BthVg");
+        assert!(
+            ELEVENLABS_KNOWN
+                .iter()
+                .any(|(id, _)| *id == "6VgigPFWF0sNZy1BthVg"),
+            "the trailer voice stays in the offline list"
+        );
+        // A voice only the live account knows is used as given, not swapped.
+        let live = TtsConfig {
+            engine: TtsEngine::ElevenLabs,
+            voice: "some-live-voice-id".into(),
+            ..Default::default()
+        };
+        assert_eq!(live.resolved_voice(), "some-live-voice-id");
+        // An empty choice still lands on the engine's default.
+        let empty = TtsConfig {
+            engine: TtsEngine::ElevenLabs,
+            voice: "  ".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            empty.resolved_voice(),
+            TtsEngine::ElevenLabs.default_voice()
+        );
     }
 
     #[test]

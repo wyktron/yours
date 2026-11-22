@@ -1423,11 +1423,11 @@ export component AppWindow inherits Window {
     // needs. The core fills the voice lists when settings load.
     in-out property <string> tts_engine: "kokoro";
     in property <[string]> tts-engine-options: ["Kokoro (local)", "Piper (local)", "eSpeak NG (system)", "Edge TTS (online)", "ElevenLabs (online)", "Custom endpoint (online)"];
-    in property <int> tts-engine-index: 0;
+    in-out property <int> tts-engine-index: 0;
     in-out property <string> tts_voice: "";
     in property <[string]> tts-voice-options: [];
     in property <[string]> tts-voice-ids: [];
-    in property <int> tts-voice-index: 0;
+    in-out property <int> tts-voice-index: 0;
     in property <bool> tts-needs-key: false;
     in property <bool> tts-key-present: false;
     in-out property <bool> tts_announce_mail: false;
@@ -2335,11 +2335,11 @@ export component AppWindow inherits Window {
             time_format <=> root.time_format;
             tts_engine <=> root.tts_engine;
             tts-engine-options: root.tts-engine-options;
-            tts-engine-index: root.tts-engine-index;
+            tts-engine-index <=> root.tts-engine-index;
             tts_voice <=> root.tts_voice;
             tts-voice-options: root.tts-voice-options;
             tts-voice-ids: root.tts-voice-ids;
-            tts-voice-index: root.tts-voice-index;
+            tts-voice-index <=> root.tts-voice-index;
             tts-needs-key: root.tts-needs-key;
             tts-key-present: root.tts-key-present;
             tts_announce_mail <=> root.tts_announce_mail;

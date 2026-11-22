@@ -904,6 +904,11 @@ pub(crate) fn publish_tts_voices(
         .iter()
         .position(|voice| voice.id == selected)
         .unwrap_or(0);
+    crate::speech::set_voice_labels(
+        voices
+            .iter()
+            .map(|voice| (voice.label.clone(), voice.id.clone())),
+    );
     app.set_tts_voice_options(slint::ModelRc::new(slint::VecModel::from(labels)));
     app.set_tts_voice_ids(slint::ModelRc::new(slint::VecModel::from(ids)));
     app.set_tts_voice_index(index as i32);
