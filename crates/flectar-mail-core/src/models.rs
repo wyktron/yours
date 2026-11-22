@@ -2809,6 +2809,10 @@ pub struct Settings {
     /// Play a sound on new mail and when sending.
     #[serde(default = "default_true")]
     pub sound_enabled: bool,
+    /// Speak a line about new mail with the read-aloud engine, as in
+    /// "You've got mail from LinkedIn." Off by default; the voice talks.
+    #[serde(default)]
+    pub tts_announce_mail: bool,
     /// Keep the process running in the system tray when the main window is
     /// closed. Disabled by default so close retains normal desktop semantics.
     #[serde(default)]
@@ -3159,6 +3163,7 @@ impl Default for Settings {
             meeting_notify_lead_minutes: 10,
             add_invitations: AddInvitations::default(),
             notifications_enabled: true,
+            tts_announce_mail: false,
             sync_interval_minutes: default_sync_interval_minutes(),
             sound_enabled: true,
             close_to_tray: false,

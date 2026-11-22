@@ -524,6 +524,7 @@ export component SettingsDialog inherits Rectangle {
     in property <int> tts-voice-index: 0;
     in property <bool> tts-needs-key: false;
     in property <bool> tts-key-present: false;
+    in-out property <bool> tts_announce_mail: false;
     in-out property <string> tts-endpoint: "";
     in-out property <string> tts-model: "";
     in-out property <string> tts-key-draft: "";
@@ -531,6 +532,7 @@ export component SettingsDialog inherits Rectangle {
     callback save_tts_key(string);
     callback save_tts_endpoint(string);
     callback save_tts_model(string);
+    callback save_tts_announce(bool);
     callback preview_tts_voice();
     in property <string> time_format_sample: "13:30";
     in-out property <bool> monochrome_sidebar_icons: false;
@@ -1749,6 +1751,15 @@ export component SettingsDialog inherits Rectangle {
                                             font-size: TypeScale.caption;
                                             wrap: word-wrap;
                                         }
+                                    }
+                                    SettingsSwitchRow {
+                                        compact: root.compact;
+                                        title: @tr("Announce new mail");
+                                        description: @tr("Speaks “You've got mail from …” with the engine above when new mail is notified.");
+                                        checked: root.tts_announce_mail;
+                                        title-color: root.body-text;
+                                        description-color: root.faint-text;
+                                        toggled(checked) => { root.save_tts_announce(checked); }
                                     }
                                     HorizontalBox {
                                         spacing: 8px;

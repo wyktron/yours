@@ -778,6 +778,24 @@ pub(super) fn register_settings_preference_callbacks(
         }
     });
 
+    let app_weak = app.as_weak();
+    let state_for_tts_announce = Rc::clone(state);
+    let runtime_for_tts_announce = runtime.clone();
+    app.on_save_tts_announce(move |checked| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        let saved = save_tts_setting(
+            &app,
+            &state_for_tts_announce,
+            &runtime_for_tts_announce,
+            |settings| settings.tts_announce_mail = checked,
+        );
+        if saved {
+            app.set_tts_announce_mail(checked);
+        }
+    });
+
     let state_for_tts_preview = Rc::clone(state);
     let runtime_for_tts_preview = runtime.clone();
     app.on_preview_tts_voice(move || {

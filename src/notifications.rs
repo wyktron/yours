@@ -889,9 +889,14 @@ async fn dispatch(
     host: Option<&dyn NotificationHost>,
     window: &impl Window,
 ) -> Option<Duration> {
+    let announce = announces_new_mail(core).await;
     let result = core
         .dispatch_notifications(|batch| async move {
-            match host {
+            // Built before the batch is handed on, and spoken only once the
+            // host actually took the notifications: a batch that is retried
+            // must not be announced twice.
+            let spoken = announce.then(|| announcement_text(&batch));
+            let outcomes = match host {
                 Some(host) => present(host, window, batch).await,
                 None => vec![
                     NotificationOutcome::Unavailable(
@@ -899,7 +904,18 @@ async fn dispatch(
                     );
                     batch.mail.len()
                 ],
+            };
+            if let Some(text) = spoken
+                && outcomes.iter().any(|outcome| {
+                    matches!(
+                        outcome,
+                        NotificationOutcome::Shown | NotificationOutcome::ShownInSummary
+                    )
+                })
+            {
+                speak(&text);
             }
+            outcomes
         })
         .await;
     match result {
@@ -1144,6 +1160,57 @@ enum Plan {
     },
 }
 
+/// Whether new mail is announced aloud, from Settings.
+async fn announces_new_mail(core: &Core) -> bool {
+    core.get_settings()
+        .await
+        .is_ok_and(|settings| settings.tts_announce_mail)
+}
+
+/// The line the voice says about a batch of new mail.
+fn announcement_text(batch: &NotificationBatch) -> String {
+    announcement(batch.mail.len(), &senders(batch.mail.iter()))
+}
+
+/// What the voice says for this much new mail: one message names its sender,
+/// several are counted so a busy morning is not read out name by name.
+fn announcement(count: usize, senders: &[String]) -> String {
+    let names: Vec<&str> = senders
+        .iter()
+        .map(|sender| sender.trim())
+        .filter(|sender| !sender.is_empty())
+        .take(3)
+        .collect();
+    let list = match names.as_slice() {
+        [] => String::new(),
+        [only] => (*only).to_owned(),
+        [first, second] => format!("{first} and {second}"),
+        [first, second, third] if senders.len() > 3 => {
+            format!("{first}, {second}, {third} and others")
+        }
+        [first, second, third] => format!("{first}, {second} and {third}"),
+        _ => String::new(),
+    };
+    if list.is_empty() {
+        return match count {
+            1 => "You've got mail.".to_owned(),
+            count => format!("You've got {count} new messages."),
+        };
+    }
+    match count {
+        1 => format!("You've got mail from {list}."),
+        count => format!("You've got {count} new messages from {list}."),
+    }
+}
+
+/// Hand the line to the read-aloud player, if a runtime is running.
+fn speak(text: &str) {
+    let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+        return;
+    };
+    crate::speech::announce(&runtime, text);
+}
+
 /// The distinct senders of some new mail, newest first.
 fn senders<'a>(mail: impl Iterator<Item = &'a NewMailNotification>) -> Vec<String> {
     let mut mail = mail.collect::<Vec<_>>();
@@ -1293,6 +1360,42 @@ mod tests {
         ] {
             assert_eq!(parse_payload(text), None, "{text}");
         }
+    }
+
+    #[test]
+    fn announcement_names_the_sender_of_one_message() {
+        assert_eq!(
+            announcement(1, &["LinkedIn".to_owned()]),
+            "You've got mail from LinkedIn."
+        );
+        assert_eq!(announcement(1, &[]), "You've got mail.");
+        assert_eq!(announcement(1, &["  ".to_owned()]), "You've got mail.");
+    }
+
+    #[test]
+    fn announcement_counts_a_burst_of_mail() {
+        let names = |list: &[&str]| list.iter().map(|name| (*name).to_owned()).collect::<Vec<_>>();
+        assert_eq!(
+            announcement(3, &names(&["Ana", "LinkedIn", "Google"])),
+            "You've got 3 new messages from Ana, LinkedIn and Google."
+        );
+        assert_eq!(
+            announcement(2, &names(&["Ana", "LinkedIn"])),
+            "You've got 2 new messages from Ana and LinkedIn."
+        );
+        assert_eq!(announcement(4, &[]), "You've got 4 new messages.");
+    }
+
+    #[test]
+    fn announcement_stops_listing_senders_after_three() {
+        let names = ["Ana", "LinkedIn", "Google", "Stripe"]
+            .iter()
+            .map(|name| (*name).to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            announcement(4, &names),
+            "You've got 4 new messages from Ana, LinkedIn, Google and others."
+        );
     }
 
     #[test]

@@ -1032,6 +1032,7 @@ export component AppWindow inherits Window {
     callback save_tts_key(string);
     callback save_tts_endpoint(string);
     callback save_tts_model(string);
+    callback save_tts_announce(bool);
     callback preview_tts_voice();
     callback save_sidebar_icon_style(bool);
     callback save_notification_settings(bool, bool, string);
@@ -1429,6 +1430,7 @@ export component AppWindow inherits Window {
     in property <int> tts-voice-index: 0;
     in property <bool> tts-needs-key: false;
     in property <bool> tts-key-present: false;
+    in-out property <bool> tts_announce_mail: false;
     in-out property <string> tts-endpoint: "";
     in-out property <string> tts-model: "";
     in property <string> time_format_sample: "13:30";
@@ -2340,6 +2342,7 @@ export component AppWindow inherits Window {
             tts-voice-index: root.tts-voice-index;
             tts-needs-key: root.tts-needs-key;
             tts-key-present: root.tts-key-present;
+            tts_announce_mail <=> root.tts_announce_mail;
             tts-endpoint <=> root.tts-endpoint;
             tts-model <=> root.tts-model;
             time_format_sample: root.time_format_sample;
@@ -2456,6 +2459,7 @@ export component AppWindow inherits Window {
             save_tts_key(value) => { root.save_tts_key(value); }
             save_tts_endpoint(value) => { root.save_tts_endpoint(value); }
             save_tts_model(value) => { root.save_tts_model(value); }
+            save_tts_announce(checked) => { root.save_tts_announce(checked); }
             preview_tts_voice() => { root.preview_tts_voice(); }
             save_sidebar_icon_style(monochrome) => { root.save_sidebar_icon_style(monochrome); }
             save_notification_settings(enabled, sound-enabled, scope) => {

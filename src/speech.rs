@@ -329,12 +329,23 @@ impl Speech {
     }
 }
 
+/// Speak a short line outside the reader: the Settings sample and the new-mail
+/// announcement share one player, so they cannot talk over each other.
+fn speak_short(runtime: &tokio::runtime::Handle, text: &str) {
+    static SHORT: OnceLock<Speech> = OnceLock::new();
+    let speech = SHORT.get_or_init(Speech::default).clone();
+    speech.start(runtime, text.to_owned(), word_ranges(text), 0);
+}
+
 /// Speak a short sample with the current settings, without touching the
 /// reader's highlight. Settings uses this to let a voice be heard.
 pub fn preview(runtime: &tokio::runtime::Handle, text: &str) {
-    static PREVIEW: OnceLock<Speech> = OnceLock::new();
-    let speech = PREVIEW.get_or_init(Speech::default).clone();
-    speech.start(runtime, text.to_owned(), word_ranges(text), 0);
+    speak_short(runtime, text);
+}
+
+/// Say that new mail arrived, with the engine chosen in Settings.
+pub fn announce(runtime: &tokio::runtime::Handle, text: &str) {
+    speak_short(runtime, text);
 }
 
 /// Map each spoken word onto the document word it came from.

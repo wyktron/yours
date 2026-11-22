@@ -878,6 +878,7 @@ pub(crate) fn apply_tts(app: &AppWindow, settings: &Settings, config: &tts::TtsC
     app.set_tts_engine(config.engine.id().into());
     app.set_tts_engine_index(selected as i32);
     app.set_tts_needs_key(config.engine.needs_key());
+    app.set_tts_announce_mail(settings.tts_announce_mail);
     app.set_tts_endpoint(settings.tts_endpoint.clone().into());
     app.set_tts_model(settings.tts_model.clone().into());
     publish_tts_voices(app, config, tts::voices(config));
