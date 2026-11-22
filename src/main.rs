@@ -2279,8 +2279,10 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
             }
         };
         let Some(thread_id) = thread_id else {
+            eprintln!("ai summary: the selected mail has no conversation");
             return;
         };
+        eprintln!("ai summary: asked for thread {thread_id}");
         app.set_summary_title(subject.into());
         app.set_summary_text("".into());
         app.set_summary_error("".into());
@@ -2288,7 +2290,23 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
         app.set_summary_open(true);
         let app = app.as_weak();
         summary_runtime.spawn(async move {
-            let result = core.file_core().ai_summarize(thread_id).await;
+            let result = tokio::time::timeout(
+                std::time::Duration::from_secs(150),
+                core.file_core().ai_summarize(thread_id),
+            )
+            .await;
+            let result = match result {
+                Ok(result) => result,
+                Err(_) => {
+                    eprintln!("ai summary: timed out after 150s");
+                    if let Some(app) = app.upgrade() {
+                        app.set_summary_busy(false);
+                        app.set_summary_error("The model did not answer in time.".into());
+                    }
+                    return;
+                }
+            };
+            eprintln!("ai summary: model answered");
             let Some(app) = app.upgrade() else {
                 return;
             };
@@ -4831,6 +4849,29 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                         startup_notification_host.clone(),
                     );
                     security_scan::spawn(&startup_runtime, core.file_core());
+                    // A headless self-test for the summary path, used while
+                    // diagnosing a stall; off unless the environment asks.
+                    if std::env::var_os("FLECTAR_AI_SUMMARY_PROBE").is_some() {
+                        let probe = core.file_core();
+                        startup_runtime.spawn(async move {
+                            eprintln!("summary probe: start");
+                            let result = tokio::time::timeout(
+                                std::time::Duration::from_secs(150),
+                                probe.ai_summarize(53133),
+                            )
+                            .await;
+                            match result {
+                                Ok(Ok(summary)) => eprintln!(
+                                    "summary probe: ok points={} beats={} next={:?}",
+                                    summary.key_points.len(),
+                                    summary.timeline.len(),
+                                    summary.next_action
+                                ),
+                                Ok(Err(error)) => eprintln!("summary probe: error {error}"),
+                                Err(_) => eprintln!("summary probe: timed out"),
+                            }
+                        });
+                    }
                     #[cfg(desktop)]
                     agents::core_ready(
                         &startup_runtime,

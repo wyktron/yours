@@ -435,10 +435,33 @@ async fn stream_split(
 pub async fn chat_stream(
     cfg: &AiConfig,
     messages: Vec<ChatMessage>,
+    on_delta: impl FnMut(&str) + Send,
+) -> Result<String> {
+    chat_stream_inner(cfg, messages, on_delta, false).await
+}
+
+/// Like chat_stream, but asks the endpoint for a JSON object. Local models
+/// constrain decoding to valid JSON when they can, which keeps a summary's
+/// parse from failing on a stray brace.
+pub async fn chat_stream_json(
+    cfg: &AiConfig,
+    messages: Vec<ChatMessage>,
+    on_delta: impl FnMut(&str) + Send,
+) -> Result<String> {
+    chat_stream_inner(cfg, messages, on_delta, true).await
+}
+
+async fn chat_stream_inner(
+    cfg: &AiConfig,
+    messages: Vec<ChatMessage>,
     mut on_delta: impl FnMut(&str) + Send,
+    json_mode: bool,
 ) -> Result<String> {
     let url = format!("{}/chat/completions", cfg.base_url.trim_end_matches('/'));
-    let body = json!({ "model": cfg.model, "messages": messages.clone(), "stream": true });
+    let mut body = json!({ "model": cfg.model, "messages": messages.clone(), "stream": true });
+    if json_mode {
+        body["response_format"] = json!({ "type": "json_object" });
+    }
     let mut noop = |_: &str| {};
     let (full, _reasoning) =
         stream_split(&url, &cfg.api_key, &body, &mut on_delta, &mut noop).await?;
@@ -931,7 +954,7 @@ pub async fn summarize_thread_stream(
     context: &str,
     on_delta: impl FnMut(&str) + Send,
 ) -> Result<crate::models::AiThreadSummary> {
-    let raw_text = chat_stream(
+    let raw_text = chat_stream_json(
         cfg,
         apply_language(summarize_prompt(subject, context), cfg),
         on_delta,
@@ -948,7 +971,7 @@ fn parse_thread_summary(raw_text: &str) -> Result<crate::models::AiThreadSummary
         _ => return Err(CoreError::Other("ai returned no JSON summary".into())),
     };
     let mut summary: crate::models::AiThreadSummary = serde_json::from_str(json)
-        .map_err(|_| CoreError::Other(format!("unparseable ai summary: {json}")))?;
+        .map_err(|error| CoreError::Other(format!("unparseable ai summary ({error}): {json}")))?;
     // Drop empty beats/points and normalize blank optionals to None so the UI
     // can rely on presence to decide whether to render a section.
     summary

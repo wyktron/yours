@@ -18,11 +18,12 @@ const BATCH: usize = 12;
 /// phishing check on.
 pub(crate) fn spawn(runtime: &tokio::runtime::Handle, core: Arc<Core>) {
     runtime.spawn(async move {
+        eprintln!("phishing screen: task started");
         loop {
             match core.scan_security(BATCH).await {
                 Ok(0) => {}
-                Ok(judged) => tracing::debug!(judged, "screened mail for phishing"),
-                Err(error) => tracing::warn!(%error, "phishing screen failed"),
+                Ok(judged) => eprintln!("phishing screen: judged {judged}"),
+                Err(error) => eprintln!("phishing screen failed: {error}"),
             }
             tokio::time::sleep(PASS_INTERVAL).await;
         }
