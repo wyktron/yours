@@ -189,6 +189,20 @@ impl Speech {
             .cloned()
     }
 
+    /// Drop a playback whose player has exited, which removes its WAV. The
+    /// reader notices this through current_word; anything else calls this.
+    pub fn reap_finished(&self) {
+        if let Ok(mut inner) = self.inner.lock() {
+            let finished = inner.playback.as_mut().is_some_and(|playback| {
+                playback.paused_at.is_none()
+                    && matches!(playback.child.try_wait(), Ok(Some(_)))
+            });
+            if finished {
+                inner.playback = None;
+            }
+        }
+    }
+
     /// Freeze the player and the highlight clock in place.
     pub fn pause(&self) {
         let Ok(mut inner) = self.inner.lock() else {
@@ -363,6 +377,16 @@ fn speak_short(runtime: &tokio::runtime::Handle, text: &str) {
     static SHORT: OnceLock<Speech> = OnceLock::new();
     let speech = SHORT.get_or_init(Speech::default).clone();
     speech.start(runtime, text.to_owned(), word_ranges(text), 0);
+    // The reader polls its own playback, but a short line has no reader to
+    // notice the player exited; without this its WAV stays in temp storage.
+    let reaper = speech.clone();
+    runtime.spawn(async move {
+        while reaper.is_active() {
+            reaper.reap_finished();
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+        reaper.reap_finished();
+    });
 }
 
 /// Speak a short sample with the current settings, without touching the
