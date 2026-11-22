@@ -2701,6 +2701,9 @@ pub struct Settings {
     pub language: String,
     #[serde(default)]
     pub time_format: TimeFormat,
+    /// Kokoro voice used when a message is read aloud.
+    #[serde(default = "default_tts_voice")]
+    pub tts_voice: String,
     /// First day shown in calendar week and month views: "sunday" | "monday".
     #[serde(default = "default_calendar_week_start")]
     pub calendar_week_start: String,
@@ -2991,6 +2994,10 @@ fn default_embedding_backend() -> String {
 fn default_embedding_model() -> String {
     crate::embed::DEFAULT_MODEL.into()
 }
+fn default_tts_voice() -> String {
+    "bf_emma".into()
+}
+
 fn default_language() -> String {
     "system".into()
 }
@@ -3100,6 +3107,7 @@ impl Default for Settings {
             app_icon: AppIcon::default(),
             language: "system".into(),
             time_format: TimeFormat::default(),
+            tts_voice: default_tts_voice(),
             calendar_week_start: default_calendar_week_start(),
             undo_send_seconds: 10,
             compose_font: default_compose_font(),

@@ -513,6 +513,8 @@ export component SettingsDialog inherits Rectangle {
     in-out property <string> workspace_layout: "default";
     in-out property <string> language_mode: "system";
     in-out property <string> time_format: "automatic";
+    in-out property <string> tts_voice: "bf_emma";
+    in property <[string]> tts-voice-options: ["af_alloy", "af_aoede", "af_bella", "af_heart", "af_jessica", "af_kore", "af_nicole", "af_nova", "af_river", "af_sarah", "af_sky", "am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam", "am_michael", "am_onyx", "am_puck", "am_santa", "bf_alice", "bf_emma", "bf_isabella", "bf_lily", "bm_daniel", "bm_fable", "bm_george", "bm_lewis"];
     in property <string> time_format_sample: "13:30";
     in-out property <bool> monochrome_sidebar_icons: false;
     in-out property <bool> notifications_enabled: true;
@@ -645,6 +647,7 @@ export component SettingsDialog inherits Rectangle {
     callback save_workspace_layout(string);
     callback save_language(string);
     callback save_time_format(string);
+    callback save_tts_voice(string);
     callback save_sidebar_icon_style(bool);
     callback save_notification_settings(bool, bool, string);
     callback save_unread_badge(bool);
@@ -978,6 +981,10 @@ export component SettingsDialog inherits Rectangle {
                 : root.settings-section-visible("Services") ? "Services"
                 : root.settings-section-visible("About") ? "About" : root.settings_tab;
         }
+    }
+
+    pure function tts-voice-index(value: string) -> int {
+        return value == "af_alloy" ? 0 : value == "af_aoede" ? 1 : value == "af_bella" ? 2 : value == "af_heart" ? 3 : value == "af_jessica" ? 4 : value == "af_kore" ? 5 : value == "af_nicole" ? 6 : value == "af_nova" ? 7 : value == "af_river" ? 8 : value == "af_sarah" ? 9 : value == "af_sky" ? 10 : value == "am_adam" ? 11 : value == "am_echo" ? 12 : value == "am_eric" ? 13 : value == "am_fenrir" ? 14 : value == "am_liam" ? 15 : value == "am_michael" ? 16 : value == "am_onyx" ? 17 : value == "am_puck" ? 18 : value == "am_santa" ? 19 : value == "bf_alice" ? 20 : value == "bf_emma" ? 21 : value == "bf_isabella" ? 22 : value == "bf_lily" ? 23 : value == "bm_daniel" ? 24 : value == "bm_fable" ? 25 : value == "bm_george" ? 26 : value == "bm_lewis" ? 27 : 0;
     }
 
     pure function mail-history-index(value: string) -> int {
@@ -1634,6 +1641,28 @@ export component SettingsDialog inherits Rectangle {
                                 faint-text: root.faint-text;
                             }
 
+                            Text { text: @tr("Read aloud"); color: root.heading; font-size: TypeScale.subtitle; font-weight: 700; wrap: word-wrap; }
+                            Rectangle {
+                                height: self.preferred-height;
+                                background: root.surface;
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: root.border-subtle;
+                                VerticalBox {
+                                    padding: 16px;
+                                    spacing: 4px;
+                                    SettingsSelectRow {
+                                        compact: root.compact;
+                                        title: @tr("Voice");
+                                        description: @tr("Kokoro voice used when Flectar reads a message aloud.");
+                                        choices: root.tts-voice-options;
+                                        selected-index: root.tts-voice-index(root.tts_voice);
+                                        title-color: root.body-text;
+                                        description-color: root.faint-text;
+                                        selected(index, value) => { root.save_tts_voice(value); }
+                                    }
+                                }
+                            }
                             Rectangle {
                                 height: max(root.compact ? 150px : 112px, self.preferred-height);
                                 background: root.surface;

@@ -878,6 +878,8 @@ pub(crate) fn apply_settings(app: &AppWindow, settings: &Settings) {
         .set_add(settings.add_invitations.as_str().into());
     refresh_oauth_availability(app);
     app.set_time_format(settings.time_format.as_str().into());
+    app.set_tts_voice(settings.tts_voice.clone().into());
+    crate::speech::set_voice(&settings.tts_voice);
     crate::apply_language(app, &settings.language);
     app.set_custom_oauth_configured(
         !settings.google_client_id.trim().is_empty() || !settings.ms_client_id.trim().is_empty(),

@@ -16,7 +16,29 @@ use base64::Engine as _;
 
 /// The Kokoro TTS server started by the kokoro-tts user unit.
 const ENDPOINT: &str = "http://127.0.0.1:8766/speak_timed";
-const VOICE: &str = "bf_emma";
+const DEFAULT_VOICE: &str = "bf_emma";
+
+static VOICE: std::sync::OnceLock<std::sync::RwLock<String>> = std::sync::OnceLock::new();
+
+fn voice() -> String {
+    VOICE
+        .get_or_init(|| std::sync::RwLock::new(DEFAULT_VOICE.to_owned()))
+        .read()
+        .map(|value| value.clone())
+        .unwrap_or_else(|_| DEFAULT_VOICE.to_owned())
+}
+
+/// Sets the Kokoro voice used for read-aloud.
+pub fn set_voice(value: &str) {
+    let chosen = value.trim();
+    let chosen = if chosen.is_empty() { DEFAULT_VOICE } else { chosen };
+    if let Ok(mut slot) = VOICE
+        .get_or_init(|| std::sync::RwLock::new(DEFAULT_VOICE.to_owned()))
+        .write()
+    {
+        *slot = chosen.to_owned();
+    }
+}
 
 /// One spoken word: when it is heard, and which bytes of the document it is.
 #[derive(Clone, Debug, PartialEq)]
@@ -183,7 +205,7 @@ impl Speech {
             let response = client
                 .post(ENDPOINT)
                 .timeout(Duration::from_secs(120))
-                .form(&[("text", spoken.as_str()), ("voice", VOICE)])
+                .form(&[("text", spoken.as_str()), ("voice", voice().as_str())])
                 .send()
                 .await;
             let Ok(response) = response else {

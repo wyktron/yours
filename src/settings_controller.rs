@@ -666,6 +666,32 @@ pub(super) fn register_settings_preference_callbacks(
     });
 
     let app_weak = app.as_weak();
+    let state_for_tts_voice = Rc::clone(state);
+    let runtime_for_tts_voice = runtime.clone();
+    app.on_save_tts_voice(move |value| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        let value = value.to_string();
+        crate::speech::set_voice(&value);
+        let Some(core) = state_for_tts_voice.borrow().core.as_ref().map(|core| core.file_core()) else {
+            return;
+        };
+        let result = runtime_for_tts_voice.block_on(async move {
+            let mut settings = core.get_settings().await.map_err(|e| e.to_string())?;
+            settings.tts_voice = value;
+            core.set_settings(settings).await.map_err(|e| e.to_string())
+        });
+        match result {
+            Ok(()) => app.set_sync_status(UiMessage::plain("Read-aloud voice saved.")),
+            Err(error) => app.set_sync_status(UiMessage::detail(
+                "Could not save the read-aloud voice: {}",
+                error,
+            )),
+        }
+    });
+
+    let app_weak = app.as_weak();
     let state_for_time_format = Rc::clone(state);
     let runtime_for_time_format = runtime.clone();
     app.on_save_time_format(move |value| {
