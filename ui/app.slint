@@ -27,7 +27,8 @@ import { WindowChrome, WindowControls, WindowDragArea } from "window-chrome.slin
 // Rust registers the separate Noto Emoji face before constructing this window.
 import "../resources/fonts/google-sans-flex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf";
 
-import { Palette } from "std-widgets.slint";
+import { Palette, ScrollView } from "std-widgets.slint";
+import { ActivitySpinner } from "components/activity-spinner.slint";
 import { InterfaceText, TypeScale } from "typography.slint";
 export { AppTheme, MotionSettings, ThemeUtilities } from "design-system.slint";
 export { InterfaceText } from "typography.slint";
@@ -669,6 +670,13 @@ export global I18n {
         if (key == "Remote images unavailable: {}") { return @tr("Remote images unavailable: {}", argument); }
         if (key == "Remote body images and sender favicons enabled.") { return @tr("Remote body images and sender favicons enabled."); }
         if (key == "Remote images blocked.") { return @tr("Remote images blocked."); }
+        if (key == "AI draft added. Edit it before sending.") { return @tr("AI draft added. Edit it before sending."); }
+        if (key == "Asking the model for a draft…") { return @tr("Asking the model for a draft…"); }
+        if (key == "Connect an account before asking for a draft.") { return @tr("Connect an account before asking for a draft."); }
+        if (key == "Could not draft a reply: {}") { return @tr("Could not draft a reply: {}", argument); }
+        if (key == "The model returned an empty draft.") { return @tr("The model returned an empty draft."); }
+        if (key == "The model returned no summary.") { return @tr("The model returned no summary."); }
+        if (key == "Could not summarize: {}") { return @tr("Could not summarize: {}", argument); }
         if (key == "Could not refresh message images: {}") { return @tr("Could not refresh message images: {}", argument); }
         if (key == "Remote-image loading is disabled.") { return @tr("Remote-image loading is disabled."); }
         if (key == "Could not load message images: {}") { return @tr("Could not load message images: {}", argument); }
@@ -1467,6 +1475,13 @@ export component AppWindow inherits Window {
     // False where closing to the background shows no tray icon (the Flatpak).
     in property <bool> tray_supported: true;
     in-out property <bool> account_setup_in_progress: false;
+    // The AI summary panel: filled by ai_summarize_thread, shown over the reader.
+    in-out property <bool> summary-open: false;
+    in-out property <bool> summary-busy: false;
+    in-out property <string> summary-title: "";
+    in-out property <string> summary-text: "";
+    in-out property <string> summary-error: "";
+    callback ai_summarize_thread();
     in-out property <bool> account_form_open: false;
     in-out property <bool> oauth_in_progress: false;
     in property <bool> remote-images-available: true;
@@ -3148,9 +3163,67 @@ export component AppWindow inherits Window {
         }
     }
 
+    // AI summary of the open conversation, asked for from the reader toolbar.
+    if root.summary-open : Rectangle {
+        z: 59000;
+        width: root.width;
+        height: root.height;
+        background: #00000066;
+        TouchArea { }
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: min(560px, parent.width - 48px);
+            height: min(560px, parent.height - 64px);
+            background: AppTheme.surface-raised;
+            border-radius: 14px;
+            border-width: 1px;
+            border-color: AppTheme.control-border;
+            VerticalLayout {
+                padding: 20px;
+                spacing: 10px;
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text {
+                        text: root.summary-title == "" ? @tr("AI summary") : @tr("AI summary: {0}", root.summary-title);
+                        color: AppTheme.title;
+                        font-size: 17px;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        overflow: elide;
+                    }
+                    Button { text: @tr("Close"); clicked => { root.summary-open = false; } }
+                }
+                if root.summary-busy : HorizontalLayout {
+                    spacing: 8px;
+                    ActivitySpinner { width: 20px; height: 20px; running: true; color: AppTheme.accent; }
+                    Text { text: @tr("Reading the conversation…"); color: AppTheme.secondary; font-size: 13px; vertical-alignment: center; }
+                }
+                if root.summary-error != "" : Text {
+                    text: root.summary-error;
+                    color: #e5484d;
+                    font-size: 13px;
+                    wrap: word-wrap;
+                }
+                ScrollView {
+                    vertical-stretch: 1;
+                    Text {
+                        text: root.summary-text;
+                        color: AppTheme.body;
+                        font-size: 13px;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+        }
+    }
+
     // App lock: covers the window until the password is entered.
     in-out property <bool> locked: true;
     in-out property <bool> lock-has-password: false;
+    // False until the app has read whether a password exists, so the first
+    // frame shows a loading screen instead of asking to set one.
+    in-out property <bool> lock-known: false;
     // True while the lock screen is replacing an existing password.
     in-out property <bool> lock-changing: false;
     in-out property <string> lock-error: "";
@@ -3216,6 +3289,34 @@ export component AppWindow inherits Window {
                     }
                 }
             }
+            }
+        }
+        // Until the password check lands, cover the card with a loading
+        // screen: showing the set-password form first made startup look like
+        // the password had been forgotten.
+        if !root.lock-known : Rectangle {
+            width: parent.width;
+            height: parent.height;
+            background: root.page-bg;
+            VerticalLayout {
+                alignment: center;
+                HorizontalLayout {
+                    alignment: center;
+                    ActivitySpinner {
+                        width: 26px;
+                        height: 26px;
+                        running: true;
+                        color: AppTheme.accent;
+                    }
+                }
+                Text {
+                    height: 26px;
+                    text: @tr("Starting Flectar Mail…");
+                    color: AppTheme.secondary;
+                    font-size: 14px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
             }
         }
     }

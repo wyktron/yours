@@ -361,6 +361,9 @@ pub(super) fn register_renderer_input_callbacks(
                     speech_for_command.pause();
                 }
             }
+            "summarize" => {
+                app.invoke_ai_summarize_thread();
+            }
             "viewport" => repaint_reader(&app, &r, gpu),
             "zoom-set" | "zoom-in" | "zoom-out" | "zoom-reset" | "fit" => {
                 let old = r.borrow().zoom;

@@ -1796,6 +1796,12 @@ impl ComposeSession {
             }
         });
         let weak = self.reference();
+        ui.on_ai_draft(move || {
+            if let Some(session) = weak.upgrade() {
+                session.ai_draft();
+            }
+        });
+        let weak = self.reference();
         ui.on_insert_images(move || {
             if let Some(session) = weak.upgrade() {
                 session.pick_images();
@@ -3384,6 +3390,86 @@ impl ComposeSession {
                 );
                 false
             }
+        }
+    }
+
+    /// Ask the model for a reply draft and put it in the editor.
+    fn ai_draft(self: &Rc<Self>) {
+        let (Some(composers), Some(host)) = (self.composers(), self.host()) else {
+            return;
+        };
+        let Some(core) = composers.core() else {
+            host.ui().set_notice(
+                UiMessage::plain("Connect an account before asking for a draft."),
+                true,
+            );
+            return;
+        };
+        let reply_to = self.intent.borrow().in_reply_to_message_id;
+        let (thread_id, sender_name) = {
+            let state = composers.state.borrow();
+            let original = reply_to.and_then(|id| {
+                state
+                    .messages
+                    .iter()
+                    .find(|message| i64::from(message.id) == id)
+            });
+            (
+                original.and_then(|message| message.thread_id),
+                original
+                    .map(|message| message.sender.clone())
+                    .unwrap_or_default(),
+            )
+        };
+        host.ui().set_notice(
+            UiMessage::plain("Asking the model for a draft…"),
+            false,
+        );
+        let runtime = composers.runtime.clone();
+        let task = runtime.spawn(async move {
+            core.file_core()
+                .ai_draft(
+                    thread_id,
+                    reply_to,
+                    "Write a short, natural reply to this message.".to_owned(),
+                    sender_name,
+                    None,
+                    false,
+                )
+                .await
+                .map_err(|error| error.to_string())
+        });
+        let abort = task.abort_handle();
+        let weak = Rc::downgrade(self);
+        if slint::spawn_local(async move {
+            let result = task.await.unwrap_or_else(|error| Err(error.to_string()));
+            let Some(session) = weak.upgrade() else {
+                return;
+            };
+            let Some(host) = session.host() else {
+                return;
+            };
+            match result {
+                Ok(draft) if !draft.trim().is_empty() => {
+                    session.edit(|document| document.insert_text(draft.trim()));
+                    host.ui().set_notice(
+                        UiMessage::plain("AI draft added. Edit it before sending."),
+                        false,
+                    );
+                }
+                Ok(_) => host.ui().set_notice(
+                    UiMessage::plain("The model returned an empty draft."),
+                    true,
+                ),
+                Err(error) => host.ui().set_notice(
+                    UiMessage::detail("Could not draft a reply: {}", error),
+                    true,
+                ),
+            }
+        })
+        .is_err()
+        {
+            abort.abort();
         }
     }
 

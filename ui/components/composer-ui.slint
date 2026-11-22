@@ -138,6 +138,7 @@ export global ComposerUi {
     callback pop-out();
     callback save(int, string, string, string, string, string, bool);
     callback pick-attachments();
+    callback ai-draft();
     // Opens a picker for images to put in the text at the caret.
     callback insert-images();
     callback remove-attachment(int);
@@ -291,6 +292,7 @@ export component BoundComposer inherits EmailComposer {
         );
     }
     pick-attachments => { ComposerUi.pick-attachments(); }
+    ai-draft => { ComposerUi.ai-draft(); }
     insert-images => { ComposerUi.insert-images(); }
     remove-attachment(index) => { ComposerUi.remove-attachment(index); }
     remove-link(index) => { ComposerUi.remove-link(index); }

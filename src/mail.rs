@@ -1950,7 +1950,7 @@ impl CoreMailSource {
     pub async fn set_theme_preset(&self, preset: &str) -> Result<(), String> {
         let mut settings = self.load_settings().await?;
         settings.theme_preset = match preset {
-            "teal" | "green" | "purple" | "custom" => preset,
+            "teal" | "green" | "purple" | "oled" | "custom" => preset,
             _ => "default",
         }
         .to_owned();

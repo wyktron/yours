@@ -825,6 +825,8 @@ export component ComposerFooter inherits Rectangle {
     in property <color> subtle-border-color;
     callback submit(bool);
     callback pick-attachments();
+    // Ask the model for a reply draft and put it in the editor.
+    callback ai-draft();
     // A storage service is there to send files by link from.
     in property <bool> link-sharing: false;
     callback share-by-link();
@@ -905,9 +907,23 @@ export component ComposerFooter inherits Rectangle {
                 clicked => { root.share-by-link(); }
             }
 
+            ai-button := IconButton {
+                visible: !root.signature;
+                x: (link-button.visible ? link-button.x + link-button.width : attach-button.x + attach-button.width) + (root.compact ? 2px : 4px);
+                y: attach-button.y;
+                width: attach-button.width;
+                height: attach-button.height;
+                icon: @image-url("../icons/lucide/outline/bot.svg");
+                icon-color: root.secondary-color;
+                hover-background: root.control-hover-color;
+                tooltip-text: @tr("Draft the reply with AI");
+                accessible-id: "composer-ai-draft-button";
+                clicked => { root.ai-draft(); }
+            }
+
             Text {
                 visible: !root.compact && root.attachment-picker-supported && !root.signature;
-                x: (link-button.visible ? link-button.x + link-button.width : attach-button.x + attach-button.width) + 8px;
+                x: ai-button.x + ai-button.width + 8px;
                 width: max(0px, save-draft.x - self.x - 42px);
                 height: parent.height;
                 text: root.attachment-summary == "" ? @tr("Attach files") : root.attachment-summary;

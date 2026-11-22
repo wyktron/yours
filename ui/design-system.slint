@@ -124,7 +124,9 @@ export global AppTheme {
     // Set with WindowChrome.top-bar, while the tab strip spans the window.
     in property <bool> top-bar: false;
 
-    out property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+    // OLED is a black-tuned dark scheme: it forces the dark set even when the
+    // system is in light mode, so the panel really is black.
+    out property <bool> dark: Palette.color-scheme == ColorScheme.dark || preset == "oled";
 
     // Each non-default preset starts from five user-facing foundation colors.
     // The rest of the semantic tokens are derived consistently, so adding a
@@ -136,7 +138,8 @@ export global AppTheme {
         : preset == "teal" ? #006b7a : preset == "green" ? #2f6f44
         : preset == "purple" ? #78418a : custom-dark-primary;
     private property <color> themed-primary: dark ? dark-primary : light-primary;
-    private property <color> themed-page-bg: preset == "teal" ? (dark ? #0b1519 : #edf5f7)
+    private property <color> themed-page-bg: preset == "oled" ? #000000
+        : preset == "teal" ? (dark ? #0b1519 : #edf5f7)
         : preset == "green" ? (dark ? #101711 : #f1f5ef)
         : preset == "purple" ? (dark ? #171119 : #f6f1f7)
         : dark ? custom-dark-page-bg : custom-light-page-bg;
@@ -145,17 +148,20 @@ export global AppTheme {
         : preset == "teal" ? #fbfefe : preset == "green" ? #fcfdfb
         : preset == "purple" ? #fdfbfe : custom-light-surface;
     out property <color> dark-surface: preset == "default" ? #18191a
+        : preset == "oled" ? #0a0a0a
         : preset == "teal" ? #122026 : preset == "green" ? #182019
         : preset == "purple" ? #201722 : custom-dark-surface;
     out property <color> light-text: preset == "default" ? #202120
         : preset == "teal" ? #173039 : preset == "green" ? #213026
         : preset == "purple" ? #332537 : custom-light-text;
     out property <color> dark-text: preset == "default" ? #f3f3f2
+        : preset == "oled" ? #f5f5f5
         : preset == "teal" ? #e5f0f2 : preset == "green" ? #e9f0e6
         : preset == "purple" ? #f1e8f3 : custom-dark-text;
     private property <color> themed-surface: dark ? dark-surface : light-surface;
     private property <color> themed-text: dark ? dark-text : light-text;
-    private property <color> themed-border: preset == "teal" ? (dark ? #294047 : #c8dadd)
+    private property <color> themed-border: preset == "oled" ? #262626
+        : preset == "teal" ? (dark ? #294047 : #c8dadd)
         : preset == "green" ? (dark ? #344039 : #ccd8c8)
         : preset == "purple" ? (dark ? #46354a : #dfd0e2)
         : dark ? custom-dark-border : custom-light-border;

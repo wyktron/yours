@@ -1017,7 +1017,7 @@ pub(crate) fn apply_settings(app: &AppWindow, settings: &Settings) {
     let theme = app.global::<AppTheme>();
     theme.set_preset(
         match settings.theme_preset.as_str() {
-            "teal" | "green" | "purple" | "custom" => settings.theme_preset.as_str(),
+            "teal" | "green" | "purple" | "oled" | "custom" => settings.theme_preset.as_str(),
             _ => "default",
         }
         .into(),

@@ -2255,6 +2255,71 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     app.set_thread_messages(Rc::clone(&initial_state.conversation_rows).into());
     app.set_sidebar_rows(Rc::clone(&initial_state.sidebar_rows).into());
     let state = Rc::new(RefCell::new(initial_state));
+
+    // The AI summary follows the selected conversation; it opens the panel
+    // straight away so the busy state is visible while the model runs.
+    let summary_app = app.as_weak();
+    let summary_state = Rc::clone(&state);
+    let summary_runtime = runtime.clone();
+    app.on_ai_summarize_thread(move || {
+        let Some(app) = summary_app.upgrade() else {
+            return;
+        };
+        let Some(core) = summary_state.borrow().core.clone() else {
+            return;
+        };
+        let (thread_id, subject) = {
+            let state = summary_state.borrow();
+            let message = state
+                .selected_id
+                .and_then(|id| state.messages.iter().find(|message| message.id == id));
+            match message {
+                Some(message) => (message.thread_id, message.subject.clone()),
+                None => (None, String::new()),
+            }
+        };
+        let Some(thread_id) = thread_id else {
+            return;
+        };
+        app.set_summary_title(subject.into());
+        app.set_summary_text("".into());
+        app.set_summary_error("".into());
+        app.set_summary_busy(true);
+        app.set_summary_open(true);
+        let app = app.as_weak();
+        summary_runtime.spawn(async move {
+            let result = core.file_core().ai_summarize(thread_id).await;
+            let Some(app) = app.upgrade() else {
+                return;
+            };
+            app.set_summary_busy(false);
+            match result {
+                Ok(summary) => {
+                    let mut text = String::new();
+                    if !summary.key_points.is_empty() {
+                        text.push_str("Key points\n");
+                        for point in &summary.key_points {
+                            text.push_str(&format!("• {point}\n"));
+                        }
+                        text.push('\n');
+                    }
+                    if let Some(next) = &summary.next_action {
+                        text.push_str(&format!("Next action\n{next}\n\n"));
+                    }
+                    if let Some(reply) = &summary.proposed_reply {
+                        text.push_str(&format!("Suggested reply\n{reply}\n"));
+                    }
+                    if text.is_empty() {
+                        text.push_str("The model returned no summary.");
+                    }
+                    app.set_summary_text(text.into());
+                }
+                Err(error) => {
+                    app.set_summary_error(format!("Could not summarize: {error}").into());
+                }
+            }
+        });
+    });
     mail_work::register(&app, &state, &runtime);
     move_picker::register(&app, &state, &runtime);
     files_controller::register(
@@ -4656,6 +4721,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                         eprintln!("app lock: has_password={has_app_lock}");
                         app.set_lock_has_password(has_app_lock);
                         app.set_locked(true);
+                        app.set_lock_known(true);
                         state.grouping = core.grouping();
                         state.favicon_loader = if allow_remote_images {
                             match FaviconLoader::new(&startup_paths_for_ui.cache_dir) {

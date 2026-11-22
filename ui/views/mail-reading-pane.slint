@@ -828,6 +828,16 @@ export component MailReadingPane inherits FocusScope {
                                 accessible-id: "message-toolbar-pause-reading-button";
                                 clicked => { EmailReader.command("read-aloud-pause"); }
                             }
+                            if !root.selected_is_draft : ToolbarIconButton {
+                                interactive: root.has_selected;
+                                compact: root.compact;
+                                icon: @image-url("../icons/lucide/outline/bot.svg");
+                                icon-color: root.secondary-text;
+                                hover-background: root.muted-control-bg;
+                                tooltip-text: @tr("Summarize this conversation with AI");
+                                accessible-id: "message-toolbar-summarize-button";
+                                clicked => { EmailReader.command("summarize"); }
+                            }
                             if root.show-primary-actions && !LocalMailUi.selected : ToolbarIconButton {
                                 visible: !root.selected_is_draft;
                                 interactive: root.has_selected;
