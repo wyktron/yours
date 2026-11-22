@@ -4713,6 +4713,13 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
 
                     if let Some(settings) = settings.as_ref() {
                         apply_settings(&app, settings);
+                        // The stored key and any online voice list arrive
+                        // after the window is up; read-aloud waits for them.
+                        crate::settings_controller::refresh_tts(
+                            &app,
+                            &startup_state,
+                            &startup_runtime,
+                        );
                         if let Some(tray) =
                             startup_tray.as_ref().and_then(|tray| tray.upgrade())
                         {

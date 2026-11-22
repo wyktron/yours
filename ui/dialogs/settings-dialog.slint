@@ -513,8 +513,25 @@ export component SettingsDialog inherits Rectangle {
     in-out property <string> workspace_layout: "default";
     in-out property <string> language_mode: "system";
     in-out property <string> time_format: "automatic";
-    in-out property <string> tts_voice: "bf_emma";
-    in property <[string]> tts-voice-options: ["af_alloy", "af_aoede", "af_bella", "af_heart", "af_jessica", "af_kore", "af_nicole", "af_nova", "af_river", "af_sarah", "af_sky", "am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam", "am_michael", "am_onyx", "am_puck", "am_santa", "bf_alice", "bf_emma", "bf_isabella", "bf_lily", "bm_daniel", "bm_fable", "bm_george", "bm_lewis"];
+    // Read aloud: the engine that speaks, the voice it speaks with, and what
+    // an online engine needs to reach it.
+    in-out property <string> tts_engine: "kokoro";
+    in property <[string]> tts-engine-options: ["Kokoro (local)", "Piper (local)", "eSpeak NG (system)", "Edge TTS (online)", "ElevenLabs (online)", "Custom endpoint (online)"];
+    in property <int> tts-engine-index: 0;
+    in-out property <string> tts_voice: "";
+    in property <[string]> tts-voice-options: [];
+    in property <[string]> tts-voice-ids: [];
+    in property <int> tts-voice-index: 0;
+    in property <bool> tts-needs-key: false;
+    in property <bool> tts-key-present: false;
+    in-out property <string> tts-endpoint: "";
+    in-out property <string> tts-model: "";
+    in-out property <string> tts-key-draft: "";
+    callback save_tts_engine(string);
+    callback save_tts_key(string);
+    callback save_tts_endpoint(string);
+    callback save_tts_model(string);
+    callback preview_tts_voice();
     in property <string> time_format_sample: "13:30";
     in-out property <bool> monochrome_sidebar_icons: false;
     in-out property <bool> notifications_enabled: true;
@@ -983,8 +1000,17 @@ export component SettingsDialog inherits Rectangle {
         }
     }
 
-    pure function tts-voice-index(value: string) -> int {
-        return value == "af_alloy" ? 0 : value == "af_aoede" ? 1 : value == "af_bella" ? 2 : value == "af_heart" ? 3 : value == "af_jessica" ? 4 : value == "af_kore" ? 5 : value == "af_nicole" ? 6 : value == "af_nova" ? 7 : value == "af_river" ? 8 : value == "af_sarah" ? 9 : value == "af_sky" ? 10 : value == "am_adam" ? 11 : value == "am_echo" ? 12 : value == "am_eric" ? 13 : value == "am_fenrir" ? 14 : value == "am_liam" ? 15 : value == "am_michael" ? 16 : value == "am_onyx" ? 17 : value == "am_puck" ? 18 : value == "am_santa" ? 19 : value == "bf_alice" ? 20 : value == "bf_emma" ? 21 : value == "bf_isabella" ? 22 : value == "bf_lily" ? 23 : value == "bm_daniel" ? 24 : value == "bm_fable" ? 25 : value == "bm_george" ? 26 : value == "bm_lewis" ? 27 : 0;
+    pure function tts-engine-id(index: int) -> string {
+        return index == 1 ? "piper"
+            : index == 2 ? "espeak"
+            : index == 3 ? "edge"
+            : index == 4 ? "elevenlabs"
+            : index == 5 ? "custom"
+            : "kokoro";
+    }
+
+    pure function tts-voice-id(index: int) -> string {
+        return index >= 0 && index < root.tts-voice-ids.length ? root.tts-voice-ids[index] : "";
     }
 
     pure function mail-history-index(value: string) -> int {
@@ -1650,16 +1676,83 @@ export component SettingsDialog inherits Rectangle {
                                 border-color: root.border-subtle;
                                 VerticalBox {
                                     padding: 16px;
-                                    spacing: 4px;
+                                    spacing: 8px;
                                     SettingsSelectRow {
                                         compact: root.compact;
-                                        title: @tr("Voice");
-                                        description: @tr("Kokoro voice used when Flectar reads a message aloud.");
-                                        choices: root.tts-voice-options;
-                                        selected-index: root.tts-voice-index(root.tts_voice);
+                                        title: @tr("Engine");
+                                        description: @tr("The service that speaks a message. Kokoro and Piper run on this machine; the others send the text online.");
+                                        choices: root.tts-engine-options;
+                                        selected-index: root.tts-engine-index;
                                         title-color: root.body-text;
                                         description-color: root.faint-text;
-                                        selected(index, value) => { root.save_tts_voice(value); }
+                                        selected(index, value) => { root.save_tts_engine(root.tts-engine-id(index)); }
+                                    }
+                                    if root.tts-voice-options.length > 0 : SettingsSelectRow {
+                                        compact: root.compact;
+                                        title: @tr("Voice");
+                                        description: @tr("The voice the selected engine speaks with.");
+                                        choices: root.tts-voice-options;
+                                        selected-index: root.tts-voice-index;
+                                        title-color: root.body-text;
+                                        description-color: root.faint-text;
+                                        selected(index, value) => { root.save_tts_voice(root.tts-voice-id(index)); }
+                                    }
+                                    if root.tts_engine == "custom" : VerticalBox {
+                                        spacing: 6px;
+                                        Text { text: @tr("Endpoint"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                        HorizontalBox {
+                                            spacing: 8px;
+                                            LineEdit {
+                                                horizontal-stretch: 1;
+                                                text <=> root.tts-endpoint;
+                                                placeholder-text: @tr("https://api.example.com/v1");
+                                            }
+                                            Button { text: @tr("Save"); clicked => { root.save_tts_endpoint(root.tts-endpoint); } }
+                                        }
+                                        Text { text: @tr("Model"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                        HorizontalBox {
+                                            spacing: 8px;
+                                            LineEdit {
+                                                horizontal-stretch: 1;
+                                                text <=> root.tts-model;
+                                                placeholder-text: @tr("tts-1");
+                                            }
+                                            Button { text: @tr("Save"); clicked => { root.save_tts_model(root.tts-model); } }
+                                        }
+                                        Text { text: @tr("Voice"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                        HorizontalBox {
+                                            spacing: 8px;
+                                            LineEdit {
+                                                horizontal-stretch: 1;
+                                                text <=> root.tts_voice;
+                                                placeholder-text: @tr("alloy");
+                                            }
+                                            Button { text: @tr("Save"); clicked => { root.save_tts_voice(root.tts_voice); } }
+                                        }
+                                    }
+                                    if root.tts-needs-key : VerticalBox {
+                                        spacing: 6px;
+                                        Text { text: @tr("API key"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                        HorizontalBox {
+                                            spacing: 8px;
+                                            LineEdit {
+                                                horizontal-stretch: 1;
+                                                text <=> root.tts-key-draft;
+                                                input-type: password;
+                                                placeholder-text: @tr("Paste the key; it is kept in the system keyring");
+                                            }
+                                            Button { text: @tr("Save key"); clicked => { root.save_tts_key(root.tts-key-draft); } }
+                                        }
+                                        Text {
+                                            text: root.tts-key-present ? @tr("A key is saved.") : @tr("No key is saved for this engine yet.");
+                                            color: root.faint-text;
+                                            font-size: TypeScale.caption;
+                                            wrap: word-wrap;
+                                        }
+                                    }
+                                    HorizontalBox {
+                                        spacing: 8px;
+                                        Button { text: @tr("Play a sample"); clicked => { root.preview_tts_voice(); } }
                                     }
                                 }
                             }

@@ -31,6 +31,9 @@ pub enum Slot {
     OAuthBundle,
     /// App-level AI API key (stored under account id 0).
     AiApiKey,
+    /// App-level text-to-speech API keys, one JSON object per engine, stored
+    /// under account id 0 as they belong to no account.
+    TtsApiKey,
     /// App password of an account's one CalDAV server, from before an
     /// account could sync several. `caldav::task::move_secret` re-files it
     /// under its connection.
@@ -57,6 +60,7 @@ impl Slot {
             Slot::OAuthClientSecret => "oauth_client_secret".into(),
             Slot::OAuthBundle => "oauth_bundle".into(),
             Slot::AiApiKey => "ai_api_key".into(),
+            Slot::TtsApiKey => "tts_api_key".into(),
             Slot::AccountCaldavPassword => "caldav_password".into(),
             Slot::CaldavPassword(connection_id) => {
                 format!("caldav_password:{connection_id}").into()

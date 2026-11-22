@@ -2701,9 +2701,23 @@ pub struct Settings {
     pub language: String,
     #[serde(default)]
     pub time_format: TimeFormat,
-    /// Kokoro voice used when a message is read aloud.
+    /// Engine that reads a message aloud: "kokoro", "piper", "espeak", "edge",
+    /// "elevenlabs" or "custom". Unknown values read as Kokoro.
+    #[serde(default = "default_tts_engine")]
+    pub tts_engine: String,
+    /// Voice of the chosen engine. Voices belong to an engine, so a stored
+    /// voice the new engine does not offer falls back to that engine's default.
     #[serde(default = "default_tts_voice")]
     pub tts_voice: String,
+    /// Endpoint of a custom OpenAI-compatible speech service.
+    #[serde(default)]
+    pub tts_endpoint: String,
+    /// Model id a cloud engine should use; empty asks for the engine default.
+    #[serde(default)]
+    pub tts_model: String,
+    /// Directory holding Piper models; empty means the platform default.
+    #[serde(default)]
+    pub tts_voices_dir: String,
     /// First day shown in calendar week and month views: "sunday" | "monday".
     #[serde(default = "default_calendar_week_start")]
     pub calendar_week_start: String,
@@ -2911,7 +2925,8 @@ pub struct Settings {
     /// What AI agents on this computer may do with mail through the local
     /// MCP server. Off until the user turns it on.
     #[serde(default)]
-    pub agent_access: AgentAccess,}
+    pub agent_access: AgentAccess,
+}
 
 /// What AI agents may see and do through `flectar-mail mcp`, the same for
 /// every agent. Reading is the only right that comes with access itself.
@@ -2994,8 +3009,11 @@ fn default_embedding_backend() -> String {
 fn default_embedding_model() -> String {
     crate::embed::DEFAULT_MODEL.into()
 }
+fn default_tts_engine() -> String {
+    crate::tts::DEFAULT_ENGINE.into()
+}
 fn default_tts_voice() -> String {
-    "bf_emma".into()
+    crate::tts::KOKORO_DEFAULT_VOICE.into()
 }
 
 fn default_language() -> String {
@@ -3107,7 +3125,11 @@ impl Default for Settings {
             app_icon: AppIcon::default(),
             language: "system".into(),
             time_format: TimeFormat::default(),
+            tts_engine: default_tts_engine(),
             tts_voice: default_tts_voice(),
+            tts_endpoint: String::new(),
+            tts_model: String::new(),
+            tts_voices_dir: String::new(),
             calendar_week_start: default_calendar_week_start(),
             undo_send_seconds: 10,
             compose_font: default_compose_font(),

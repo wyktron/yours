@@ -415,6 +415,11 @@ export global I18n {
         if (key == "Could not save language: {}") { return @tr("Could not save language: {}", argument); }
         if (key == "Time format updated for this session.") { return @tr("Time format updated for this session."); }
         if (key == "Time format preference saved.") { return @tr("Time format preference saved."); }
+        if (key == "Read-aloud settings saved.") { return @tr("Read-aloud settings saved."); }
+        if (key == "Could not save the read-aloud settings: {}") { return @tr("Could not save the read-aloud settings: {}" => "Could not save the read-aloud settings: {}", argument); }
+        if (key == "Read-aloud key saved.") { return @tr("Read-aloud key saved."); }
+        if (key == "Read aloud failed: {}") { return @tr("Read aloud failed: {}" => "Read aloud failed: {}", argument); }
+        if (key == "Could not save the read-aloud key: {}") { return @tr("Could not save the read-aloud key: {}" => "Could not save the read-aloud key: {}", argument); }
         if (key == "Could not save time format: {}") { return @tr("Could not save time format: {}", argument); }
         if (key == "Sidebar icon style updated for this session.") { return @tr("Sidebar icon style updated for this session."); }
         if (key == "Sidebar icon preference saved.") { return @tr("Sidebar icon preference saved."); }
@@ -1023,6 +1028,11 @@ export component AppWindow inherits Window {
     callback save_language(string);
     callback save_time_format(string);
     callback save_tts_voice(string);
+    callback save_tts_engine(string);
+    callback save_tts_key(string);
+    callback save_tts_endpoint(string);
+    callback save_tts_model(string);
+    callback preview_tts_voice();
     callback save_sidebar_icon_style(bool);
     callback save_notification_settings(bool, bool, string);
     callback save_unread_badge(bool);
@@ -1408,7 +1418,19 @@ export component AppWindow inherits Window {
     in-out property <string> language_mode: "system";
     // "automatic" follows the regional clock; "12h" and "24h" fix it.
     in-out property <string> time_format: "automatic";
-    in-out property <string> tts_voice: "bf_emma";
+    // Read aloud: the engine that speaks, its voices, and what an online one
+    // needs. The core fills the voice lists when settings load.
+    in-out property <string> tts_engine: "kokoro";
+    in property <[string]> tts-engine-options: ["Kokoro (local)", "Piper (local)", "eSpeak NG (system)", "Edge TTS (online)", "ElevenLabs (online)", "Custom endpoint (online)"];
+    in property <int> tts-engine-index: 0;
+    in-out property <string> tts_voice: "";
+    in property <[string]> tts-voice-options: [];
+    in property <[string]> tts-voice-ids: [];
+    in property <int> tts-voice-index: 0;
+    in property <bool> tts-needs-key: false;
+    in property <bool> tts-key-present: false;
+    in-out property <string> tts-endpoint: "";
+    in-out property <string> tts-model: "";
     in property <string> time_format_sample: "13:30";
     in-out property <bool> monochrome_sidebar_icons: false;
     in-out property <bool> notifications_enabled: true;
@@ -2309,7 +2331,17 @@ export component AppWindow inherits Window {
             workspace_layout <=> root.workspace_layout;
             language_mode <=> root.language_mode;
             time_format <=> root.time_format;
+            tts_engine <=> root.tts_engine;
+            tts-engine-options: root.tts-engine-options;
+            tts-engine-index: root.tts-engine-index;
             tts_voice <=> root.tts_voice;
+            tts-voice-options: root.tts-voice-options;
+            tts-voice-ids: root.tts-voice-ids;
+            tts-voice-index: root.tts-voice-index;
+            tts-needs-key: root.tts-needs-key;
+            tts-key-present: root.tts-key-present;
+            tts-endpoint <=> root.tts-endpoint;
+            tts-model <=> root.tts-model;
             time_format_sample: root.time_format_sample;
             monochrome_sidebar_icons <=> root.monochrome_sidebar_icons;
             notifications_enabled <=> root.notifications_enabled;
@@ -2420,6 +2452,11 @@ export component AppWindow inherits Window {
             save_language(language) => { root.save_language(language); }
             save_time_format(format) => { root.save_time_format(format); }
             save_tts_voice(value) => { root.save_tts_voice(value); }
+            save_tts_engine(value) => { root.save_tts_engine(value); }
+            save_tts_key(value) => { root.save_tts_key(value); }
+            save_tts_endpoint(value) => { root.save_tts_endpoint(value); }
+            save_tts_model(value) => { root.save_tts_model(value); }
+            preview_tts_voice() => { root.preview_tts_voice(); }
             save_sidebar_icon_style(monochrome) => { root.save_sidebar_icon_style(monochrome); }
             save_notification_settings(enabled, sound-enabled, scope) => {
                 root.save_notification_settings(enabled, sound-enabled, scope);

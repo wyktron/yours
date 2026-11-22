@@ -50,6 +50,7 @@ pub mod signatures;
 pub mod smtp;
 pub mod sync;
 mod transfer;
+pub mod tts;
 pub mod unsubscribe;
 pub mod verification_code;
 
@@ -8286,6 +8287,79 @@ impl Core {
             .await
             .unwrap_or_default();
         ai::list_models(&settings.ai_base_url, &api_key).await
+    }
+
+    /// What the reader speaks with: the stored engine and voice, where to
+    /// reach it, and the API key the engine needs.
+    pub async fn tts_config(&self) -> Result<tts::TtsConfig> {
+        let settings = self.db.read(|conn| repo::settings::get(conn)).await?;
+        Ok(self.tts_config_from(&settings).await)
+    }
+
+    async fn tts_config_from(&self, settings: &Settings) -> tts::TtsConfig {
+        let engine = tts::TtsEngine::parse(&settings.tts_engine);
+        let api_key = if engine.needs_key() {
+            match credentials::load_async(self.credentials.clone(), 0, Slot::TtsApiKey).await {
+                Ok(stored) => tts::api_key_from_json(&stored, engine.id()).unwrap_or_default(),
+                Err(_) => String::new(),
+            }
+        } else {
+            String::new()
+        };
+        let configured = settings.tts_voices_dir.trim();
+        tts::TtsConfig {
+            engine,
+            voice: settings.tts_voice.clone(),
+            kokoro_url: tts::KOKORO_DEFAULT_URL.to_owned(),
+            endpoint: settings.tts_endpoint.clone(),
+            model: settings.tts_model.clone(),
+            api_key,
+            voices_dir: if configured.is_empty() {
+                tts::default_voices_dir()
+            } else {
+                std::path::PathBuf::from(configured)
+            },
+        }
+    }
+
+    /// Voices an engine offers. ElevenLabs lists what the saved key reaches;
+    /// every other engine answers from this machine.
+    pub async fn tts_voices(&self, engine: &str) -> Result<Vec<tts::TtsVoice>> {
+        let settings = self.db.read(|conn| repo::settings::get(conn)).await?;
+        let mut config = self.tts_config_from(&settings).await;
+        config.engine = tts::TtsEngine::parse(engine);
+        Ok(tts::voices_async(&config).await)
+    }
+
+    /// Store the API key of one speech engine; an empty key removes it.
+    pub async fn set_tts_key(&self, engine: &str, api_key: &str) -> Result<()> {
+        let engine = tts::TtsEngine::parse(engine);
+        let stored = credentials::load_async(self.credentials.clone(), 0, Slot::TtsApiKey)
+            .await
+            .unwrap_or_default();
+        let updated = tts::api_key_to_json(&stored, engine.id(), api_key);
+        if tts::parse_api_keys(&updated).is_empty() {
+            return credentials::delete_async(self.credentials.clone(), 0, Slot::TtsApiKey).await;
+        }
+        credentials::store_async(self.credentials.clone(), 0, Slot::TtsApiKey, updated).await
+    }
+
+    /// Whether the engine's API key is already in the keyring.
+    pub async fn tts_key_saved(&self, engine: &str) -> bool {
+        let engine = tts::TtsEngine::parse(engine);
+        if !engine.needs_key() {
+            return false;
+        }
+        credentials::load_async(self.credentials.clone(), 0, Slot::TtsApiKey)
+            .await
+            .map(|stored| tts::api_key_from_json(&stored, engine.id()).is_some())
+            .unwrap_or(false)
+    }
+
+    /// Speak a short text with the stored settings, for a sample in Settings.
+    pub async fn tts_speak(&self, text: &str) -> Result<tts::Synthesis> {
+        let config = self.tts_config().await?;
+        tts::synthesize(&config, text).await
     }
 
     /// Parse a natural-language palette query ("meeting tomorrow 8pm ...")

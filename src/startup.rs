@@ -18,6 +18,7 @@ use crate::{
 };
 use flectar_mail_core::{
     config::Paths,
+    tts,
     events::{CoreEvent, TransferReport},
     models::{
         Account, AccountConfig, CalendarConnection, CardDavConnection, ListOrder, MailGrouping,
@@ -866,6 +867,48 @@ pub(crate) fn refresh_oauth_availability(app: &AppWindow) {
     app.set_microsoft_oauth_available(resolve_credentials(Provider::Microsoft).is_ok());
 }
 
+/// Shows the read-aloud engine, its voices, and what it needs to reach a
+/// service, and hands the speech layer the engine it should speak with.
+pub(crate) fn apply_tts(app: &AppWindow, settings: &Settings, config: &tts::TtsConfig) {
+    let engines = tts::TtsEngine::all();
+    let selected = engines
+        .iter()
+        .position(|engine| *engine == config.engine)
+        .unwrap_or(0);
+    app.set_tts_engine(config.engine.id().into());
+    app.set_tts_engine_index(selected as i32);
+    app.set_tts_needs_key(config.engine.needs_key());
+    app.set_tts_endpoint(settings.tts_endpoint.clone().into());
+    app.set_tts_model(settings.tts_model.clone().into());
+    publish_tts_voices(app, config, tts::voices(config));
+    crate::speech::set_config(config.clone());
+}
+
+/// Shows a voice list and selects the configured voice in it.
+pub(crate) fn publish_tts_voices(
+    app: &AppWindow,
+    config: &tts::TtsConfig,
+    voices: Vec<tts::TtsVoice>,
+) {
+    let labels: Vec<slint::SharedString> = voices
+        .iter()
+        .map(|voice| slint::SharedString::from(voice.label.as_str()))
+        .collect();
+    let ids: Vec<slint::SharedString> = voices
+        .iter()
+        .map(|voice| slint::SharedString::from(voice.id.as_str()))
+        .collect();
+    let selected = config.resolved_voice();
+    let index = voices
+        .iter()
+        .position(|voice| voice.id == selected)
+        .unwrap_or(0);
+    app.set_tts_voice_options(slint::ModelRc::new(slint::VecModel::from(labels)));
+    app.set_tts_voice_ids(slint::ModelRc::new(slint::VecModel::from(ids)));
+    app.set_tts_voice_index(index as i32);
+    app.set_tts_voice(selected.into());
+}
+
 pub(crate) fn apply_settings(app: &AppWindow, settings: &Settings) {
     app.global::<MessageColors>()
         .set_preference(settings.message_appearance.as_str().into());
@@ -878,8 +921,8 @@ pub(crate) fn apply_settings(app: &AppWindow, settings: &Settings) {
         .set_add(settings.add_invitations.as_str().into());
     refresh_oauth_availability(app);
     app.set_time_format(settings.time_format.as_str().into());
-    app.set_tts_voice(settings.tts_voice.clone().into());
-    crate::speech::set_voice(&settings.tts_voice);
+    let tts_config = crate::speech::config_from_settings(settings);
+    apply_tts(app, settings, &tts_config);
     crate::apply_language(app, &settings.language);
     app.set_custom_oauth_configured(
         !settings.google_client_id.trim().is_empty() || !settings.ms_client_id.trim().is_empty(),

@@ -665,6 +665,10 @@ pub(super) fn register_settings_preference_callbacks(
         }
     });
 
+    // Read aloud: the engine, the voice it speaks with, and the endpoint and
+    // key an online engine needs. Every save writes through the core and then
+    // reloads what the speech layer will speak with, so the next request uses
+    // the new choice.
     let app_weak = app.as_weak();
     let state_for_tts_voice = Rc::clone(state);
     let runtime_for_tts_voice = runtime.clone();
@@ -673,21 +677,124 @@ pub(super) fn register_settings_preference_callbacks(
             return;
         };
         let value = value.to_string();
-        crate::speech::set_voice(&value);
-        let Some(core) = state_for_tts_voice.borrow().core.as_ref().map(|core| core.file_core()) else {
+        let saved = save_tts_setting(
+            &app,
+            &state_for_tts_voice,
+            &runtime_for_tts_voice,
+            |settings| settings.tts_voice = value,
+        );
+        if saved {
+            refresh_tts(&app, &state_for_tts_voice, &runtime_for_tts_voice);
+        }
+    });
+
+    let app_weak = app.as_weak();
+    let state_for_tts_engine = Rc::clone(state);
+    let runtime_for_tts_engine = runtime.clone();
+    app.on_save_tts_engine(move |value| {
+        let Some(app) = app_weak.upgrade() else {
             return;
         };
-        let result = runtime_for_tts_voice.block_on(async move {
-            let mut settings = core.get_settings().await.map_err(|e| e.to_string())?;
-            settings.tts_voice = value;
-            core.set_settings(settings).await.map_err(|e| e.to_string())
+        let engine = flectar_mail_core::tts::TtsEngine::parse(value.as_str());
+        let saved = save_tts_setting(
+            &app,
+            &state_for_tts_engine,
+            &runtime_for_tts_engine,
+            |settings| settings.tts_engine = engine.id().to_owned(),
+        );
+        if saved {
+            app.set_tts_engine(engine.id().into());
+            app.set_tts_needs_key(engine.needs_key());
+            refresh_tts(&app, &state_for_tts_engine, &runtime_for_tts_engine);
+        }
+    });
+
+    let app_weak = app.as_weak();
+    let state_for_tts_key = Rc::clone(state);
+    let runtime_for_tts_key = runtime.clone();
+    app.on_save_tts_key(move |value| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        let Some(core) = state_for_tts_key.borrow().core.as_ref().map(|core| core.file_core()) else {
+            return;
+        };
+        let engine = flectar_mail_core::tts::TtsEngine::parse(app.get_tts_engine().as_str());
+        let key = value.to_string();
+        let key_for_save = key.clone();
+        let result = runtime_for_tts_key.block_on(async move {
+            core.set_tts_key(engine.id(), &key_for_save)
+                .await
+                .map_err(|error| error.to_string())
         });
         match result {
-            Ok(()) => app.set_sync_status(UiMessage::plain("Read-aloud voice saved.")),
+            Ok(()) => {
+                app.set_tts_key_present(!key.trim().is_empty());
+                app.set_sync_status(UiMessage::plain("Read-aloud key saved."));
+                refresh_tts(&app, &state_for_tts_key, &runtime_for_tts_key);
+            }
             Err(error) => app.set_sync_status(UiMessage::detail(
-                "Could not save the read-aloud voice: {}",
+                "Could not save the read-aloud key: {}",
                 error,
             )),
+        }
+    });
+
+    let app_weak = app.as_weak();
+    let state_for_tts_endpoint = Rc::clone(state);
+    let runtime_for_tts_endpoint = runtime.clone();
+    app.on_save_tts_endpoint(move |value| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        let value = value.to_string();
+        let saved = save_tts_setting(
+            &app,
+            &state_for_tts_endpoint,
+            &runtime_for_tts_endpoint,
+            |settings| settings.tts_endpoint = value,
+        );
+        if saved {
+            refresh_tts(&app, &state_for_tts_endpoint, &runtime_for_tts_endpoint);
+        }
+    });
+
+    let app_weak = app.as_weak();
+    let state_for_tts_model = Rc::clone(state);
+    let runtime_for_tts_model = runtime.clone();
+    app.on_save_tts_model(move |value| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        let value = value.to_string();
+        let saved = save_tts_setting(
+            &app,
+            &state_for_tts_model,
+            &runtime_for_tts_model,
+            |settings| settings.tts_model = value,
+        );
+        if saved {
+            refresh_tts(&app, &state_for_tts_model, &runtime_for_tts_model);
+        }
+    });
+
+    let state_for_tts_preview = Rc::clone(state);
+    let runtime_for_tts_preview = runtime.clone();
+    app.on_preview_tts_voice(move || {
+        let Some(core) = state_for_tts_preview
+            .borrow()
+            .core
+            .as_ref()
+            .map(|core| core.file_core())
+        else {
+            return;
+        };
+        match runtime_for_tts_preview.block_on(core.tts_config()) {
+            Ok(config) => {
+                crate::speech::set_config(config);
+                crate::speech::preview(&runtime_for_tts_preview, flectar_mail_core::tts::SAMPLE_TEXT);
+            }
+            Err(error) => tracing::warn!(%error, "read-aloud sample could not load settings"),
         }
     });
 
@@ -1316,6 +1423,63 @@ fn save_oauth_settings(
                     app.set_oauth_settings_error(ui_message::translated(&app, &message));
                 }
             }
+        });
+    });
+}
+
+/// Writes one read-aloud preference through the core as a whole settings row.
+fn save_tts_setting(
+    app: &AppWindow,
+    state: &Rc<RefCell<InboxState>>,
+    runtime: &tokio::runtime::Handle,
+    change: impl FnOnce(&mut flectar_mail_core::models::Settings),
+) -> bool {
+    let Some(core) = state.borrow().core.as_ref().map(|core| core.file_core()) else {
+        return false;
+    };
+    let result = runtime.block_on(async move {
+        let mut settings = core.get_settings().await.map_err(|error| error.to_string())?;
+        change(&mut settings);
+        core.set_settings(settings)
+            .await
+            .map_err(|error| error.to_string())
+    });
+    match result {
+        Ok(()) => {
+            app.set_sync_status(UiMessage::plain("Read-aloud settings saved."));
+            true
+        }
+        Err(error) => {
+            app.set_sync_status(UiMessage::detail(
+                "Could not save the read-aloud settings: {}",
+                error,
+            ));
+            false
+        }
+    }
+}
+
+/// Reloads the engine's stored key and live voice list, then shows what the
+/// speech layer will speak with.
+pub(crate) fn refresh_tts(
+    app: &AppWindow,
+    state: &Rc<RefCell<InboxState>>,
+    runtime: &tokio::runtime::Handle,
+) {
+    let Some(core) = state.borrow().core.as_ref().map(|core| core.file_core()) else {
+        return;
+    };
+    let weak = app.as_weak();
+    runtime.spawn(async move {
+        let Ok(config) = core.tts_config().await else {
+            return;
+        };
+        let voices = core.tts_voices(config.engine.id()).await.unwrap_or_default();
+        crate::speech::set_config(config.clone());
+        let _ = weak.upgrade_in_event_loop(move |app| {
+            crate::startup::publish_tts_voices(&app, &config, voices);
+            app.set_tts_needs_key(config.engine.needs_key());
+            app.set_tts_key_present(!config.api_key.trim().is_empty());
         });
     });
 }

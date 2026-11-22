@@ -1,44 +1,19 @@
-//! Read-aloud: local Kokoro TTS (`/speak_timed`) played through pw-play, with
-//! per-word timing the reader uses to move the text highlight.
+//! Read-aloud: speak the open message with the engine chosen in Settings and
+//! move the highlight through the words as they are heard.
 //!
 //! One generation counter guards against overlapping requests: pressing the
 //! button again while a request is still in flight supersedes it, and a
 //! playback that is replaced is stopped (and its WAV removed) on drop.
-//! Pause is `SIGSTOP` on the player; the timing clock stops with it.
+//! Pause is SIGSTOP on the player; the timing clock stops with it.
 
 use std::io::BufWriter;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
-use base64::Engine as _;
-
-/// The Kokoro TTS server started by the kokoro-tts user unit.
-const ENDPOINT: &str = "http://127.0.0.1:8766/speak_timed";
-const DEFAULT_VOICE: &str = "bf_emma";
-
-static VOICE: std::sync::OnceLock<std::sync::RwLock<String>> = std::sync::OnceLock::new();
-
-fn voice() -> String {
-    VOICE
-        .get_or_init(|| std::sync::RwLock::new(DEFAULT_VOICE.to_owned()))
-        .read()
-        .map(|value| value.clone())
-        .unwrap_or_else(|_| DEFAULT_VOICE.to_owned())
-}
-
-/// Sets the Kokoro voice used for read-aloud.
-pub fn set_voice(value: &str) {
-    let chosen = value.trim();
-    let chosen = if chosen.is_empty() { DEFAULT_VOICE } else { chosen };
-    if let Ok(mut slot) = VOICE
-        .get_or_init(|| std::sync::RwLock::new(DEFAULT_VOICE.to_owned()))
-        .write()
-    {
-        *slot = chosen.to_owned();
-    }
-}
+use flectar_mail_core::models::Settings;
+use flectar_mail_core::tts::{self, TimedWord, TtsConfig};
 
 /// One spoken word: when it is heard, and which bytes of the document it is.
 #[derive(Clone, Debug, PartialEq)]
@@ -47,6 +22,61 @@ pub struct SpokenWord {
     pub end: f64,
     pub doc_start: usize,
     pub doc_end: usize,
+}
+
+/// The engine and voice read-aloud uses, kept in step with Settings.
+static CONFIG: OnceLock<RwLock<TtsConfig>> = OnceLock::new();
+
+/// The failure of the last request, waiting to be shown in the reader.
+static LAST_ERROR: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+
+fn error_slot() -> &'static Mutex<Option<String>> {
+    LAST_ERROR.get_or_init(|| Mutex::new(None))
+}
+
+/// Takes the last read-aloud failure, so it is shown once. A silent failure
+/// would leave a chosen engine looking like a dead button.
+pub fn take_error() -> Option<String> {
+    error_slot().lock().ok().and_then(|mut slot| slot.take())
+}
+
+fn config_slot() -> &'static RwLock<TtsConfig> {
+    CONFIG.get_or_init(|| RwLock::new(TtsConfig::default()))
+}
+
+/// Applies the settings the reader speaks with. The next read-aloud request
+/// picks the engine up; anything already speaking is left alone.
+pub fn set_config(config: TtsConfig) {
+    if let Ok(mut slot) = config_slot().write() {
+        *slot = config;
+    }
+}
+
+/// The engine, voice and addresses a stored settings row describes. A stored
+/// voice the engine does not offer is left for the caller to resolve.
+pub fn config_from_settings(settings: &Settings) -> TtsConfig {
+    let configured = settings.tts_voices_dir.trim();
+    TtsConfig {
+        engine: tts::TtsEngine::parse(&settings.tts_engine),
+        voice: settings.tts_voice.clone(),
+        kokoro_url: tts::KOKORO_DEFAULT_URL.to_owned(),
+        endpoint: settings.tts_endpoint.clone(),
+        model: settings.tts_model.clone(),
+        api_key: String::new(),
+        voices_dir: if configured.is_empty() {
+            tts::default_voices_dir()
+        } else {
+            std::path::PathBuf::from(configured)
+        },
+    }
+}
+
+/// The clock currently speaking with.
+pub fn config() -> TtsConfig {
+    config_slot()
+        .read()
+        .map(|config| config.clone())
+        .unwrap_or_default()
 }
 
 struct Playback {
@@ -116,11 +146,11 @@ impl Speech {
     pub fn current_word(&self) -> Option<SpokenWord> {
         let mut inner = self.inner.lock().ok()?;
         let playback = inner.playback.as_mut()?;
-        if playback.paused_at.is_none() {
-            if let Ok(Some(_)) = playback.child.try_wait() {
-                inner.playback = None;
-                return None;
-            }
+        let finished =
+            playback.paused_at.is_none() && matches!(playback.child.try_wait(), Ok(Some(_)));
+        if finished {
+            inner.playback = None;
+            return None;
         }
         let elapsed = playback.elapsed();
         playback
@@ -133,31 +163,37 @@ impl Speech {
 
     /// Freeze the player and the highlight clock in place.
     pub fn pause(&self) {
-        if let Ok(mut inner) = self.inner.lock() {
-            if let Some(playback) = inner.playback.as_mut() {
-                if playback.paused_at.is_none() {
-                    let ok = unsafe { libc::kill(playback.child.id() as i32, libc::SIGSTOP) } == 0;
-                    if ok {
-                        playback.paused_at = Some(Instant::now());
-                    }
-                }
-            }
+        let Ok(mut inner) = self.inner.lock() else {
+            return;
+        };
+        let Some(playback) = inner.playback.as_mut() else {
+            return;
+        };
+        if playback.paused_at.is_some() {
+            return;
+        }
+        let stopped = unsafe { libc::kill(playback.child.id() as i32, libc::SIGSTOP) } == 0;
+        if stopped {
+            playback.paused_at = Some(Instant::now());
         }
     }
 
     /// Continue a paused playback where it stopped.
     pub fn resume(&self) {
-        if let Ok(mut inner) = self.inner.lock() {
-            if let Some(playback) = inner.playback.as_mut() {
-                if let Some(at) = playback.paused_at.take() {
-                    let resumed = unsafe { libc::kill(playback.child.id() as i32, libc::SIGCONT) } == 0;
-                    if resumed {
-                        playback.paused_total += Instant::now().saturating_duration_since(at);
-                    } else {
-                        playback.paused_at = Some(at);
-                    }
-                }
-            }
+        let Ok(mut inner) = self.inner.lock() else {
+            return;
+        };
+        let Some(playback) = inner.playback.as_mut() else {
+            return;
+        };
+        let Some(paused_at) = playback.paused_at.take() else {
+            return;
+        };
+        let resumed = unsafe { libc::kill(playback.child.id() as i32, libc::SIGCONT) } == 0;
+        if resumed {
+            playback.paused_total += Instant::now().saturating_duration_since(paused_at);
+        } else {
+            playback.paused_at = Some(paused_at);
         }
     }
 
@@ -170,10 +206,10 @@ impl Speech {
         }
     }
 
-    /// Synthesize `text` from `from_word` and start playing it.
+    /// Synthesize text from from_word and start playing it.
     ///
-    /// `words` are byte ranges of every word **in `text`**. Any in-flight
-    /// request or playing audio is superseded.
+    /// words are byte ranges of every word in text. Any in-flight request or
+    /// playing audio is superseded.
     pub fn start(
         &self,
         runtime: &tokio::runtime::Handle,
@@ -201,62 +237,35 @@ impl Speech {
             .collect();
         let speech = self.clone();
         runtime.spawn(async move {
-            let client = reqwest::Client::new();
-            let response = client
-                .post(ENDPOINT)
-                .timeout(Duration::from_secs(120))
-                .form(&[("text", spoken.as_str()), ("voice", voice().as_str())])
-                .send()
-                .await;
-            let Ok(response) = response else {
-                speech.finish_request(generation, None);
-                return;
+            let config = config();
+            let synthesis = match tts::synthesize(&config, &spoken).await {
+                Ok(synthesis) => synthesis,
+                Err(error) => {
+                    tracing::warn!(
+                        engine = config.engine.id(),
+                        %error,
+                        "read-aloud could not synthesize"
+                    );
+                    if let Ok(mut slot) = error_slot().lock() {
+                        *slot = Some(error.to_string());
+                    }
+                    speech.finish_request(generation, None);
+                    return;
+                }
             };
-            let Ok(body) = response.text().await else {
-                speech.finish_request(generation, None);
-                return;
-            };
-            let Ok(value) = serde_json::from_str::<serde_json::Value>(&body) else {
-                speech.finish_request(generation, None);
-                return;
-            };
-            let Some(wav_b64) = value.get("wav").and_then(|v| v.as_str()) else {
-                speech.finish_request(generation, None);
-                return;
-            };
-            let Ok(wav) = base64::engine::general_purpose::STANDARD.decode(wav_b64) else {
-                speech.finish_request(generation, None);
-                return;
-            };
-            let timed: Vec<(String, f64, f64)> = value
-                .get("words")
-                .and_then(|v| v.as_array())
-                .map(|items| {
-                    items
-                        .iter()
-                        .filter_map(|item| {
-                            Some((
-                                item.get("t")?.as_str()?.to_string(),
-                                item.get("s")?.as_f64()?,
-                                item.get("e")?.as_f64()?,
-                            ))
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
             let path = std::env::temp_dir()
                 .join(format!("flectar-tts-{}-{}.wav", std::process::id(), generation));
             let write = || -> std::io::Result<()> {
                 use std::io::Write as _;
                 let mut file = BufWriter::new(std::fs::File::create(&path)?);
-                file.write_all(&wav)?;
+                file.write_all(&synthesis.wav)?;
                 file.flush()
             };
             if write().is_err() {
                 speech.finish_request(generation, None);
                 return;
             }
-            let aligned: Vec<SpokenWord> = align(&timed, &tail, &spoken)
+            let aligned: Vec<SpokenWord> = align_words(&synthesis.words, &tail, &spoken)
                 .into_iter()
                 .map(|word| SpokenWord {
                     doc_start: word.doc_start + base,
@@ -294,7 +303,7 @@ impl Speech {
             return;
         };
         if inner.generation != generation {
-            // Superseded: dropping `playback` kills the player it just started.
+            // Superseded: dropping playback kills the player it just started.
             drop(playback);
             return;
         }
@@ -303,14 +312,22 @@ impl Speech {
     }
 }
 
+/// Speak a short sample with the current settings, without touching the
+/// reader's highlight. Settings uses this to let a voice be heard.
+pub fn preview(runtime: &tokio::runtime::Handle, text: &str) {
+    static PREVIEW: OnceLock<Speech> = OnceLock::new();
+    let speech = PREVIEW.get_or_init(Speech::default).clone();
+    speech.start(runtime, text.to_owned(), word_ranges(text), 0);
+}
+
 /// Map each spoken word onto the document word it came from.
 ///
-/// Kokoro preserves order but may merge or split tokens (`42` -> `forty-two`),
-/// so walk both lists and fall back to the next unclaimed document word.
-fn align(spoken: &[(String, f64, f64)], words: &[(usize, usize)], text: &str) -> Vec<SpokenWord> {
-    let mut mapped = Vec::with_capacity(spoken.len());
+/// Engines may merge or split tokens (42 -> forty-two), so walk both lists and
+/// fall back to the next unclaimed document word.
+fn align(timed: &[(String, f64, f64)], words: &[(usize, usize)], text: &str) -> Vec<SpokenWord> {
+    let mut mapped = Vec::with_capacity(timed.len());
     let mut cursor = 0usize;
-    for (word, start, end) in spoken {
+    for (word, start, end) in timed {
         let needle = normalize(word);
         if needle.is_empty() {
             continue;
@@ -350,6 +367,15 @@ fn align(spoken: &[(String, f64, f64)], words: &[(usize, usize)], text: &str) ->
     mapped
 }
 
+/// Same as align, taking the engine's own timed words.
+fn align_words(timed: &[TimedWord], words: &[(usize, usize)], text: &str) -> Vec<SpokenWord> {
+    let pairs: Vec<(String, f64, f64)> = timed
+        .iter()
+        .map(|word| (word.text.clone(), word.start, word.end))
+        .collect();
+    align(&pairs, words, text)
+}
+
 fn normalize(word: &str) -> String {
     word.chars()
         .filter(|c| c.is_alphanumeric())
@@ -357,7 +383,7 @@ fn normalize(word: &str) -> String {
         .collect()
 }
 
-/// Byte ranges of every whitespace-separated word in `text`.
+/// Byte ranges of every whitespace-separated word in text.
 pub fn word_ranges(text: &str) -> Vec<(usize, usize)> {
     let mut ranges = Vec::new();
     let mut start = None;
@@ -398,5 +424,23 @@ mod tests {
         let mapped = align(&spoken, &words, text);
         assert_eq!(mapped.len(), 3);
         assert_eq!(&text[mapped[1].doc_start..mapped[1].doc_end], "ziua,");
+    }
+
+    #[test]
+    fn timed_words_align_through_the_engine_types() {
+        let text = "One two three";
+        let words = word_ranges(text);
+        let timed = tts::timings(text, Some(3.0));
+        let mapped = align_words(&timed, &words, text);
+        assert_eq!(mapped.len(), 3);
+        assert_eq!(&text[mapped[2].doc_start..mapped[2].doc_end], "three");
+        assert!(mapped[0].end <= mapped[1].end);
+    }
+
+    #[test]
+    fn the_default_configuration_is_kokoro() {
+        let config = config();
+        assert_eq!(config.engine, tts::TtsEngine::Kokoro);
+        set_config(TtsConfig::default());
     }
 }

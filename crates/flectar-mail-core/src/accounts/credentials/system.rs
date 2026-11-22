@@ -480,6 +480,7 @@ fn system_delete_all(account_id: i64) -> Result<()> {
         Slot::OAuthClientSecret,
         Slot::OAuthBundle,
         Slot::AiApiKey,
+        Slot::TtsApiKey,
         Slot::AccountCaldavPassword,
         Slot::CarddavPassword,
     ] {

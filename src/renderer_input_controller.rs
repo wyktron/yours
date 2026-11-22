@@ -267,6 +267,9 @@ pub(super) fn register_renderer_input_callbacks(
                 let Some(app) = weak.upgrade() else {
                     return;
                 };
+                if let Some(error) = crate::speech::take_error() {
+                    app.set_sync_status(UiMessage::detail("Read aloud failed: {}", error));
+                }
                 let reader = app.global::<EmailReader>();
                 if reader.get_speaking() != speech.is_active() {
                     reader.set_speaking(speech.is_active());
