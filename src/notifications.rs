@@ -13,7 +13,9 @@
 //! What every platform's guidelines and peer mail clients agree on shapes the
 //! rest: no notification for mail that lands in the list the user is looking
 //! at, one sound per burst and only for mail from a person, and the system's
-//! own sound and Do Not Disturb rather than audio played here.
+//! own sound and Do Not Disturb rather than audio played here. The optional
+//! "Announce new mail" is the exception: it speaks from the core's arrival
+//! event, with the read-aloud engine, even when no notification is shown.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -889,14 +891,11 @@ async fn dispatch(
     host: Option<&dyn NotificationHost>,
     window: &impl Window,
 ) -> Option<Duration> {
-    let announce = announces_new_mail(core).await;
+    // New mail is not announced from here: the voice follows the core's
+    // MailNew event instead, so it speaks even when no notification is shown.
     let result = core
         .dispatch_notifications(|batch| async move {
-            // Built before the batch is handed on, and spoken only once the
-            // host actually took the notifications: a batch that is retried
-            // must not be announced twice.
-            let spoken = announce.then(|| announcement_text(&batch));
-            let outcomes = match host {
+            match host {
                 Some(host) => present(host, window, batch).await,
                 None => vec![
                     NotificationOutcome::Unavailable(
@@ -904,18 +903,7 @@ async fn dispatch(
                     );
                     batch.mail.len()
                 ],
-            };
-            if let Some(text) = spoken
-                && outcomes.iter().any(|outcome| {
-                    matches!(
-                        outcome,
-                        NotificationOutcome::Shown | NotificationOutcome::ShownInSummary
-                    )
-                })
-            {
-                speak(&text);
             }
-            outcomes
         })
         .await;
     match result {
@@ -1160,16 +1148,129 @@ enum Plan {
     },
 }
 
+/// How long the voice waits for more arrivals before it sums up a burst.
+const ANNOUNCE_BURST_QUIET: Duration = Duration::from_secs(1);
+
+/// How recently a message must have been received to count as news. A sync
+/// catching up on an account replays its old mail through the same core event,
+/// and the voice must not read yesterday's inbox aloud.
+const ANNOUNCE_RECENT_MS: i64 = 5 * 60 * 1000;
+
+/// Hands the conversations the core stored new mail in to the voice.
+pub(crate) struct MailAnnouncer(tokio::sync::mpsc::UnboundedSender<Vec<i64>>);
+
+impl MailAnnouncer {
+    /// Note that new mail reached these conversations.
+    pub(crate) fn mail_arrived(&self, thread_ids: Vec<i64>) {
+        // The worker ends with the app; a send after that is nothing to say.
+        let _ = self.0.send(thread_ids);
+    }
+}
+
+/// Start saying new mail aloud with the read-aloud engine chosen in Settings.
+/// Core reports every fresh arrival as `CoreEvent::MailNew` whether or not the
+/// user lets the system show a notification, so this does not depend on the
+/// notification scope, the toast settings, or the window showing the inbox.
+pub(crate) fn spawn_mail_announcer(
+    runtime: &tokio::runtime::Handle,
+    core: Arc<Core>,
+) -> MailAnnouncer {
+    let (sender, arrivals) = tokio::sync::mpsc::unbounded_channel();
+    runtime.spawn(announce_arrivals(runtime.clone(), core, arrivals));
+    MailAnnouncer(sender)
+}
+
+async fn announce_arrivals(
+    runtime: tokio::runtime::Handle,
+    core: Arc<Core>,
+    mut arrivals: tokio::sync::mpsc::UnboundedReceiver<Vec<i64>>,
+) {
+    // A message can be named by more than one event, such as when a rule that
+    // held its notification back settles, so remember what was said.
+    let mut spoken = BTreeSet::new();
+    while let Some(mut thread_ids) = arrivals.recv().await {
+        // One line per burst: core reports an account or protocol step at a
+        // time, so let the rest of the burst arrive before summing it up.
+        tokio::time::sleep(ANNOUNCE_BURST_QUIET).await;
+        while let Ok(more) = arrivals.try_recv() {
+            thread_ids.extend(more);
+        }
+        say_arrivals(&runtime, &core, &thread_ids, &mut spoken).await;
+    }
+}
+
+async fn say_arrivals(
+    runtime: &tokio::runtime::Handle,
+    core: &Core,
+    thread_ids: &[i64],
+    spoken: &mut BTreeSet<i64>,
+) {
+    if !announces_new_mail(core).await {
+        return;
+    }
+    let now = now_ms();
+    let mut threads = BTreeSet::new();
+    let mut arrivals = Vec::new();
+    for &thread_id in thread_ids {
+        // A burst can name the same conversation more than once.
+        if !threads.insert(thread_id) {
+            continue;
+        }
+        let detail = match core.get_thread_outline(thread_id).await {
+            Ok(detail) => detail,
+            Err(error) => {
+                tracing::warn!(%error, thread_id, "announce: could not read new mail");
+                continue;
+            }
+        };
+        let Some(message) = detail
+            .messages
+            .iter()
+            .max_by_key(|message| (message.date, message.id))
+        else {
+            continue;
+        };
+        if !announcement_candidate(message.is_draft, message.is_outgoing, message.date, now) {
+            continue;
+        }
+        if !announce_once(spoken, message.id) {
+            continue;
+        }
+        let sender = message
+            .from
+            .name
+            .as_deref()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .unwrap_or(&message.from.email);
+        arrivals.push((message.date, sender.to_owned()));
+    }
+    if arrivals.is_empty() {
+        return;
+    }
+    let names = sender_names(arrivals.iter().map(|(at, name)| (*at, name.as_str())));
+    let text = announcement(arrivals.len(), &names);
+    crate::speech::announce(runtime, &text);
+}
+
+/// Whether a message is a fresh arrival worth saying aloud: received mail, not
+/// a draft or a copy of something the user sent, and recent enough that a sync
+/// is not merely catching up on old mail. `received_at` is the message's date,
+/// the only arrival time the public thread view carries.
+fn announcement_candidate(is_draft: bool, is_outgoing: bool, received_at: i64, now: i64) -> bool {
+    !is_draft && !is_outgoing && now.saturating_sub(received_at) <= ANNOUNCE_RECENT_MS
+}
+
+/// Whether this message has not been said aloud yet, recording it when it is.
+fn announce_once(spoken: &mut BTreeSet<i64>, message_id: i64) -> bool {
+    spoken.insert(message_id)
+}
+
 /// Whether new mail is announced aloud, from Settings.
 async fn announces_new_mail(core: &Core) -> bool {
     core.get_settings()
         .await
         .is_ok_and(|settings| settings.tts_announce_mail)
-}
-
-/// The line the voice says about a batch of new mail.
-fn announcement_text(batch: &NotificationBatch) -> String {
-    announcement(batch.mail.len(), &senders(batch.mail.iter()))
 }
 
 /// What the voice says for this much new mail: one message names its sender,
@@ -1203,21 +1304,18 @@ fn announcement(count: usize, senders: &[String]) -> String {
     }
 }
 
-/// Hand the line to the read-aloud player, if a runtime is running.
-fn speak(text: &str) {
-    let Ok(runtime) = tokio::runtime::Handle::try_current() else {
-        return;
-    };
-    crate::speech::announce(&runtime, text);
-}
-
 /// The distinct senders of some new mail, newest first.
 fn senders<'a>(mail: impl Iterator<Item = &'a NewMailNotification>) -> Vec<String> {
+    sender_names(mail.map(|mail| (mail.received_at, mail.sender.as_str())))
+}
+
+/// The distinct senders of some mail, newest first.
+fn sender_names<'a>(mail: impl Iterator<Item = (i64, &'a str)>) -> Vec<String> {
     let mut mail = mail.collect::<Vec<_>>();
-    mail.sort_by_key(|mail| std::cmp::Reverse(mail.received_at));
+    mail.sort_by_key(|(received_at, _)| std::cmp::Reverse(*received_at));
     let mut names = Vec::new();
-    for mail in mail {
-        let name = mail.sender.trim();
+    for (_, sender) in mail {
+        let name = sender.trim();
         if !name.is_empty() && !names.iter().any(|known: &String| known == name) {
             names.push(name.to_owned());
         }
@@ -1396,6 +1494,34 @@ mod tests {
             announcement(4, &names),
             "You've got 4 new messages from Ana, LinkedIn, Google and others."
         );
+    }
+
+    #[test]
+    fn announcement_ignores_catch_up_mail() {
+        let now = 10 * ANNOUNCE_RECENT_MS;
+        assert!(announcement_candidate(false, false, now - 60_000, now));
+        assert!(announcement_candidate(
+            false,
+            false,
+            now - ANNOUNCE_RECENT_MS,
+            now
+        ));
+        assert!(!announcement_candidate(
+            false,
+            false,
+            now - ANNOUNCE_RECENT_MS - 1,
+            now
+        ));
+        assert!(!announcement_candidate(true, false, now, now));
+        assert!(!announcement_candidate(false, true, now, now));
+    }
+
+    #[test]
+    fn announcement_speaks_of_a_message_once() {
+        let mut spoken = BTreeSet::new();
+        assert!(announce_once(&mut spoken, 41));
+        assert!(!announce_once(&mut spoken, 41));
+        assert!(announce_once(&mut spoken, 42));
     }
 
     #[test]

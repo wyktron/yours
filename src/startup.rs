@@ -745,6 +745,11 @@ pub(crate) fn spawn_core_event_listener(
     wake: UiWake,
 ) {
     let mut events = core.subscribe_events();
+    // New mail is spoken from the core's own arrival event, not from the
+    // notification host: the voice works whether or not the system shows
+    // toasts, the window is on the inbox, or the user's notification scope
+    // keeps the mail out of a notification.
+    let announcements = crate::notifications::spawn_mail_announcer(runtime, core.file_core());
     // Weak, so the loop still ends when the core and its event bus are gone.
     let stores = Arc::downgrade(&core.file_core());
     runtime.spawn(async move {
@@ -780,6 +785,12 @@ pub(crate) fn spawn_core_event_listener(
                         .unwrap_or_else(|poisoned| poisoned.into_inner())
                         .record_threads(thread_ids);
                     true
+                }
+                Ok(CoreEvent::MailNew { thread_ids, .. }) => {
+                    // The mail list wakes from MailUpdated; only the voice
+                    // needs this event, so it does not wake the UI by itself.
+                    announcements.mail_arrived(thread_ids);
+                    false
                 }
                 Ok(CoreEvent::AccountState {
                     account_id,
