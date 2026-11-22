@@ -143,7 +143,7 @@ fn frameless_screenshots() {
             WIDTH,
             HEIGHT,
         );
-        app.set_settings_tab("Services".into());
-        draw(&format!("settings-services-{suffix}"), WIDTH, HEIGHT);
+        app.set_settings_tab("About".into());
+        draw(&format!("settings-about-{suffix}"), WIDTH, HEIGHT);
     }
 }

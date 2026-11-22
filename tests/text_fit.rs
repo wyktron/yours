@@ -1086,7 +1086,6 @@ fn states() -> Vec<State> {
         "Notifications",
         "Shortcuts",
         "Data",
-        "Services",
         "About",
     ] {
         states.push(state(&format!("settings {tab}"), move |app| {
