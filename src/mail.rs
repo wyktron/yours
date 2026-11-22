@@ -229,6 +229,8 @@ pub struct ComposeMessage<'a> {
     /// The message asks for a read receipt.
     pub request_read_receipt: bool,
     pub importance: Importance,
+    /// When set, the message is queued for that instant instead of now.
+    pub send_at: Option<i64>,
 }
 
 /// The latest concrete message in a selected thread, with the addressing data
@@ -3108,12 +3110,10 @@ impl CoreMailSource {
         &self,
         message: ComposeMessage<'_>,
     ) -> Result<QueueSendResult, String> {
+        let send_at = message.send_at;
         let draft_id = self.save_draft(compose_args(message, true)?).await?;
-        self.queue_send(QueueSendArgs {
-            draft_id,
-            send_at: None,
-        })
-        .await
+        self.queue_send(QueueSendArgs { draft_id, send_at })
+            .await
     }
 
     /// Send a queued message without waiting for the rest of its delay.
@@ -4957,6 +4957,7 @@ mod tests {
             in_reply_to_header: None,
             request_read_receipt: false,
             importance: Importance::Normal,
+            send_at: None,
         };
         let draft = compose_args(message(), false).unwrap();
 
@@ -4985,6 +4986,7 @@ mod tests {
                 in_reply_to_header: None,
                 request_read_receipt: true,
                 importance: Importance::High,
+                send_at: None,
             },
             true,
         )

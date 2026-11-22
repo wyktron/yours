@@ -144,6 +144,7 @@ export component EmailComposer inherits Rectangle {
     callback save-signature();
     callback pick-attachments;
     callback ai-draft();
+    callback schedule();
     callback insert-images;
     callback remove-attachment(int);
     callback remove-link(int);
@@ -1102,6 +1103,7 @@ export component EmailComposer inherits Rectangle {
             save-signature => { root.save-signature(); }
             pick-attachments => { root.pick-attachments(); }
             ai-draft => { root.ai-draft(); }
+            schedule => { root.schedule(); }
             link-sharing: root.link-sharing;
             share-by-link => { root.share-by-link(); }
             request-receipt <=> root.request-receipt;

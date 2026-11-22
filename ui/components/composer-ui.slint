@@ -1,5 +1,6 @@
 import { AccountRow, ComposeAttachment, ComposeLink, ComposeContact, ComposeEditorTile, EmailTemplateRow, LocalizedMessage, SpellingLanguage } from "../models.slint";
 import { AppTheme } from "../design-system.slint";
+import { Button } from "button.slint";
 import { EmailComposer } from "email-composer.slint";
 
 // One message being written: its fields, the editor surface and the actions
@@ -139,6 +140,11 @@ export global ComposerUi {
     callback save(int, string, string, string, string, string, bool);
     callback pick-attachments();
     callback ai-draft();
+    // Send-later choices: the popup is open, and the chosen instant is kept
+    // on the UI so the save that follows queues it.
+    in-out property <bool> schedule-open: false;
+    in-out property <int> send-at: 0;
+    callback schedule-send(int);
     // Opens a picker for images to put in the text at the caret.
     callback insert-images();
     callback remove-attachment(int);
@@ -293,6 +299,7 @@ export component BoundComposer inherits EmailComposer {
     }
     pick-attachments => { ComposerUi.pick-attachments(); }
     ai-draft => { ComposerUi.ai-draft(); }
+    schedule => { ComposerUi.schedule-open = true; }
     insert-images => { ComposerUi.insert-images(); }
     remove-attachment(index) => { ComposerUi.remove-attachment(index); }
     remove-link(index) => { ComposerUi.remove-link(index); }
@@ -349,6 +356,40 @@ export component BoundComposer inherits EmailComposer {
         triggered => {
             self.running = false;
             root.publish-layout();
+        }
+    }
+
+    // Send later: three concrete choices, so no date picker is needed.
+    if ComposerUi.schedule-open : Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        background: #00000066;
+        z: 500;
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: min(300px, parent.width - 40px);
+            height: schedule-card.preferred-height;
+            background: AppTheme.surface-raised;
+            border-radius: 12px;
+            border-width: 1px;
+            border-color: AppTheme.control-border;
+            schedule-card := VerticalLayout {
+                padding: 18px;
+                spacing: 8px;
+                Text {
+                    text: @tr("Send later");
+                    color: AppTheme.title;
+                    font-size: 16px;
+                    horizontal-alignment: center;
+                }
+                Button { text: @tr("In 1 hour"); clicked => { ComposerUi.schedule-send(1); } }
+                Button { text: @tr("In 4 hours"); clicked => { ComposerUi.schedule-send(2); } }
+                Button { text: @tr("Tomorrow"); clicked => { ComposerUi.schedule-send(3); } }
+                Button { text: @tr("Cancel"); clicked => { ComposerUi.schedule-open = false; } }
+            }
         }
     }
 }

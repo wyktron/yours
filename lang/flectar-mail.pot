@@ -2314,7 +2314,7 @@ msgstr ""
 msgid "{} wrote:"
 msgstr ""
 
-#: ui/app.slint:773 ui/components/email-composer.slint:902
+#: ui/app.slint:773 ui/components/email-composer.slint:903
 msgid "Forwarded message"
 msgstr ""
 
@@ -2518,8 +2518,8 @@ msgstr ""
 msgid "Email template inserted."
 msgstr ""
 
-#: ui/app.slint:822 ui/components/composer-actions.slint:906
-#: ui/app.slint:822 ui/components/composer-actions.slint:906
+#: ui/app.slint:822 ui/components/composer-actions.slint:908
+#: ui/app.slint:822 ui/components/composer-actions.slint:908
 msgid "Share files by link"
 msgstr ""
 
@@ -2835,7 +2835,7 @@ msgstr ""
 msgid "Drop to start a new message"
 msgstr ""
 
-#: ui/app.slint:2670 ui/components/email-composer.slint:1203
+#: ui/app.slint:2670 ui/components/email-composer.slint:1205
 msgid "Pictures go in the text, and other files are attached."
 msgstr ""
 
@@ -3287,6 +3287,7 @@ msgstr ""
 msgid "Add sender address"
 msgstr ""
 
+#: ui/components/account-mail-preferences.slint:215
 #: ui/components/account-mail-preferences.slint:215
 #: ui/components/account-mail-preferences.slint:215
 #: ui/components/account-mail-preferences.slint:215
@@ -4337,140 +4338,145 @@ msgid_plural "{n} photos, {0}"
 msgstr[0] ""
 msgstr[1] ""
 
-#: ui/components/composer-actions.slint:855
+#: ui/components/composer-actions.slint:857
 msgid "Save signature"
 msgstr ""
 
-#: ui/components/composer-actions.slint:876
+#: ui/components/composer-actions.slint:878
 msgid "Sending…"
 msgstr ""
 
-#: ui/components/composer-actions.slint:876
+#: ui/components/composer-actions.slint:878
 msgid "Send"
 msgstr ""
 
-#: ui/components/composer-actions.slint:893
-#: ui/components/composer-actions.slint:893
+#: ui/components/composer-actions.slint:895
+#: ui/components/composer-actions.slint:895
 msgid "Attach files"
 msgstr ""
 
-#: ui/components/composer-actions.slint:919
+#: ui/components/composer-actions.slint:921
 msgid "Draft the reply with AI"
 msgstr ""
 
-#: ui/components/composer-actions.slint:942
+#: ui/components/composer-actions.slint:935
+#: ui/components/composer-actions.slint:935
+msgid "Send later"
+msgstr ""
+
+#: ui/components/composer-actions.slint:958
 msgid "Save draft"
 msgstr ""
 
-#: ui/components/composer-actions.slint:962
+#: ui/components/composer-actions.slint:978
 msgid "More options"
 msgstr ""
 
-#: ui/components/composer-actions.slint:968
+#: ui/components/composer-actions.slint:984
 msgid "Request a read receipt"
 msgstr ""
 
-#: ui/components/composer-actions.slint:974 ui/views/mail-list-pane.slint:1175
+#: ui/components/composer-actions.slint:990 ui/views/mail-list-pane.slint:1175
 msgid "High importance"
 msgstr ""
 
-#: ui/components/composer-actions.slint:980
+#: ui/components/composer-actions.slint:996
 msgid "Low importance"
 msgstr ""
 
-#: ui/components/composer-actions.slint:991
-#: ui/components/composer-actions.slint:991
-#: ui/components/composer-actions.slint:991
+#: ui/components/composer-actions.slint:1007
+#: ui/components/composer-actions.slint:1007
+#: ui/components/composer-actions.slint:1007
 msgid "Discard"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1049
+#: ui/components/composer-actions.slint:1065
 msgctxt "image"
 msgid "Size"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1057
-#: ui/components/composer-actions.slint:1057
+#: ui/components/composer-actions.slint:1073
+#: ui/components/composer-actions.slint:1073
 msgctxt "image size"
 msgid "Small"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1058
-#: ui/components/composer-actions.slint:1058
+#: ui/components/composer-actions.slint:1074
+#: ui/components/composer-actions.slint:1074
 msgctxt "image size"
 msgid "Medium"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1059
-#: ui/components/composer-actions.slint:1059
+#: ui/components/composer-actions.slint:1075
+#: ui/components/composer-actions.slint:1075
 msgctxt "image size"
 msgid "Large"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1060
-#: ui/components/composer-actions.slint:1060
+#: ui/components/composer-actions.slint:1076
+#: ui/components/composer-actions.slint:1076
 msgctxt "image size"
 msgid "Original size"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1065
-#: ui/components/composer-actions.slint:1065
-#: ui/components/composer-actions.slint:1065
+#: ui/components/composer-actions.slint:1081
+#: ui/components/composer-actions.slint:1081
+#: ui/components/composer-actions.slint:1081
 msgid "Alt text"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1080
+#: ui/components/composer-actions.slint:1096
 msgid "Remove image"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1229
+#: ui/components/composer-actions.slint:1245
 msgid ""
 "Screen readers read it in place of the image. Leave it empty if the image is "
 "only decoration."
 msgstr ""
 
-#: ui/components/composer-actions.slint:1250
+#: ui/components/composer-actions.slint:1266
 msgid "Describe the image"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1296
-#: ui/components/composer-actions.slint:1296
+#: ui/components/composer-actions.slint:1312
+#: ui/components/composer-actions.slint:1312
 msgid "Apply"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1345
+#: ui/components/composer-actions.slint:1361
 msgid "Edit link"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1345
+#: ui/components/composer-actions.slint:1361
 msgid "Add link"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1356
+#: ui/components/composer-actions.slint:1372
 msgid "The selected text will open this address."
 msgstr ""
 
-#: ui/components/composer-actions.slint:1377 ui/views/contacts-view.slint:803
+#: ui/components/composer-actions.slint:1393 ui/views/contacts-view.slint:803
 msgid "https://example.com"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1472
+#: ui/components/composer-actions.slint:1488
 msgid "Discard changes to this signature?"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1472
+#: ui/components/composer-actions.slint:1488
 msgid "Discard this draft?"
 msgstr ""
 
-#: ui/components/composer-actions.slint:1483
+#: ui/components/composer-actions.slint:1499
 msgid "What you changed since it was last saved won't be kept."
 msgstr ""
 
-#: ui/components/composer-actions.slint:1483
+#: ui/components/composer-actions.slint:1499
 msgid "The message and its attachments will be removed from this composer."
 msgstr ""
 
-#: ui/components/composer-actions.slint:1494
+#: ui/components/composer-actions.slint:1510
 msgid "Keep"
 msgstr ""
 
@@ -4554,6 +4560,18 @@ msgstr ""
 msgid "What is this email about?"
 msgstr ""
 
+#: ui/components/composer-ui.slint:388
+msgid "In 1 hour"
+msgstr ""
+
+#: ui/components/composer-ui.slint:389
+msgid "In 4 hours"
+msgstr ""
+
+#: ui/components/composer-ui.slint:390
+msgid "Tomorrow"
+msgstr ""
+
 #: ui/components/confirmation-dialog.slint:14
 msgid "Confirm"
 msgstr ""
@@ -4596,133 +4614,133 @@ msgstr ""
 msgid "Next page"
 msgstr ""
 
-#: ui/components/email-composer.slint:453
-#: ui/components/email-composer.slint:453
+#: ui/components/email-composer.slint:454
+#: ui/components/email-composer.slint:454
 msgid "From"
 msgstr ""
 
-#: ui/components/email-composer.slint:454
+#: ui/components/email-composer.slint:455
 msgid "Verified sender identity"
 msgstr ""
 
-#: ui/components/email-composer.slint:575
+#: ui/components/email-composer.slint:576
 msgid "Write your message…"
 msgstr ""
 
-#: ui/components/email-composer.slint:749
+#: ui/components/email-composer.slint:750
 msgid "No suggestions"
 msgstr ""
 
-#: ui/components/email-composer.slint:753
+#: ui/components/email-composer.slint:754
 msgid "Add to dictionary"
 msgstr ""
 
-#: ui/components/email-composer.slint:757 ui/read-receipts.slint:97
+#: ui/components/email-composer.slint:758 ui/read-receipts.slint:97
 msgid "Ignore"
 msgstr ""
 
-#: ui/components/email-composer.slint:762
+#: ui/components/email-composer.slint:763
 msgid "Image size"
 msgstr ""
 
-#: ui/components/email-composer.slint:769
+#: ui/components/email-composer.slint:770
 msgid "Alt text…"
 msgstr ""
 
-#: ui/components/email-composer.slint:777
+#: ui/components/email-composer.slint:778
 msgid "Cut"
 msgstr ""
 
-#: ui/components/email-composer.slint:787
+#: ui/components/email-composer.slint:788
 msgid "Paste"
 msgstr ""
 
-#: ui/components/email-composer.slint:792
+#: ui/components/email-composer.slint:793
 msgid "Paste as plain text"
 msgstr ""
 
-#: ui/components/email-composer.slint:797
+#: ui/components/email-composer.slint:798
 msgid "Select all"
 msgstr ""
 
-#: ui/components/email-composer.slint:803
+#: ui/components/email-composer.slint:804
 msgid "Spelling"
 msgstr ""
 
-#: ui/components/email-composer.slint:805
-#: ui/components/email-composer.slint:805
+#: ui/components/email-composer.slint:806
+#: ui/components/email-composer.slint:806
 msgid "Check spelling"
 msgstr ""
 
-#: ui/components/email-composer.slint:819
+#: ui/components/email-composer.slint:820
 msgid "No dictionaries installed"
 msgstr ""
 
-#: ui/components/email-composer.slint:902
+#: ui/components/email-composer.slint:903
 msgid "Quoted text"
 msgstr ""
 
-#: ui/components/email-composer.slint:908
+#: ui/components/email-composer.slint:909
 msgid "Hide the quoted message"
 msgstr ""
 
-#: ui/components/email-composer.slint:908
+#: ui/components/email-composer.slint:909
 msgid "Show the quoted message"
 msgstr ""
 
-#: ui/components/email-composer.slint:919
+#: ui/components/email-composer.slint:920
 msgid "Edit the quoted message as text"
 msgstr ""
 
-#: ui/components/email-composer.slint:930
+#: ui/components/email-composer.slint:931
 msgid "Remove the forwarded message"
 msgstr ""
 
-#: ui/components/email-composer.slint:930
+#: ui/components/email-composer.slint:931
 msgid "Remove the quoted message"
 msgstr ""
 
-#: ui/components/email-composer.slint:961
+#: ui/components/email-composer.slint:962
 msgid "Add the forwarded message back"
 msgstr ""
 
-#: ui/components/email-composer.slint:961
+#: ui/components/email-composer.slint:962
 msgid "Add the quoted text back"
 msgstr ""
 
-#: ui/components/email-composer.slint:1121
+#: ui/components/email-composer.slint:1123
 msgid "Send without a subject?"
 msgstr ""
 
-#: ui/components/email-composer.slint:1121
+#: ui/components/email-composer.slint:1123
 msgid "Did you mean to attach a file?"
 msgstr ""
 
-#: ui/components/email-composer.slint:1123
+#: ui/components/email-composer.slint:1125
 msgid "People see the subject first, in their list of mail."
 msgstr ""
 
-#: ui/components/email-composer.slint:1124
+#: ui/components/email-composer.slint:1126
 msgid "The message mentions “{}”, but has no file attached."
 msgstr ""
 
-#: ui/components/email-composer.slint:1126
+#: ui/components/email-composer.slint:1128
 msgid "Send without subject"
 msgstr ""
 
-#: ui/components/email-composer.slint:1126
+#: ui/components/email-composer.slint:1128
 msgid "Send anyway"
 msgstr ""
 
-#: ui/components/email-composer.slint:1127
+#: ui/components/email-composer.slint:1129
 msgid "Add a subject"
 msgstr ""
 
-#: ui/components/email-composer.slint:1128
+#: ui/components/email-composer.slint:1130
 msgid "Attach files…"
 msgstr ""
 
-#: ui/components/email-composer.slint:1195
+#: ui/components/email-composer.slint:1197
 msgid "Drop to add to your message"
 msgstr ""
 

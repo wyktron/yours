@@ -1802,6 +1802,12 @@ impl ComposeSession {
             }
         });
         let weak = self.reference();
+        ui.on_schedule_send(move |preset| {
+            if let Some(session) = weak.upgrade() {
+                session.schedule_send(preset);
+            }
+        });
+        let weak = self.reference();
         ui.on_insert_images(move || {
             if let Some(session) = weak.upgrade() {
                 session.pick_images();
@@ -3201,7 +3207,11 @@ impl ComposeSession {
             in_reply_to_header: intent.in_reply_to_header.as_deref(),
             request_read_receipt: ui.get_request_receipt(),
             importance: Importance::from_i64(i64::from(ui.get_importance())),
+            send_at: (ui.get_send_at() > 0).then(|| i64::from(ui.get_send_at()) * 1000),
         };
+        if ui.get_send_at() > 0 {
+            ui.set_send_at(0);
+        }
         if send {
             let queued = composers
                 .runtime
@@ -3391,6 +3401,35 @@ impl ComposeSession {
                 false
             }
         }
+    }
+
+    /// Queue the message for one of the send-later choices: one hour, four
+    /// hours, or a day from now, in epoch seconds on the UI property.
+    fn schedule_send(self: &Rc<Self>, preset: i32) {
+        let Some(host) = self.host() else {
+            return;
+        };
+        let ui = host.ui();
+        let hours = match preset {
+            1 => 1,
+            2 => 4,
+            _ => 24,
+        };
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or_default();
+        ui.set_send_at(i32::try_from(now + hours * 3_600).unwrap_or(0));
+        ui.set_schedule_open(false);
+        let (account_id, to, cc, bcc, subject) = (
+            ui.get_account_id(),
+            ui.get_to(),
+            ui.get_cc(),
+            ui.get_bcc(),
+            ui.get_subject(),
+        );
+        let body = ui.get_body();
+        self.save(account_id, &to, &cc, &bcc, &subject, &body, true);
     }
 
     /// Ask the model for a reply draft and put it in the editor.
