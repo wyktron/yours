@@ -7010,6 +7010,13 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                 )
                 .await;
             let connected = result.is_ok();
+            if let Err(error) = &result {
+                eprintln!("carddav connect failed: {error}");
+                let text = format!("Could not connect CardDAV: {error}");
+                let _ = app.upgrade_in_event_loop(move |app| {
+                    app.set_carddav_error(text.into());
+                });
+            }
             let message = match result {
                 Ok(_) => UiMessage::plain("CalDAV connected and initial sync started."),
                 Err(error) => UiMessage::detail("Could not connect CalDAV: {}", error),
@@ -7073,6 +7080,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                     app.set_carddav_account_id(-1);
                     app.set_carddav_password("".into());
                     app.set_carddav_manage_existing(false);
+                    app.set_carddav_error("".into());
                 });
             }
             let connections = core.load_carddav_connections().await.ok();

@@ -560,6 +560,7 @@ export component SettingsDialog inherits Rectangle {
     in property <bool> caldav_connecting: false;
     private property <string> caldav-account-email: "";
     in-out property <int> carddav_account_id: -1;
+    in-out property <string> carddav_error: "";
     in-out property <string> carddav_url: "";
     in-out property <string> carddav_username: "";
     in-out property <string> carddav_password: "";
@@ -2855,6 +2856,7 @@ export component SettingsDialog inherits Rectangle {
                                             text: account.carddav_connected ? (account.carddav_status == "" ? @tr("Manage") : @tr("Fix CardDAV")) : @tr("CardDAV");
                                             clicked => {
                                                 root.carddav_account_id = account.id;
+                                                root.carddav_error = "";
                                                 root.carddav_url = account.carddav_url;
                                                 root.carddav_username = account.carddav_username;
                                                 root.carddav_password = "";
@@ -3057,6 +3059,7 @@ export component SettingsDialog inherits Rectangle {
                                     LineEdit { text <=> root.carddav_url; placeholder-text: @tr("https://contacts.example.com/"); }
                                     HorizontalBox { spacing: 8px; LineEdit { text <=> root.carddav_username; placeholder-text: @tr("Username"); } LineEdit { text <=> root.carddav_password; input-type: password; placeholder-text: @tr("App password"); } }
                                     HorizontalBox { spacing: 8px; if root.carddav_manage_existing : Button { text: @tr("Disconnect"); clicked => { root.disconnect_carddav(root.carddav_account_id); root.carddav_account_id = -1; root.carddav_password = ""; root.carddav_manage_existing = false; } } Rectangle { horizontal-stretch: 1; } Button { text: @tr("Cancel"); clicked => { root.carddav_account_id = -1; root.carddav_password = ""; root.carddav_manage_existing = false; } } Button { text: root.carddav_manage_existing ? @tr("Reconnect") : @tr("Connect"); primary: true; clicked => { root.connect_carddav(root.carddav_account_id, root.carddav_url, root.carddav_username, root.carddav_password); } } }
+                                    if root.carddav_error != "" : Text { text: root.carddav_error; color: #e5484d; font-size: 13px; wrap: word-wrap; }
                                 }
                             }
                         }
