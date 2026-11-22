@@ -916,6 +916,7 @@ impl SoftwareReader {
             &renderer,
             false,
             ExternalUrlOpener::new(|_| Err("test host unavailable".into())),
+            runtime.handle().clone(),
         );
         Self {
             window,
