@@ -273,12 +273,29 @@ impl Speech {
                     ..word
                 })
                 .collect();
-            let Ok(child) = Command::new("pw-play")
+            let mut player = Command::new("pw-play");
+            player
                 .arg(&path)
                 .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()
-            else {
+                .stderr(Stdio::null());
+            // A player that outlives Flectar keeps its stream half-open in the
+            // stream-init state, and enough of those stop every later stream
+            // from activating: the reader then speaks into silence while the
+            // player waits forever. Tying the player's life to this process
+            // leaves nothing behind when Flectar crashes or is killed.
+            #[cfg(target_os = "linux")]
+            {
+                use std::os::unix::process::CommandExt as _;
+                // SAFETY: the closure only calls an async-signal-safe system
+                // call between fork and exec.
+                unsafe {
+                    player.pre_exec(|| {
+                        libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM, 0, 0, 0);
+                        Ok(())
+                    });
+                }
+            }
+            let Ok(child) = player.spawn() else {
                 let _ = std::fs::remove_file(&path);
                 speech.finish_request(generation, None);
                 return;
