@@ -77,12 +77,12 @@ class PackagingTests(unittest.TestCase):
             package = root / "package"
             (package / "usr/lib").mkdir(parents=True)
             (package / "usr/bin").mkdir()
-            (package / "usr/bin/flectar-mail").write_bytes(arm)
+            (package / "usr/bin/yours").write_bytes(arm)
             (package / "usr/lib/libpdfium.so").write_bytes(arm)
             (package / "usr/lib/libpdfium.so.0").symlink_to("libpdfium.so")
             (package / "usr/lib/missing.so").symlink_to("nowhere.so")
             (package / "AppRun").write_text("#!/bin/sh\n")
-            self.assertEqual(linux_elf.architecture(package / "usr/bin/flectar-mail"), ("aarch64", "arm64", "linux-arm64"))
+            self.assertEqual(linux_elf.architecture(package / "usr/bin/yours"), ("aarch64", "arm64", "linux-arm64"))
             self.assertEqual(linux_elf.verify([package]), (linux_elf.MACHINES[183], 2))
             x86_file = root / "x86"
             x86_file.write_bytes(x86)
@@ -187,11 +187,11 @@ class PackagingTests(unittest.TestCase):
                 output.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(SCRIPTS.parent / name, output)
             shutil.copytree(SCRIPTS.parent / "LICENSES", root / "LICENSES")
-            (root / "resources/app-icon/flectar-mail.iconset").mkdir(parents=True)
+            (root / "resources/app-icon/yours.iconset").mkdir(parents=True)
             (root / "Cargo.toml").write_text('[package]\nversion = "0.1.0-alpha.5"\n')
             (root / "target/release").mkdir(parents=True)
-            shutil.copyfile("/bin/true", root / "target/release/flectar-mail")
-            (root / "target/release/flectar-mail").chmod(0o755)
+            shutil.copyfile("/bin/true", root / "target/release/yours")
+            (root / "target/release/yours").chmod(0o755)
 
             (root / "scripts/stage-pdfium.py").write_text(
                 "import os, pathlib, sys\n"
@@ -246,7 +246,7 @@ class PackagingTests(unittest.TestCase):
                         [
                             "bash",
                             str(root / "scripts/package-macos.sh"),
-                            str(root / "target/release/flectar-mail"),
+                            str(root / "target/release/yours"),
                             str(output_dir),
                             architecture,
                         ],

@@ -46,7 +46,7 @@ pub enum DetectedFormat {
     ThunderbirdPrefs,
     /// A ZIP archive, such as Thunderbird's profile export.
     Zip,
-    /// A Flectar Mail account backup, which hosts restore instead.
+    /// A Yours account backup, which hosts restore instead.
     FlectarBackup,
 }
 
@@ -55,7 +55,7 @@ pub enum DetectedFormat {
 pub enum Source {
     /// Accounts, and any mail their app keeps with them.
     Accounts(ImportInventory),
-    /// The bytes of a Flectar Mail account backup, for the restore path.
+    /// The bytes of a Yours account backup, for the restore path.
     FlectarBackup(Vec<u8>),
     /// Saved mail without accounts: mbox files, messages, or folders or
     /// archives of them.

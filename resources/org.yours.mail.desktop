@@ -1,9 +1,9 @@
 [Desktop Entry]
-Name=Flectar Mail
+Name=Yours
 GenericName=Email Client
 Comment=Native email client built with Slint and Blitz
-Exec=flectar-mail %U
-Icon=com.flectar.mail
+Exec=yours %U
+Icon=org.yours.mail
 Type=Application
 Categories=Office;Email;
 Keywords=Mail;Email;IMAP;Gmail;Outlook;Calendar;
@@ -13,9 +13,9 @@ Terminal=false
 StartupNotify=true
 # The window's app id, so docks group it under entries that AppImage
 # integrators install under another file name.
-StartupWMClass=com.flectar.mail
+StartupWMClass=org.yours.mail
 Actions=new-email;
-X-AppImage-Name=Flectar Mail
+X-AppImage-Name=Yours
 # Packaging replaces these with the Cargo.toml version and the executable's
 # architecture.
 X-AppImage-Version=0.1.0-alpha.4
@@ -23,4 +23,4 @@ X-AppImage-Arch=x86_64
 
 [Desktop Action new-email]
 Name=New email
-Exec=flectar-mail mailto:
+Exec=yours mailto:

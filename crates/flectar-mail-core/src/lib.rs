@@ -8289,7 +8289,7 @@ impl Core {
         if prompt.is_empty() {
             return Ok(AiAutomationPlan {
                 issues: vec![
-                    "Describe the emails to match and what Flectar Mail should do.".into(),
+                    "Describe the emails to match and what Yours should do.".into(),
                 ],
                 ..AiAutomationPlan::default()
             });

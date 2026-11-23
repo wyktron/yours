@@ -466,7 +466,7 @@ async fn background_refusal() -> Option<UiMessage> {
     match tokio::task::spawn_blocking(crate::autostart::allow_background).await {
         Ok(Ok(true)) => None,
         Ok(Ok(false)) => Some(UiMessage::plain(
-            "Your desktop did not allow Flectar Mail to run in the background.",
+            "Your desktop did not allow Yours to run in the background.",
         )),
         Ok(Err(error)) => Some(UiMessage::detail(
             "Could not save close behavior: {}",
@@ -482,11 +482,11 @@ async fn background_refusal() -> Option<UiMessage> {
 /// What closing the window does now.
 fn close_behavior_saved(enabled: bool) -> UiMessage {
     if !enabled {
-        UiMessage::plain("Closing the window will now quit Flectar Mail.")
+        UiMessage::plain("Closing the window will now quit Yours.")
     } else if cfg!(feature = "flatpak") {
-        UiMessage::plain("Closing the window will now keep Flectar Mail running in the background.")
+        UiMessage::plain("Closing the window will now keep Yours running in the background.")
     } else {
-        UiMessage::plain("Closing the window will now keep Flectar Mail in the tray.")
+        UiMessage::plain("Closing the window will now keep Yours in the tray.")
     }
 }
 
@@ -593,16 +593,16 @@ impl LaunchAtLogin {
                 app.set_launch_at_login(actual);
                 app.set_sync_status(match result {
                     Ok(Applied::Done) if enabled => {
-                        UiMessage::plain("Flectar Mail will start when you sign in.")
+                        UiMessage::plain("Yours will start when you sign in.")
                     }
                     Ok(Applied::Done) => {
-                        UiMessage::plain("Flectar Mail will no longer start when you sign in.")
+                        UiMessage::plain("Yours will no longer start when you sign in.")
                     }
                     Ok(Applied::NeedsApproval) if cfg!(target_os = "windows") => UiMessage::plain(
-                        "Turn on Flectar Mail under Startup apps in Windows Settings to finish.",
+                        "Turn on Yours under Startup apps in Windows Settings to finish.",
                     ),
                     Ok(Applied::NeedsApproval) => UiMessage::plain(
-                        "Allow Flectar Mail under Login Items in System Settings to finish.",
+                        "Allow Yours under Login Items in System Settings to finish.",
                     ),
                     Err(error) => UiMessage::detail("Could not change startup behavior: {}", error),
                 });

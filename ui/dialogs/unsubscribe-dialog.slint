@@ -24,8 +24,8 @@ export component UnsubscribeDialog inherits Rectangle {
         : Unsubscribe.stage == "done" && root.emailed
             ? @tr("Your request went to {}. It can take a few days for the mail to stop.", Unsubscribe.to)
         : Unsubscribe.stage == "done" ? @tr("It can take a few days for the mail to stop.")
-        : Unsubscribe.kind == "one-click" ? @tr("Flectar Mail will ask {} to stop sending you this mail.", Unsubscribe.host)
-        : root.emailed ? @tr("Flectar Mail will send an email asking the list to unsubscribe you.")
+        : Unsubscribe.kind == "one-click" ? @tr("Yours will ask {} to stop sending you this mail.", Unsubscribe.host)
+        : root.emailed ? @tr("Yours will send an email asking the list to unsubscribe you.")
         : @tr("{} takes unsubscribe requests on its website.", Unsubscribe.host);
     private property <string> detail: root.asking && Unsubscribe.kind == "website" ? @tr("The page opens in your browser.")
         : Unsubscribe.stage == "confirm" && root.emailed ? @tr("You can review the email before it goes.")

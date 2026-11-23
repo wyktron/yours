@@ -24,7 +24,7 @@ use std::{
 /// How long the notification service may take to answer a call.
 const CALL_TIMEOUT: Duration = Duration::from_secs(5);
 /// The desktop entry, and the application id the desktop knows the app by.
-const APP_ID: &str = "com.flectar.mail";
+const APP_ID: &str = "org.yours.mail";
 
 pub(crate) fn host() -> Option<Arc<dyn NotificationHost>> {
     Some(Arc::new(Host(Arc::default())))
@@ -267,19 +267,19 @@ mod badge {
         #[test]
         fn docks_know_the_app_by_its_desktop_entry() {
             let renamed = OsStr::new(
-                "/home/a/.local/share/applications/appimagekit_0f3-com.flectar.mail.desktop",
+                "/home/a/.local/share/applications/appimagekit_0f3-org.yours.mail.desktop",
             );
             assert_eq!(
                 desktop_entry(None, None, None, 7),
-                "com.flectar.mail.desktop"
+                "org.yours.mail.desktop"
             );
             assert_eq!(
-                desktop_entry(Some("com.flectar.mail"), Some(renamed), Some("7"), 7),
-                "com.flectar.mail.desktop"
+                desktop_entry(Some("org.yours.mail"), Some(renamed), Some("7"), 7),
+                "org.yours.mail.desktop"
             );
             assert_eq!(
                 desktop_entry(None, Some(renamed), Some("7"), 7),
-                "appimagekit_0f3-com.flectar.mail.desktop"
+                "appimagekit_0f3-org.yours.mail.desktop"
             );
             // Inherited from a terminal started from its own entry.
             assert_eq!(
@@ -291,15 +291,15 @@ mod badge {
                     Some("3"),
                     7
                 ),
-                "com.flectar.mail.desktop"
+                "org.yours.mail.desktop"
             );
             assert_eq!(
                 desktop_entry(None, Some(OsStr::new("/tmp/flectar")), Some("7"), 7),
-                "com.flectar.mail.desktop"
+                "org.yours.mail.desktop"
             );
             assert_eq!(
                 desktop_entry(Some(""), None, None, 7),
-                "com.flectar.mail.desktop"
+                "org.yours.mail.desktop"
             );
         }
     }
@@ -438,7 +438,7 @@ mod imp {
                 hints.insert("suppress-sound", true.into());
             }
             let arguments = (
-                "Flectar Mail",
+                "Yours",
                 replaces,
                 APP_ID,
                 alert.title.as_str(),

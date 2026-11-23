@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Copyright 2026 Flectar -->
 <component type="desktop-application">
-  <id>com.flectar.mail</id>
+  <id>org.yours.mail</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>AGPL-3.0-only</project_license>
-  <name>Flectar Mail</name>
+  <name>Yours</name>
   <summary>Native, offline-first email client</summary>
   <!-- Keep compatibility with AppStream 0.15 on the Ubuntu 22.04 build host. -->
   <developer_name>Flectar</developer_name>
   <description>
     <p>
-      Flectar Mail is a native Rust and Slint mail client with offline-first
+      Yours is a native Rust and Slint mail client with offline-first
       storage, Gmail and Microsoft account support, contacts, and calendars.
     </p>
   </description>
@@ -18,7 +18,7 @@
     <content_attribute id="social-chat">intense</content_attribute>
     <content_attribute id="social-contacts">intense</content_attribute>
   </content_rating>
-  <launchable type="desktop-id">com.flectar.mail.desktop</launchable>
+  <launchable type="desktop-id">org.yours.mail.desktop</launchable>
   <url type="homepage">https://flectar.com</url>
   <url type="bugtracker">https://github.com/flectar/mail/issues</url>
   <screenshots>

@@ -718,7 +718,7 @@ pub fn upsert_remote(
     }
 }
 
-/// Insert an event created in Flectar Mail (we are the organizer).
+/// Insert an event created in Yours (we are the organizer).
 #[allow(clippy::too_many_arguments)]
 pub fn insert_local(
     conn: &Connection,

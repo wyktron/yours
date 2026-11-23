@@ -1,11 +1,11 @@
 //! The "Default email app" row in Settings: whether `mailto:` links from
-//! browsers and other apps open in Flectar Mail, and a way to choose it.
+//! browsers and other apps open in Yours, and a way to choose it.
 //!
 //! No platform lets an application take email links over by itself, and this
 //! only acts when the user asks:
 //!
 //! - Windows lets only the user choose, in Settings > Apps > Default apps.
-//!   The installer and the Store package register Flectar Mail there; a
+//!   The installer and the Store package register Yours there; a
 //!   portable copy registers itself for the current user when asked, under
 //!   names of its own, and can remove that again. Choosing it opens Flectar
 //!   Mail's page of Default apps (Windows 11) or Default apps (Windows 10).
@@ -67,10 +67,10 @@ mod platform {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Status {
     // Each platform reports only some of these.
-    /// Mail links open in Flectar Mail.
+    /// Mail links open in Yours.
     #[cfg_attr(all(linux_desktop, feature = "flatpak"), allow(dead_code))]
     Default,
-    /// Another app or none opens them; the user can choose Flectar Mail.
+    /// Another app or none opens them; the user can choose Yours.
     #[cfg_attr(all(linux_desktop, feature = "flatpak"), allow(dead_code))]
     NotDefault,
     /// Only the system settings can tell and change it (Flatpak).
@@ -101,7 +101,7 @@ struct State {
     removable: bool,
 }
 
-/// What choosing Flectar Mail did.
+/// What choosing Yours did.
 #[derive(Debug, PartialEq, Eq)]
 enum Applied {
     /// It is the default now.
@@ -209,10 +209,10 @@ impl DefaultEmailAppRow {
                 let state = platform::state();
                 let message = match result {
                     Ok(Applied::Done) => Some(UiMessage::plain(
-                        "Flectar Mail is now your default email app.",
+                        "Yours is now your default email app.",
                     )),
                     Ok(Applied::Settings) => Some(UiMessage::plain(
-                        "Choose Flectar Mail for MAILTO in Windows Settings to finish.",
+                        "Choose Yours for MAILTO in Windows Settings to finish.",
                     )),
                     Ok(Applied::Unchanged) => None,
                     Err(error) => Some(UiMessage::detail(

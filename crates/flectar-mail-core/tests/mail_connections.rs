@@ -76,7 +76,7 @@ where
 {
     let command = line(stream).await;
     assert!(command.contains(" ID ("), "unexpected command: {command:?}");
-    assert!(command.contains(r#""name" "Flectar Mail""#));
+    assert!(command.contains(r#""name" "Yours""#));
     assert!(command.contains(&format!(r#""version" "{}""#, env!("CARGO_PKG_VERSION"))));
     assert!(command.contains(r#""vendor" "Flectar""#));
     let tag = command.split_whitespace().next().unwrap();

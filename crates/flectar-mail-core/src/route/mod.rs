@@ -364,7 +364,7 @@ pub fn automation_prompt(
 }
 
 /// Ask the configured model to translate one plain-language automation request
-/// into the small deterministic action vocabulary supported by Flectar Mail.
+/// into the small deterministic action vocabulary supported by Yours.
 pub fn automation_planner_prompt(prompt: &str, labels: &[Label]) -> Vec<crate::ai::ChatMessage> {
     let label_catalog = labels
         .iter()

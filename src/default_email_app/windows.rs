@@ -37,14 +37,14 @@ struct Registration {
 
 /// What platform/windows/installer.iss writes for an installed copy.
 const INSTALLED: Registration = Registration {
-    name: "Flectar Mail",
+    name: "Yours",
     prog_id: "FlectarMail.Url.mailto",
 };
 
 /// A portable copy registers under names of its own, so it never replaces
 /// or removes the installed copy's registration.
 const PORTABLE: Registration = Registration {
-    name: "Flectar Mail (Portable)",
+    name: "Yours (Portable)",
     prog_id: "FlectarMail.Portable.Url.mailto",
 };
 
@@ -73,7 +73,7 @@ impl Registration {
     }
 }
 
-/// How this copy of Flectar Mail is installed.
+/// How this copy of Yours is installed.
 enum Copy {
     /// The Microsoft Store package; its manifest registers the handler.
     Packaged { app_user_model_id: String },
@@ -178,7 +178,7 @@ fn register(registration: &Registration) -> io::Result<()> {
     };
     let icon = quoted(",0");
     let command = quoted(&format!(" {} \"%1\"", crate::mailto_links::MAILTO_OPTION));
-    let label = OsStr::new("Flectar Mail email link");
+    let label = OsStr::new("Yours email link");
     set_value(&registration.class(), None, label)?;
     set_value(&registration.class(), Some("FriendlyTypeName"), label)?;
     set_value(
@@ -254,8 +254,8 @@ fn package_application(prog_id: &str) -> Option<String> {
         .map(|value| value.to_string_lossy().into_owned())
 }
 
-/// Open Default apps for the user to choose Flectar Mail. Windows 11 opens
-/// it at Flectar Mail's own page; Windows 10 only has the whole list, as
+/// Open Default apps for the user to choose Yours. Windows 11 opens
+/// it at Yours's own page; Windows 10 only has the whole list, as
 /// Firefox also does.
 fn open_default_apps(copy: &Copy) -> io::Result<()> {
     let page = if windows_build().is_some_and(|build| build >= FIRST_WINDOWS_11_BUILD) {

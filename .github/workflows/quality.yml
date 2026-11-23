@@ -214,7 +214,7 @@ jobs:
             # The app's deployment target (platform/ios/project.yml).
             command: >-
               IPHONEOS_DEPLOYMENT_TARGET=17.0
-              cargo clippy --locked --target aarch64-apple-ios --bin flectar-mail
+              cargo clippy --locked --target aarch64-apple-ios --bin yours
               --no-default-features --features remote-content,ios -- -D warnings
           - name: Android
             runner: ubuntu-24.04

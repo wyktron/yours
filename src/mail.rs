@@ -4539,7 +4539,7 @@ pub fn fixtures() -> Vec<EmailFixture> {
         // Renderer tests need an HTML document; screenshots render the shared
         // demo-email.html instead. Build test HTML from the same rows.
         email.html = markdown_to_html(&format!(
-            "# {}\n\n{}\n\n[Open message](https://{}) · [Flectar Mail](https://flectar.com)",
+            "# {}\n\n{}\n\n[Open message](https://{}) · [Yours](https://flectar.com)",
             email.subject,
             email.preview,
             domain_from_address(&email.address).unwrap_or_default()

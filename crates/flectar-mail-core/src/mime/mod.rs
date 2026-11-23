@@ -1611,7 +1611,7 @@ mod read_receipt_tests {
                 || raw.contains("report-type=disposition-notification")
         );
         assert!(raw.contains("Content-Type: message/disposition-notification"));
-        assert!(raw.contains("Reporting-UA: example.org; Flectar Mail\r\n"));
+        assert!(raw.contains("Reporting-UA: example.org; Yours\r\n"));
         assert!(raw.contains("Final-Recipient: rfc822; me@example.org\r\n"));
         assert!(raw.contains("Original-Message-ID: <plan@example.com>\r\n"));
         assert!(raw.contains("Disposition: manual-action/MDN-sent-manually; displayed\r\n"));
@@ -3383,7 +3383,7 @@ pub fn build_read_receipt(receipt: &ReadReceipt) -> Result<(String, Vec<u8>)> {
         && original_id.is_none_or(|id| id.is_ascii())
         && receipt.reporting_domain.is_ascii();
     let mut report = format!(
-        "Reporting-UA: {}; Flectar Mail\r\nFinal-Recipient: {}; {}\r\n",
+        "Reporting-UA: {}; Yours\r\nFinal-Recipient: {}; {}\r\n",
         receipt.reporting_domain,
         if ascii { "rfc822" } else { "utf-8" },
         receipt.recipient.email,

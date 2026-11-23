@@ -22,7 +22,7 @@
     ProcessorArchitecture="@ARCHITECTURE@" />
 
   <Properties>
-    <DisplayName>Flectar Mail</DisplayName>
+    <DisplayName>Yours</DisplayName>
     <PublisherDisplayName>Flectar</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -49,9 +49,9 @@
   </Resources>
 
   <Applications>
-    <Application Id="FlectarMail" Executable="flectar-mail.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="FlectarMail" Executable="yours.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Flectar Mail"
+        DisplayName="Yours"
         Description="Native, offline-first email client"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
@@ -62,10 +62,10 @@
              this task instead; its TaskId must match. -->
         <uap5:Extension
           Category="windows.startupTask"
-          Executable="flectar-mail.exe"
+          Executable="yours.exe"
           EntryPoint="Windows.FullTrustApplication"
           uap10:Parameters="--background">
-          <uap5:StartupTask TaskId="FlectarMailStartup" Enabled="false" DisplayName="Flectar Mail" />
+          <uap5:StartupTask TaskId="FlectarMailStartup" Enabled="false" DisplayName="Yours" />
         </uap5:Extension>
         <!-- Offered as the default email app in Settings > Apps > Default
              apps. The link is the whole command line after the option, as
@@ -84,8 +84,8 @@
              installed copy's notifications. -->
         <com:Extension Category="windows.comServer">
           <com:ComServer>
-            <com:ExeServer Executable="flectar-mail.exe" Arguments="--toast-activated" DisplayName="Flectar Mail">
-              <com:Class Id="6D5AB7B0-F5FC-4A63-B767-DB4CE788E699" DisplayName="Flectar Mail notifications" />
+            <com:ExeServer Executable="yours.exe" Arguments="--toast-activated" DisplayName="Yours">
+              <com:Class Id="6D5AB7B0-F5FC-4A63-B767-DB4CE788E699" DisplayName="Yours notifications" />
             </com:ExeServer>
           </com:ComServer>
         </com:Extension>

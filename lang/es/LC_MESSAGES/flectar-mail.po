@@ -790,39 +790,39 @@ msgid "Saving close behavior…"
 msgstr "Guardando el comportamiento de cierre…"
 
 #: ui/app.slint:315
-msgid "Closing the window will now keep Flectar Mail in the tray."
-msgstr "Al cerrar la ventana, Flectar Mail permanecerá en la bandeja."
+msgid "Closing the window will now keep Yours in the tray."
+msgstr "Al cerrar la ventana, Yours permanecerá en la bandeja."
 
 #: ui/app.slint:316
-msgid "Closing the window will now quit Flectar Mail."
-msgstr "Al cerrar la ventana, Flectar Mail se cerrará por completo."
+msgid "Closing the window will now quit Yours."
+msgstr "Al cerrar la ventana, Yours se cerrará por completo."
 
 #: ui/app.slint:317
 msgid "Could not save close behavior: {}"
 msgstr "No se pudo guardar el comportamiento de cierre: {}"
 
 #: ui/app.slint:318
-msgid "Flectar Mail will start when you sign in."
-msgstr "Flectar Mail se iniciará al iniciar sesión."
+msgid "Yours will start when you sign in."
+msgstr "Yours se iniciará al iniciar sesión."
 
 #: ui/app.slint:319
-msgid "Flectar Mail will no longer start when you sign in."
-msgstr "Flectar Mail ya no se iniciará al iniciar sesión."
+msgid "Yours will no longer start when you sign in."
+msgstr "Yours ya no se iniciará al iniciar sesión."
 
 #: ui/app.slint:320
 msgid "Could not change startup behavior: {}"
 msgstr "No se pudo cambiar el comportamiento de inicio: {}"
 
 #: ui/app.slint:321
-msgid "Allow Flectar Mail under Login Items in System Settings to finish."
+msgid "Allow Yours under Login Items in System Settings to finish."
 msgstr ""
-"Para terminar, permite Flectar Mail en Ítems de inicio de Ajustes del "
+"Para terminar, permite Yours en Ítems de inicio de Ajustes del "
 "Sistema."
 
 #: ui/app.slint:322
-msgid "Turn on Flectar Mail under Startup apps in Windows Settings to finish."
+msgid "Turn on Yours under Startup apps in Windows Settings to finish."
 msgstr ""
-"Para terminar, activa Flectar Mail en Aplicaciones de inicio de "
+"Para terminar, activa Yours en Aplicaciones de inicio de "
 "Configuración de Windows."
 
 #: ui/app.slint:327
@@ -1012,12 +1012,12 @@ msgid "Connect an account before creating a backup."
 msgstr "Conecta una cuenta antes de crear una copia de seguridad."
 
 #: ui/app.slint:375
-msgid "Export Flectar Mail account backup"
-msgstr "Exportar copia de seguridad de cuentas de Flectar Mail"
+msgid "Export Yours account backup"
+msgstr "Exportar copia de seguridad de cuentas de Yours"
 
 #: ui/app.slint:376
-msgid "Flectar Mail backup"
-msgstr "Copia de seguridad de Flectar Mail"
+msgid "Yours backup"
+msgstr "Copia de seguridad de Yours"
 
 #: ui/app.slint:377 ui/dialogs/import-dialog.slint:407
 #: ui/views/onboarding-view.slint:223
@@ -1057,8 +1057,8 @@ msgid "Creating verified database snapshot…"
 msgstr "Creando una instantánea verificada de la base de datos…"
 
 #: ui/app.slint:385
-msgid "All local Flectar Mail data was deleted."
-msgstr "Se eliminaron todos los datos locales de Flectar Mail."
+msgid "All local Yours data was deleted."
+msgstr "Se eliminaron todos los datos locales de Yours."
 
 #: ui/app.slint:386
 msgid "Could not delete all local data: {}"
@@ -1175,12 +1175,12 @@ msgid "Calendar update failed: {}"
 msgstr "Falló la actualización del calendario: {}"
 
 #: ui/app.slint:425
-msgid "Only events created in Flectar Mail can be edited."
-msgstr "Solo se pueden editar los eventos creados en Flectar Mail."
+msgid "Only events created in Yours can be edited."
+msgstr "Solo se pueden editar los eventos creados en Yours."
 
 #: ui/app.slint:426
-msgid "Only events created in Flectar Mail can be deleted."
-msgstr "Solo se pueden eliminar los eventos creados en Flectar Mail."
+msgid "Only events created in Yours can be deleted."
+msgstr "Solo se pueden eliminar los eventos creados en Yours."
 
 #: ui/app.slint:427
 msgid "Calendar storage is unavailable."
@@ -1785,8 +1785,8 @@ msgstr "Cargando mensaje…"
 
 #: ui/app.slint:596 ui/components/workspace-navigation.slint:787
 #: ui/tray.slint:13 ui/tray.slint:14
-msgid "Flectar Mail"
-msgstr "Flectar Mail"
+msgid "Yours"
+msgstr "Yours"
 
 #: ui/app.slint:1270 ui/app.slint:1283
 msgid "Global Labels (local only)"
@@ -1838,8 +1838,8 @@ msgid "Mailbox startup failed"
 msgstr "Error al iniciar el buzón"
 
 #: ui/app.slint:2412
-msgid "Flectar Mail could not open local storage"
-msgstr "Flectar Mail no pudo abrir el almacenamiento local"
+msgid "Yours could not open local storage"
+msgstr "Yours no pudo abrir el almacenamiento local"
 
 #: ui/app.slint:2425
 msgid "Diagnostic ID: {}"
@@ -2057,7 +2057,7 @@ msgstr ""
 #: ui/components/account-mail-preferences.slint:169
 msgid ""
 "Add an alias or another address your mail server lets you send from. The "
-"server decides when you send; Flectar shows whether it accepted the last "
+"server decides when you send; Yours shows whether it accepted the last "
 "message."
 msgstr ""
 "Añade un alias u otra dirección desde la que tu servidor de correo permita "
@@ -2321,9 +2321,9 @@ msgid "App icon"
 msgstr "Icono de la aplicación"
 
 #: ui/components/app-icon-picker.slint:105
-msgid "Used for the Dock and the menu bar while Flectar Mail is running."
+msgid "Used for the Dock and the menu bar while Yours is running."
 msgstr ""
-"Se usa en el Dock y en la barra de menús mientras Flectar Mail está abierto."
+"Se usa en el Dock y en la barra de menús mientras Yours está abierto."
 
 #: ui/components/app-icon-picker.slint:106
 msgid "Used for the taskbar, the window, and the system tray."
@@ -2340,10 +2340,10 @@ msgstr "Se usa como icono de la aplicación en tu pantalla de inicio."
 
 #: ui/components/app-icon-picker.slint:116
 msgid ""
-"The new icon appears after you leave Flectar Mail. Some launchers remove the "
+"The new icon appears after you leave Yours. Some launchers remove the "
 "old icon from the home screen."
 msgstr ""
-"El nuevo icono aparece cuando sales de Flectar Mail. Algunos lanzadores "
+"El nuevo icono aparece cuando sales de Yours. Algunos lanzadores "
 "quitan el icono anterior de la pantalla de inicio."
 
 #: ui/components/app-icon-picker.slint:117
@@ -2519,8 +2519,8 @@ msgid "Default calendar"
 msgstr "Calendario predeterminado"
 
 #: ui/components/calendar.slint:466
-msgid "Created in Flectar Mail"
-msgstr "Creado en Flectar Mail"
+msgid "Created in Yours"
+msgstr "Creado en Yours"
 
 #: ui/components/calendar.slint:466
 msgid "Synced provider event"
@@ -2995,7 +2995,7 @@ msgstr "¿Problemas con el inicio de sesión en el navegador?"
 
 #: ui/components/oauth-browser-help.slint:73
 msgid ""
-"Flectar could not reach the system browser from this app environment. Open "
+"Yours could not reach the system browser from this app environment. Open "
 "the link again or copy it into a browser on this device."
 msgstr ""
 "Flectar no pudo acceder al navegador del sistema desde este entorno. Abre el "
@@ -3706,16 +3706,16 @@ msgid "No incoming mail server is configured."
 msgstr "No hay ningún servidor de correo entrante configurado."
 
 #: ui/dialogs/import-dialog.slint:132
-msgid "The incoming server {} uses a protocol Flectar Mail does not support."
-msgstr "El servidor entrante {} usa un protocolo que Flectar Mail no admite."
+msgid "The incoming server {} uses a protocol Yours does not support."
+msgstr "El servidor entrante {} usa un protocolo que Yours no admite."
 
 #: ui/dialogs/import-dialog.slint:133
 msgid "No outgoing mail server is configured."
 msgstr "No hay ningún servidor de correo saliente configurado."
 
 #: ui/dialogs/import-dialog.slint:134
-msgid "The outgoing server {} uses a protocol Flectar Mail does not support."
-msgstr "El servidor saliente {} usa un protocolo que Flectar Mail no admite."
+msgid "The outgoing server {} uses a protocol Yours does not support."
+msgstr "El servidor saliente {} usa un protocolo que Yours no admite."
 
 #: ui/dialogs/import-dialog.slint:135
 msgid ""
@@ -3735,37 +3735,37 @@ msgstr ""
 
 #: ui/dialogs/import-dialog.slint:137
 msgid ""
-"{} keeps your password off its unencrypted connection, but Flectar Mail "
+"{} keeps your password off its unencrypted connection, but Yours "
 "would send it in the clear. Turn on SSL/TLS or STARTTLS for this server "
 "first."
 msgstr ""
-"{} no envía tu contraseña por su conexión sin cifrar, pero Flectar Mail la "
+"{} no envía tu contraseña por su conexión sin cifrar, pero Yours la "
 "enviaría en texto claro. Activa primero SSL/TLS o STARTTLS en este servidor."
 
 #: ui/dialogs/import-dialog.slint:139
 msgid ""
-"The incoming server connects without signing in, which Flectar Mail does not "
+"The incoming server connects without signing in, which Yours does not "
 "support."
 msgstr ""
-"El servidor entrante se conecta sin iniciar sesión, algo que Flectar Mail no "
+"El servidor entrante se conecta sin iniciar sesión, algo que Yours no "
 "admite."
 
 #: ui/dialogs/import-dialog.slint:140
 msgid ""
-"The incoming server signs in with a client certificate, which Flectar Mail "
+"The incoming server signs in with a client certificate, which Yours "
 "does not support."
 msgstr ""
 "El servidor entrante inicia sesión con un certificado de cliente, algo que "
-"Flectar Mail no admite."
+"Yours no admite."
 
 #: ui/dialogs/import-dialog.slint:141
 msgid ""
-"The incoming server signs in with {}, which Flectar Mail does not support."
-msgstr "El servidor entrante inicia sesión con {}, que Flectar Mail no admite."
+"The incoming server signs in with {}, which Yours does not support."
+msgstr "El servidor entrante inicia sesión con {}, que Yours no admite."
 
 #: ui/dialogs/import-dialog.slint:142
 msgid ""
-"The outgoing server sends mail without signing in, which Flectar Mail does "
+"The outgoing server sends mail without signing in, which Yours does "
 "not support."
 msgstr ""
 "El servidor saliente envía el correo sin iniciar sesión, algo que Flectar "
@@ -3773,23 +3773,23 @@ msgstr ""
 
 #: ui/dialogs/import-dialog.slint:143
 msgid ""
-"The outgoing server signs in with a client certificate, which Flectar Mail "
+"The outgoing server signs in with a client certificate, which Yours "
 "does not support."
 msgstr ""
 "El servidor saliente inicia sesión con un certificado de cliente, algo que "
-"Flectar Mail no admite."
+"Yours no admite."
 
 #: ui/dialogs/import-dialog.slint:144
 msgid ""
-"The outgoing server signs in with {}, which Flectar Mail does not support."
-msgstr "El servidor saliente inicia sesión con {}, que Flectar Mail no admite."
+"The outgoing server signs in with {}, which Yours does not support."
+msgstr "El servidor saliente inicia sesión con {}, que Yours no admite."
 
 #: ui/dialogs/import-dialog.slint:145
 msgid ""
-"The outgoing server signs in as {}. Flectar Mail uses one sign-in for both "
+"The outgoing server signs in as {}. Yours uses one sign-in for both "
 "servers."
 msgstr ""
-"El servidor saliente inicia sesión como {}. Flectar Mail usa un mismo inicio "
+"El servidor saliente inicia sesión como {}. Yours usa un mismo inicio "
 "de sesión para ambos servidores."
 
 #: ui/dialogs/import-dialog.slint:146
@@ -3829,9 +3829,9 @@ msgstr ""
 
 #: ui/dialogs/import-dialog.slint:153
 msgid ""
-"Flectar Mail cannot use browser sign-in for {}. Sign in with an app password."
+"Yours cannot use browser sign-in for {}. Sign in with an app password."
 msgstr ""
-"Flectar Mail no puede usar el inicio de sesión en el navegador para {}. "
+"Yours no puede usar el inicio de sesión en el navegador para {}. "
 "Inicia sesión con una contraseña de aplicación."
 
 #: ui/dialogs/import-dialog.slint:154
@@ -3908,12 +3908,12 @@ msgstr "El archivo de configuración es demasiado grande."
 #: ui/dialogs/import-dialog.slint:170
 msgid ""
 "This is not a supported settings export or mail file. Choose a .k9s file, a "
-"Thunderbird profile export or prefs.js, a Flectar Mail backup, or mail saved "
+"Thunderbird profile export or prefs.js, a Yours backup, or mail saved "
 "as .mbox or .eml files."
 msgstr ""
 "No es una exportación de configuración ni un archivo de correo compatible. "
 "Elige un archivo .k9s, una exportación de perfil de Thunderbird o prefs.js, "
-"una copia de seguridad de Flectar Mail, o correo guardado en archivos .mbox "
+"una copia de seguridad de Yours, o correo guardado en archivos .mbox "
 "o .eml."
 
 #: ui/dialogs/import-dialog.slint:171
@@ -4089,11 +4089,11 @@ msgstr "Importación completada"
 #: ui/dialogs/import-dialog.slint:492
 msgid ""
 "Bring your accounts from Thunderbird, Thunderbird for Android, K-9 Mail, or "
-"a Flectar Mail backup, and mail from Thunderbird or saved mail files. "
+"a Yours backup, and mail from Thunderbird or saved mail files. "
 "Passwords are never imported: you sign in to each account afterward."
 msgstr ""
 "Trae tus cuentas desde Thunderbird, Thunderbird para Android, K-9 Mail o una "
-"copia de seguridad de Flectar Mail, y tu correo desde Thunderbird o archivos "
+"copia de seguridad de Yours, y tu correo desde Thunderbird o archivos "
 "de correo guardados. Las contraseñas nunca se importan: después inicias "
 "sesión en cada cuenta."
 
@@ -4112,25 +4112,25 @@ msgstr "{} (perfil predeterminado)"
 #: ui/dialogs/import-dialog.slint:575
 msgid ""
 "Supported: Thunderbird for Android and K-9 Mail settings (.k9s), Thunderbird "
-"profile exports (.zip), profile folders and prefs.js, Flectar Mail backups "
+"profile exports (.zip), profile folders and prefs.js, Yours backups "
 "(.json), and mail saved as .mbox or .eml files, in maildir folders, or in "
 "ZIP archives of them."
 msgstr ""
 "Compatibles: configuración de Thunderbird para Android y K-9 Mail (.k9s), "
 "exportaciones de perfil de Thunderbird (.zip), carpetas de perfil y "
-"prefs.js, copias de seguridad de Flectar Mail (.json), y correo guardado en "
+"prefs.js, copias de seguridad de Yours (.json), y correo guardado en "
 "archivos .mbox o .eml, en carpetas maildir o en archivos ZIP que los "
 "contengan."
 
 #: ui/dialogs/import-dialog.slint:576
 msgid ""
 "Supported: Thunderbird for Android and K-9 Mail settings (.k9s), Thunderbird "
-"profile exports (.zip) and prefs.js, Flectar Mail backups (.json), and mail "
+"profile exports (.zip) and prefs.js, Yours backups (.json), and mail "
 "saved as .mbox or .eml files or in ZIP archives of them."
 msgstr ""
 "Compatibles: configuración de Thunderbird para Android y K-9 Mail (.k9s), "
 "exportaciones de perfil de Thunderbird (.zip) y prefs.js, copias de "
-"seguridad de Flectar Mail (.json), y correo guardado en archivos .mbox "
+"seguridad de Yours (.json), y correo guardado en archivos .mbox "
 "o .eml o en archivos ZIP que los contengan."
 
 #: ui/dialogs/import-dialog.slint:589
@@ -4164,8 +4164,8 @@ msgid "From Thunderbird. Existing accounts are never changed."
 msgstr "Desde Thunderbird. Las cuentas existentes nunca se modifican."
 
 #: ui/dialogs/import-dialog.slint:688
-msgid "Already in Flectar Mail"
-msgstr "Ya está en Flectar Mail"
+msgid "Already in Yours"
+msgstr "Ya está en Yours"
 
 #: ui/dialogs/import-dialog.slint:689
 msgid "Cannot be imported"
@@ -4228,11 +4228,11 @@ msgid "No accounts were imported."
 msgstr "No se importó ninguna cuenta."
 
 #: ui/dialogs/import-dialog.slint:762
-msgid "One account was already in Flectar Mail and was left unchanged."
+msgid "One account was already in Yours and was left unchanged."
 msgid_plural ""
-"{n} accounts were already in Flectar Mail and were left unchanged."
-msgstr[0] "Una cuenta ya estaba en Flectar Mail y no se modificó."
-msgstr[1] "{n} cuentas ya estaban en Flectar Mail y no se modificaron."
+"{n} accounts were already in Yours and were left unchanged."
+msgstr[0] "Una cuenta ya estaba en Yours y no se modificó."
+msgstr[1] "{n} cuentas ya estaban en Yours y no se modificaron."
 
 #: ui/dialogs/import-dialog.slint:768
 msgid ""
@@ -4413,10 +4413,10 @@ msgstr "Acerca de la visualización de correos"
 
 #: ui/dialogs/rendering-info-dialog.slint:124
 msgid ""
-"Flectar Mail uses a completely new email renderer built in Rust. It is still "
+"Yours uses a completely new email renderer built in Rust. It is still "
 "in its early stages, so some emails may not render correctly."
 msgstr ""
-"Flectar Mail utiliza un motor de visualización de correo totalmente nuevo, "
+"Yours utiliza un motor de visualización de correo totalmente nuevo, "
 "creado en Rust. Todavía se encuentra en sus primeras etapas, por lo que "
 "algunos correos podrían no mostrarse correctamente."
 
@@ -4470,8 +4470,8 @@ msgid "Calculating local storage…"
 msgstr "Calculando el almacenamiento local…"
 
 #: ui/dialogs/settings-dialog.slint:216
-msgid "{} used by Flectar Mail"
-msgstr "{} usados por Flectar Mail"
+msgid "{} used by Yours"
+msgstr "{} usados por Yours"
 
 #: ui/dialogs/settings-dialog.slint:217
 msgid "Storage usage could not be calculated. Try again."
@@ -4809,8 +4809,8 @@ msgid "Follow your device language when a translation is available."
 msgstr "Usa el idioma del dispositivo cuando haya una traducción disponible."
 
 #: ui/dialogs/settings-dialog.slint:1214
-msgid "Choose the language used throughout Flectar Mail."
-msgstr "Elige el idioma que se usa en Flectar Mail."
+msgid "Choose the language used throughout Yours."
+msgstr "Elige el idioma que se usa en Yours."
 
 #: ui/dialogs/settings-dialog.slint:1224
 msgid "Time format"
@@ -4895,9 +4895,9 @@ msgid "Keep running in system tray"
 msgstr "Seguir ejecutándose en la bandeja del sistema"
 
 #: ui/dialogs/settings-dialog.slint:1345
-msgid "Closing the window hides Flectar Mail while mail continues syncing."
+msgid "Closing the window hides Yours while mail continues syncing."
 msgstr ""
-"Al cerrar la ventana, Flectar Mail se oculta mientras el correo sigue "
+"Al cerrar la ventana, Yours se oculta mientras el correo sigue "
 "sincronizándose."
 
 #: ui/dialogs/settings-dialog.slint:1346
@@ -4911,12 +4911,12 @@ msgid "Start automatically"
 msgstr "Iniciar automáticamente"
 
 #: ui/dialogs/settings-dialog.slint:1373
-msgid "Starts Flectar Mail in the system tray when you sign in."
-msgstr "Inicia Flectar Mail en la bandeja del sistema al iniciar sesión."
+msgid "Starts Yours in the system tray when you sign in."
+msgstr "Inicia Yours en la bandeja del sistema al iniciar sesión."
 
 #: ui/dialogs/settings-dialog.slint:1373
-msgid "Opens Flectar Mail when you sign in."
-msgstr "Abre Flectar Mail al iniciar sesión."
+msgid "Opens Yours when you sign in."
+msgstr "Abre Yours al iniciar sesión."
 
 #: ui/dialogs/settings-dialog.slint:1374
 msgid "Disabled by default; also listed in your system's startup apps."
@@ -4963,8 +4963,8 @@ msgid "Renderer"
 msgstr "Motor de renderizado"
 
 #: ui/dialogs/settings-dialog.slint:1454
-msgid "Changes take effect after restarting Flectar Mail."
-msgstr "Los cambios se aplican al reiniciar Flectar Mail."
+msgid "Changes take effect after restarting Yours."
+msgstr "Los cambios se aplican al reiniciar Yours."
 
 #: ui/dialogs/settings-dialog.slint:1454
 msgid "GPU mode is unavailable in this build."
@@ -5213,7 +5213,7 @@ msgstr "Copias enviadas"
 
 #: ui/dialogs/settings-dialog.slint:2092
 msgid ""
-"Choose who saves sent mail. Use Flectar if your server does not save a copy."
+"Choose who saves sent mail. Use Yours if your server does not save a copy."
 msgstr ""
 "Elige quién guarda los mensajes enviados. Usa Flectar si tu servidor no "
 "guarda una copia."
@@ -5227,7 +5227,7 @@ msgid "Server saves a copy"
 msgstr "El servidor guarda una copia"
 
 #: ui/dialogs/settings-dialog.slint:2093
-msgid "Flectar saves a copy"
+msgid "Yours saves a copy"
 msgstr "Flectar guarda una copia"
 
 #: ui/dialogs/settings-dialog.slint:2107
@@ -5235,8 +5235,8 @@ msgid "Keep mail on the server"
 msgstr "Conservar el correo en el servidor"
 
 #: ui/dialogs/settings-dialog.slint:2111
-msgid "Flectar Mail never removes mail from the server."
-msgstr "Flectar Mail nunca elimina correo del servidor."
+msgid "Yours never removes mail from the server."
+msgstr "Yours nunca elimina correo del servidor."
 
 #: ui/dialogs/settings-dialog.slint:2112
 msgid "Mail is removed after this time, or once deleted here."
@@ -5354,9 +5354,9 @@ msgstr "Conectar"
 
 #: ui/dialogs/settings-dialog.slint:2251
 msgid ""
-"See what Flectar Mail stores locally and manage the data on this device."
+"See what Yours stores locally and manage the data on this device."
 msgstr ""
-"Consulta lo que Flectar Mail almacena localmente y gestiona los datos de "
+"Consulta lo que Yours almacena localmente y gestiona los datos de "
 "este dispositivo."
 
 #: ui/dialogs/settings-dialog.slint:2277
@@ -5477,8 +5477,8 @@ msgid "Delete everything"
 msgstr "Eliminar todo"
 
 #: ui/dialogs/settings-dialog.slint:2341
-msgid "Choose how Flectar Mail gets your attention."
-msgstr "Elige cómo Flectar Mail llama tu atención."
+msgid "Choose how Yours gets your attention."
+msgstr "Elige cómo Yours llama tu atención."
 
 #: ui/dialogs/settings-dialog.slint:2368
 msgid "Notification sounds"
@@ -5575,10 +5575,10 @@ msgstr "Ir a la última pestaña"
 
 #: ui/dialogs/settings-dialog.slint:2438
 msgid ""
-"Optional paid services from Flectar. Flectar Mail stays free and works "
+"Optional paid services from Flectar. Yours stays free and works "
 "without them."
 msgstr ""
-"Servicios de pago opcionales de Flectar. Flectar Mail sigue siendo gratuito "
+"Servicios de pago opcionales de Flectar. Yours sigue siendo gratuito "
 "y funciona sin ellos."
 
 #: ui/dialogs/settings-dialog.slint:2443
@@ -5640,7 +5640,7 @@ msgid ""
 "Mail setup."
 msgstr ""
 "Tus mensajes permanecen con tu proveedor de correo. La sincronización solo "
-"transfiere la configuración de Flectar Mail."
+"transfiere la configuración de Yours."
 
 #: ui/dialogs/settings-dialog.slint:2486
 msgid "Business email"
@@ -5663,8 +5663,8 @@ msgid "Create and manage mailboxes for your team"
 msgstr "Crea y gestiona buzones para tu equipo"
 
 #: ui/dialogs/settings-dialog.slint:2492
-msgid "New mailboxes appear in Flectar Mail automatically"
-msgstr "Los nuevos buzones aparecen automáticamente en Flectar Mail"
+msgid "New mailboxes appear in Yours automatically"
+msgstr "Los nuevos buzones aparecen automáticamente en Yours"
 
 #: ui/dialogs/settings-dialog.slint:2494
 msgid "Billed per mailbox."
@@ -5679,12 +5679,12 @@ msgstr ""
 "anunciarán en flectar.com/mail."
 
 #: ui/dialogs/settings-dialog.slint:2525
-msgid "Flectar Mail, its makers, and its community."
-msgstr "Flectar Mail, sus creadores y su comunidad."
+msgid "Yours, its makers, and its community."
+msgstr "Yours, sus creadores y su comunidad."
 
 #: ui/dialogs/settings-dialog.slint:2541 ui/views/onboarding-view.slint:121
-msgid "Flectar Mail logo"
-msgstr "Logotipo de Flectar Mail"
+msgid "Yours logo"
+msgstr "Logotipo de Yours"
 
 #: ui/dialogs/settings-dialog.slint:2561
 msgid "A native mail client for a calm, private inbox."
@@ -5729,10 +5729,10 @@ msgstr "Solo AGPL-3.0."
 
 #: ui/dialogs/settings-dialog.slint:2619
 msgid ""
-"Flectar Mail is released under the GNU Affero General Public License v3.0 "
+"Yours is released under the GNU Affero General Public License v3.0 "
 "only."
 msgstr ""
-"Flectar Mail se publica únicamente bajo la GNU Affero General Public License "
+"Yours se publica únicamente bajo la GNU Affero General Public License "
 "v3.0."
 
 #: ui/dialogs/settings-dialog.slint:2625
@@ -5954,10 +5954,10 @@ msgstr "¿Eliminar todos los datos locales?"
 #: ui/dialogs/settings-dialog.slint:3234
 msgid ""
 "This removes every account, downloaded message, calendar, contact, "
-"preference, and credential stored by Flectar Mail on this device."
+"preference, and credential stored by Yours on this device."
 msgstr ""
 "Esto elimina todas las cuentas, mensajes descargados, calendarios, "
-"contactos, preferencias y credenciales que Flectar Mail almacena en este "
+"contactos, preferencias y credenciales que Yours almacena en este "
 "dispositivo."
 
 #: ui/dialogs/settings-dialog.slint:3236
@@ -6078,8 +6078,8 @@ msgid "Keep calendar"
 msgstr "Conservar calendario"
 
 #: ui/tray.slint:23
-msgid "Show Flectar Mail"
-msgstr "Mostrar Flectar Mail"
+msgid "Show Yours"
+msgstr "Mostrar Yours"
 
 #: ui/tray.slint:27
 msgid "Quit"

@@ -20,7 +20,7 @@ use tokio::runtime::Handle;
 /// The newest activity entries the page lists.
 const ACTIVITY_SHOWN: i64 = 50;
 /// The name agents' apps know the server by.
-const SERVER_NAME: &str = "flectar-mail";
+const SERVER_NAME: &str = "yours";
 
 thread_local! {
     static PAGE: RefCell<Option<Rc<Page>>> = const { RefCell::new(None) };
@@ -529,7 +529,7 @@ impl Launch {
             let runtime_dir = String::new();
             return Self {
                 command: "flatpak".into(),
-                args: vec!["run".into(), "com.flectar.mail".into(), "mcp".into()],
+                args: vec!["run".into(), "org.yours.mail".into(), "mcp".into()],
                 env: vec![("XDG_RUNTIME_DIR".into(), runtime_dir)],
             };
         }
@@ -611,20 +611,20 @@ impl Client {
     fn hint(self) -> UiMessage {
         match self {
             Self::ClaudeDesktop => UiMessage::plain(
-                "In Claude Desktop, open Settings, Developer, Edit Config, and add flectar-mail to the mcpServers in that file. Then restart Claude Desktop.",
+                "In Claude Desktop, open Settings, Developer, Edit Config, and add yours to the mcpServers in that file. Then restart Claude Desktop.",
             ),
             Self::ClaudeCode => UiMessage::plain("Run this in a terminal."),
             Self::VsCode => UiMessage::plain(
-                "Click Add to VS Code to review it there, or add flectar-mail to the mcpServers in ~/.copilot/mcp-config.json.",
+                "Click Add to VS Code to review it there, or add yours to the mcpServers in ~/.copilot/mcp-config.json.",
             ),
             Self::Cursor => {
-                UiMessage::plain("Add flectar-mail to the mcpServers in ~/.cursor/mcp.json.")
+                UiMessage::plain("Add yours to the mcpServers in ~/.cursor/mcp.json.")
             }
             Self::Zed => {
-                UiMessage::plain("Add flectar-mail to the context_servers in Zed's settings.json.")
+                UiMessage::plain("Add yours to the context_servers in Zed's settings.json.")
             }
             Self::LmStudio => UiMessage::plain(
-                "Click Add to LM Studio to review it there, or add flectar-mail to the mcpServers in LM Studio's mcp.json.",
+                "Click Add to LM Studio to review it there, or add yours to the mcpServers in LM Studio's mcp.json.",
             ),
             Self::Codex => UiMessage::plain("Add this to ~/.codex/config.toml."),
             Self::Other => UiMessage::plain(
@@ -785,23 +785,23 @@ mod tests {
     fn flatpak() -> Launch {
         Launch {
             command: "flatpak".into(),
-            args: vec!["run".into(), "com.flectar.mail".into(), "mcp".into()],
+            args: vec!["run".into(), "org.yours.mail".into(), "mcp".into()],
             env: vec![("XDG_RUNTIME_DIR".into(), "/run/user/1000".into())],
         }
     }
 
     #[test]
     fn links_open_each_apps_own_review() {
-        let launch = launch("/opt/Flectar Mail/flectar-mail");
+        let launch = launch("/opt/Yours/yours");
         let vscode = Client::VsCode.install_url(&launch).unwrap();
         let json = vscode.strip_prefix("vscode:mcp/install?").unwrap();
         assert!(!json.contains(' ') && !json.contains('{'));
-        assert!(json.contains("%22name%22%3A%22flectar-mail%22"));
-        assert!(json.contains("%2Fopt%2FFlectar%20Mail%2Fflectar-mail"));
+        assert!(json.contains("%22name%22%3A%22yours%22"));
+        assert!(json.contains("%2Fopt%2FFlectar%20Mail%2Fyours"));
 
         let lm_studio = Client::LmStudio.install_url(&launch).unwrap();
         let config = lm_studio
-            .strip_prefix("lmstudio://add_mcp?name=flectar-mail&config=")
+            .strip_prefix("lmstudio://add_mcp?name=yours&config=")
             .unwrap()
             .replace("%2B", "+")
             .replace("%2F", "/")
@@ -813,7 +813,7 @@ mod tests {
         let entry: Value = serde_json::from_slice(&decoded).unwrap();
         assert_eq!(
             entry,
-            json!({ "command": "/opt/Flectar Mail/flectar-mail", "args": ["mcp"] })
+            json!({ "command": "/opt/Yours/yours", "args": ["mcp"] })
         );
         assert_eq!(Client::Zed.install_url(&launch), None);
     }
@@ -826,7 +826,7 @@ mod tests {
             json!({
                 "type": "stdio",
                 "command": "flatpak",
-                "args": ["run", "com.flectar.mail", "mcp"],
+                "args": ["run", "org.yours.mail", "mcp"],
                 "env": { "XDG_RUNTIME_DIR": "/run/user/1000" },
             })
         );
@@ -834,17 +834,17 @@ mod tests {
 
     #[test]
     fn shell_words_and_toml_strings_survive_odd_paths() {
-        assert_eq!(shell_word("/usr/bin/flectar-mail"), "/usr/bin/flectar-mail");
+        assert_eq!(shell_word("/usr/bin/yours"), "/usr/bin/yours");
         if !cfg!(windows) {
             assert_eq!(
-                shell_word("/Applications/Flectar Mail.app/x"),
-                "'/Applications/Flectar Mail.app/x'"
+                shell_word("/Applications/Yours.app/x"),
+                "'/Applications/Yours.app/x'"
             );
             assert_eq!(shell_word("it's"), r"'it'\''s'");
         }
         assert_eq!(
-            toml_string(r#"C:\Program Files\Flectar "Mail"\flectar-mail.exe"#),
-            r#""C:\\Program Files\\Flectar \"Mail\"\\flectar-mail.exe""#
+            toml_string(r#"C:\Program Files\Flectar "Mail"\yours.exe"#),
+            r#""C:\\Program Files\\Flectar \"Mail\"\\yours.exe""#
         );
     }
 

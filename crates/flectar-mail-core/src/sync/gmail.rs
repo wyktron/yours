@@ -3412,7 +3412,7 @@ async fn prepare_draft(
 
     // A draft created in another Gmail client has descriptors rather than
     // staged composer files. Preserve those attachments when it is edited or
-    // sent from Flectar Mail.
+    // sent from Yours.
     if attachments.is_empty()
         && let Some(gm_msgid) = gm_msgid.as_deref()
     {

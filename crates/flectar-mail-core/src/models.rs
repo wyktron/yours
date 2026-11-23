@@ -1562,7 +1562,7 @@ pub enum ServerRulesState {
     /// The server runs the user's own filter script, named here. Rules run
     /// on the server once the user lets the app's script run before it.
     RunBefore(String),
-    /// Flectar Mail's script on the server was changed elsewhere. Rules run
+    /// Yours's script on the server was changed elsewhere. Rules run
     /// there again once the user lets the app replace those changes.
     Edited,
     /// The server can't take the rules, for this reason.
@@ -2310,7 +2310,7 @@ pub struct SavedSearch {
 
 /// A local, user-owned grouping for connected mail accounts.
 ///
-/// Profiles organize account provenance in Flectar Mail only. They never map
+/// Profiles organize account provenance in Yours only. They never map
 /// to a provider object and therefore cannot mutate remote mailboxes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2667,7 +2667,7 @@ pub struct Settings {
     /// What to do when a message asks for a read receipt.
     #[serde(default)]
     pub read_receipts: ReadReceiptPolicy,
-    /// For how many days mail stays in Trash before Flectar Mail deletes
+    /// For how many days mail stays in Trash before Yours deletes
     /// it for good, counted from when it went there. 0 keeps it.
     #[serde(default)]
     pub empty_trash_after_days: u32,
@@ -2957,7 +2957,7 @@ pub struct Settings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_mail_profile: Option<String>,
     /// Local Reacher email-verification endpoint. Empty means the loopback
-    /// service installed for Flectar Mail.
+    /// service installed for Yours.
     #[serde(default = "default_reacher_url")]
     pub reacher_url: String,
     /// Ask the local Reacher service whether an address is deliverable before
@@ -2971,7 +2971,7 @@ pub struct Settings {
     pub agent_access: AgentAccess,
 }
 
-/// What AI agents may see and do through `flectar-mail mcp`, the same for
+/// What AI agents may see and do through `yours mcp`, the same for
 /// every agent. Reading is the only right that comes with access itself.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -3304,7 +3304,7 @@ pub struct CalendarEvent {
     pub join_url: Option<String>,
     /// Our response to the invite: ACCEPTED | TENTATIVE | DECLINED.
     pub rsvp_status: Option<String>,
-    /// Created in Flectar Mail (vs. parsed from an incoming invite).
+    /// Created in Yours (vs. parsed from an incoming invite).
     pub is_local: bool,
     /// CalDAV collection this event syncs with; None = local-only.
     pub calendar_id: Option<i64>,

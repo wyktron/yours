@@ -96,7 +96,7 @@ const PRIORITY_FETCH_QUEUE_CAPACITY: usize = 128;
 struct InboxBaseline {
     uid_validity: Option<i64>,
     /// UIDs below this value existed at the first successful INBOX SELECT and
-    /// are launch catch-up. UIDs at/above it arrived while Flectar Mail was running.
+    /// are launch catch-up. UIDs at/above it arrived while Yours was running.
     first_live_uid: u32,
 }
 

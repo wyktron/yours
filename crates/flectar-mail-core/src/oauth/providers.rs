@@ -216,7 +216,7 @@ pub fn has_bundled_credentials(provider: Provider) -> bool {
 
 /// Resolve the OAuth registration used for a new authorization or token
 /// refresh. User-entered settings win, followed by credentials compiled into
-/// the application, followed by the documented Flectar Mail runtime variables.
+/// the application, followed by the documented Yours runtime variables.
 pub fn resolve_credentials(provider: Provider) -> Result<(String, Option<String>)> {
     for_provider(provider).ok_or_else(|| CoreError::Auth("provider does not use oauth".into()))?;
     if let Some(entry) = configured()

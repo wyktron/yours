@@ -1,5 +1,5 @@
 //! Rules (#238) as Sieve (RFC 5228), kept in the app's script beside the
-//! automatic replies, so the server sorts new mail while Flectar Mail is
+//! automatic replies, so the server sorts new mail while Yours is
 //! closed. A rule goes to the server only when Sieve gives it the result the
 //! app does. The first rule that can't go, and every rule after it, run in
 //! the app alone, since the server's rules run first, as mail arrives. The

@@ -20,19 +20,19 @@
 
 [Setup]
 AppId={{B3F4C53F-77C7-4639-9938-C01A21F4A0B9}
-AppName=Flectar Mail
+AppName=Yours
 AppVersion={#AppVersion}
 VersionInfoVersion={#NativeVersion}
 AppPublisher=Flectar
 AppPublisherURL=https://flectar.com
-DefaultDirName={localappdata}\Programs\Flectar Mail
+DefaultDirName={localappdata}\Programs\Yours
 PrivilegesRequired=lowest
 ArchitecturesAllowed={#Architectures}
 ArchitecturesInstallIn64BitMode={#Architectures}
 MinVersion=10.0
 DisableProgramGroupPage=yes
-UninstallDisplayIcon={app}\flectar-mail.exe
-SetupIconFile=..\..\resources\app-icon\flectar-mail.ico
+UninstallDisplayIcon={app}\yours.exe
+SetupIconFile=..\..\resources\app-icon\yours.ico
 OutputDir=..\..\target
 OutputBaseFilename=flectar-mail-windows-{#Arch}-setup
 Compression=lzma2
@@ -51,16 +51,16 @@ Source: "..\..\target\package\windows\*"; DestDir: "{app}"; Flags: ignoreversion
 ; src/mailto_links.rs requires. src/default_email_app.rs writes the same
 ; layout under other names for the portable build.
 [Registry]
-Root: HKA; Subkey: "Software\Classes\FlectarMail.Url.mailto"; ValueType: string; ValueName: ""; ValueData: "Flectar Mail email link"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\FlectarMail.Url.mailto"; ValueType: string; ValueName: "FriendlyTypeName"; ValueData: "Flectar Mail email link"
-Root: HKA; Subkey: "Software\Classes\FlectarMail.Url.mailto\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\flectar-mail.exe"",0"
-Root: HKA; Subkey: "Software\Classes\FlectarMail.Url.mailto\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\flectar-mail.exe"" --mailto ""%1"""
-Root: HKA; Subkey: "Software\Clients\Mail\Flectar Mail"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Clients\Mail\Flectar Mail\Capabilities"; ValueType: string; ValueName: "ApplicationName"; ValueData: "Flectar Mail"
-Root: HKA; Subkey: "Software\Clients\Mail\Flectar Mail\Capabilities"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "Native, offline-first email client"
-Root: HKA; Subkey: "Software\Clients\Mail\Flectar Mail\Capabilities"; ValueType: string; ValueName: "ApplicationIcon"; ValueData: """{app}\flectar-mail.exe"",0"
-Root: HKA; Subkey: "Software\Clients\Mail\Flectar Mail\Capabilities\URLAssociations"; ValueType: string; ValueName: "mailto"; ValueData: "FlectarMail.Url.mailto"
-Root: HKA; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "Flectar Mail"; ValueData: "Software\Clients\Mail\Flectar Mail\Capabilities"; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\FlectarMail.Url.mailto"; ValueType: string; ValueName: ""; ValueData: "Yours email link"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\FlectarMail.Url.mailto"; ValueType: string; ValueName: "FriendlyTypeName"; ValueData: "Yours email link"
+Root: HKA; Subkey: "Software\Classes\FlectarMail.Url.mailto\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\yours.exe"",0"
+Root: HKA; Subkey: "Software\Classes\FlectarMail.Url.mailto\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\yours.exe"" --mailto ""%1"""
+Root: HKA; Subkey: "Software\Clients\Mail\Yours"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Clients\Mail\Yours\Capabilities"; ValueType: string; ValueName: "ApplicationName"; ValueData: "Yours"
+Root: HKA; Subkey: "Software\Clients\Mail\Yours\Capabilities"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "Native, offline-first email client"
+Root: HKA; Subkey: "Software\Clients\Mail\Yours\Capabilities"; ValueType: string; ValueName: "ApplicationIcon"; ValueData: """{app}\yours.exe"",0"
+Root: HKA; Subkey: "Software\Clients\Mail\Yours\Capabilities\URLAssociations"; ValueType: string; ValueName: "mailto"; ValueData: "FlectarMail.Url.mailto"
+Root: HKA; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "Yours"; ValueData: "Software\Clients\Mail\Yours\Capabilities"; Flags: uninsdeletevalue
 ; Windows that open links belong to the app's taskbar button.
 Root: HKA; Subkey: "Software\Classes\FlectarMail.Url.mailto"; ValueType: string; ValueName: "AppUserModelID"; ValueData: "Flectar.FlectarMail"
 
@@ -70,13 +70,13 @@ Root: HKA; Subkey: "Software\Classes\FlectarMail.Url.mailto"; ValueType: string;
 ; app checks this command to tell the installed copy from a portable one.
 ; Both are in src/notifications/windows.rs.
 Root: HKA; Subkey: "Software\Classes\CLSID\{{ED445996-CA23-4190-9817-4AABA2693036}"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\CLSID\{{ED445996-CA23-4190-9817-4AABA2693036}\LocalServer32"; ValueType: string; ValueName: ""; ValueData: """{app}\flectar-mail.exe"" --toast-activated"
+Root: HKA; Subkey: "Software\Classes\CLSID\{{ED445996-CA23-4190-9817-4AABA2693036}\LocalServer32"; ValueType: string; ValueName: ""; ValueData: """{app}\yours.exe"" --toast-activated"
 
 [Icons]
-Name: "{userprograms}\Flectar Mail"; Filename: "{app}\flectar-mail.exe"; AppUserModelID: "Flectar.FlectarMail"; AppUserModelToastActivatorCLSID: "ED445996-CA23-4190-9817-4AABA2693036"
+Name: "{userprograms}\Yours"; Filename: "{app}\yours.exe"; AppUserModelID: "Flectar.FlectarMail"; AppUserModelToastActivatorCLSID: "ED445996-CA23-4190-9817-4AABA2693036"
 
 [Run]
-Filename: "{app}\flectar-mail.exe"; Description: "Open Flectar Mail"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\yours.exe"; Description: "Open Yours"; Flags: nowait postinstall skipifsilent
 
 [Code]
 // The app registers its own per-user sign-in entry; remove it with the app so
@@ -85,7 +85,7 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'Flectar Mail');
-    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run', 'Flectar Mail');
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'Yours');
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run', 'Yours');
   end;
 end;

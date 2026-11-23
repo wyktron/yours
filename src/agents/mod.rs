@@ -1,7 +1,7 @@
 //! AI agents using mail through the Model Context Protocol (#237).
 //!
-//! `flectar-mail mcp` is a bridge that an agent's app starts. It speaks MCP
-//! over stdio and forwards each tool call to the running Flectar Mail over a
+//! `yours mcp` is a bridge that an agent's app starts. It speaks MCP
+//! over stdio and forwards each tool call to the running Yours over a
 //! local endpoint only this user can open, which the app opens only while
 //! agent access is on in Settings. So there is still one sync engine and one
 //! database writer, and the app alone decides what each call may see.

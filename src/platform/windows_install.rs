@@ -1,4 +1,4 @@
-//! How this copy of Flectar Mail is installed on Windows, as the sign-in
+//! How this copy of Yours is installed on Windows, as the sign-in
 //! entry, the default mail app registration and the notifications each need
 //! to know: whether it runs from the Microsoft Store package, and which
 //! executable the setup program registered.
@@ -64,11 +64,11 @@ mod tests {
     fn a_command_starts_its_quoted_or_first_word() {
         assert_eq!(
             command_executable(
-                r#""C:\Users\A B\AppData\Local\Programs\Flectar Mail\flectar-mail.exe" --toast-activated"#
+                r#""C:\Users\A B\AppData\Local\Programs\Yours\yours.exe" --toast-activated"#
             )
             .as_deref(),
             Some(Path::new(
-                r"C:\Users\A B\AppData\Local\Programs\Flectar Mail\flectar-mail.exe"
+                r"C:\Users\A B\AppData\Local\Programs\Yours\yours.exe"
             ))
         );
         assert_eq!(

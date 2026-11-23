@@ -205,7 +205,7 @@ impl Environment {
             ""
         };
         format!(
-            "Flectar Mail {}{package}\n{} {}{distribution}\n{renderer} renderer, {:.0}% zoom{fit}, {} message colors{images}",
+            "Yours {}{package}\n{} {}{distribution}\n{renderer} renderer, {:.0}% zoom{fit}, {} message colors{images}",
             self.version,
             self.system,
             self.architecture,
@@ -316,7 +316,7 @@ mod tests {
     fn describes_the_app_system_and_reader() {
         assert_eq!(
             environment().describe(),
-            "Flectar Mail 0.1.0-alpha.7 (AppImage)\n\
+            "Yours 0.1.0-alpha.7 (AppImage)\n\
              Linux x86_64 (Arch Linux)\n\
              GPU renderer, 85% zoom (fit to width), dark message colors, remote images blocked"
         );
@@ -333,7 +333,7 @@ mod tests {
         };
         assert_eq!(
             plain.describe(),
-            "Flectar Mail 0.1.0-alpha.7\n\
+            "Yours 0.1.0-alpha.7\n\
              Windows x86_64\n\
              CPU renderer, 125% zoom, original message colors"
         );
@@ -549,7 +549,7 @@ mod tests {
             .1
             .into_owned();
         assert!(
-            environment.starts_with(&format!("Flectar Mail {}", env!("CARGO_PKG_VERSION"))),
+            environment.starts_with(&format!("Yours {}", env!("CARGO_PKG_VERSION"))),
             "{environment}"
         );
         assert!(

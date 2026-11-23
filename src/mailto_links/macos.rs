@@ -1,4 +1,4 @@
-//! Receive the links macOS opens with Flectar Mail.
+//! Receive the links macOS opens with Yours.
 //!
 //! macOS passes a URL to the application as a get-URL Apple Event, never on
 //! the command line, also when the link is what launched it. AppKit turns the

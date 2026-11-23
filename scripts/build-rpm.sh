@@ -6,7 +6,7 @@ build_dir="$project_dir/target/rpm"
 top_dir="$build_dir/rpmbuild"
 source_dir="$top_dir/SOURCES"
 package_root="$build_dir/package"
-executable="$project_dir/target/release/flectar-mail"
+executable="$project_dir/target/release/yours"
 rpm_libdir="$(rpm --eval '%{_libdir}')"
 version="$(sed -n '/^\[package\]$/,/^\[/s/^version = "\([^"]*\)"/\1/p' "$project_dir/Cargo.toml" | head -n 1)"
 
@@ -22,7 +22,7 @@ else
   rpm_release="1"
 fi
 
-build_args=(--locked --bin flectar-mail --manifest-path "$project_dir/Cargo.toml" --release --no-default-features --features remote-content,gpu-renderer)
+build_args=(--locked --bin yours --manifest-path "$project_dir/Cargo.toml" --release --no-default-features --features remote-content,gpu-renderer)
 if [[ "${FLECTAR_SKIP_BUILD:-0}" == "1" ]]; then
   if [[ ! -x "$executable" ]]; then
     printf 'FLECTAR_SKIP_BUILD=1 requires an existing release executable.\n' >&2
@@ -36,19 +36,19 @@ read -r machine _ pdfium_target <<<"$architecture"
 
 rm -rf "$build_dir"
 mkdir -p "$source_dir" "$top_dir/BUILD" "$top_dir/BUILDROOT" "$top_dir/RPMS" "$top_dir/SPECS" "$top_dir/SRPMS"
-install -Dm0755 "$executable" "$package_root/usr/bin/flectar-mail"
+install -Dm0755 "$executable" "$package_root/usr/bin/yours"
 python3 "$project_dir/scripts/stage-pdfium.py" "$pdfium_target" "$package_root$rpm_libdir/flectar-mail"
-python3 "$project_dir/scripts/test-pdf-preview.py" "$package_root/usr/bin/flectar-mail"
+python3 "$project_dir/scripts/test-pdf-preview.py" "$package_root/usr/bin/yours"
 python3 "$project_dir/scripts/linux-elf.py" verify "$package_root"
-install -m0755 "$package_root/usr/bin/flectar-mail" "$source_dir/flectar-mail"
+install -m0755 "$package_root/usr/bin/yours" "$source_dir/flectar-mail"
 install -m0755 "$package_root$rpm_libdir/flectar-mail/libpdfium.so" "$source_dir/libpdfium.so"
 tar -C "$package_root$rpm_libdir/flectar-mail/pdfium-licenses" -czf "$source_dir/pdfium-licenses.tar.gz" .
 
 python3 "$project_dir/scripts/stage-linux-metadata.py" --arch "$machine" "$build_dir/metadata" >/dev/null
-install -m0644 "$build_dir/metadata/usr/share/applications/com.flectar.mail.desktop" "$source_dir/com.flectar.mail.desktop"
-install -m0644 "$build_dir/metadata/usr/share/metainfo/com.flectar.mail.metainfo.xml" "$source_dir/com.flectar.mail.metainfo.xml"
-install -m0644 "$project_dir/resources/app-icon/flectar-mail-masked-512.png" "$source_dir/com.flectar.mail.png"
-install -m0644 "$project_dir/resources/app-icon/flectar-mail-masked.svg" "$source_dir/com.flectar.mail.svg"
+install -m0644 "$build_dir/metadata/usr/share/applications/org.yours.mail.desktop" "$source_dir/org.yours.mail.desktop"
+install -m0644 "$build_dir/metadata/usr/share/metainfo/org.yours.mail.metainfo.xml" "$source_dir/org.yours.mail.metainfo.xml"
+install -m0644 "$project_dir/resources/app-icon/icon-seal-512.png" "$source_dir/org.yours.mail.png"
+install -m0644 "$project_dir/resources/app-icon/icon-seal.svg" "$source_dir/org.yours.mail.svg"
 install -m0644 "$project_dir/LICENSE" "$source_dir/LICENSE"
 tar -C "$project_dir/LICENSES" -czf "$source_dir/LICENSES.tar.gz" .
 install -m0644 "$project_dir/THIRD_PARTY_NOTICES.md" "$source_dir/THIRD_PARTY_NOTICES.md"

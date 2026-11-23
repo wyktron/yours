@@ -1,7 +1,7 @@
-//! `flectar-mail mcp`, the process an agent's app starts. It speaks the Model
+//! `yours mcp`, the process an agent's app starts. It speaks the Model
 //! Context Protocol over stdio with rmcp, which handles both the 2025-11-25
 //! handshake and the 2026-07-28 discovery. It lists the tools itself, so an
-//! agent can connect while Flectar Mail is closed, and hands each call to the
+//! agent can connect while Yours is closed, and hands each call to the
 //! running app, which alone decides what it may see.
 
 use super::{
@@ -23,10 +23,10 @@ use std::{io, path::PathBuf, sync::Arc, time::Duration};
 /// How long a tool call may take in the app.
 const ANSWER_TIMEOUT: Duration = Duration::from_secs(60);
 
-const NOT_REACHABLE: &str = "Flectar Mail isn't running, or agent access is off. Open Flectar \
+const NOT_REACHABLE: &str = "Yours isn't running, or agent access is off. Open Flectar \
 Mail and turn on AI agents in Settings, then try again.";
 
-/// Runs the bridge when the desktop launcher was started as `flectar-mail
+/// Runs the bridge when the desktop launcher was started as `yours
 /// mcp`, before anything else starts, and returns its exit code.
 pub fn run_bridge_if_requested() -> Option<i32> {
     if std::env::args_os().nth(1).as_deref() != Some(std::ffi::OsStr::new("mcp")) {
@@ -39,7 +39,7 @@ fn run() -> i32 {
     let data_dir = match flectar_mail_core::config::Paths::default_dirs() {
         Ok(paths) => paths.data_dir,
         Err(error) => {
-            eprintln!("Flectar Mail's agent connection can't find its data folder: {error}");
+            eprintln!("Yours's agent connection can't find its data folder: {error}");
             return 1;
         }
     };
@@ -49,7 +49,7 @@ fn run() -> i32 {
     {
         Ok(runtime) => runtime,
         Err(error) => {
-            eprintln!("Flectar Mail's agent connection couldn't start: {error}");
+            eprintln!("Yours's agent connection couldn't start: {error}");
             return 1;
         }
     };
@@ -61,12 +61,12 @@ fn run() -> i32 {
             Ok(service) => match service.waiting().await {
                 Ok(_) => 0,
                 Err(error) => {
-                    eprintln!("Flectar Mail's agent connection stopped: {error}");
+                    eprintln!("Yours's agent connection stopped: {error}");
                     1
                 }
             },
             Err(error) => {
-                eprintln!("Flectar Mail's agent connection couldn't start: {error}");
+                eprintln!("Yours's agent connection couldn't start: {error}");
                 1
             }
         }
@@ -82,8 +82,8 @@ impl ServerHandler for Bridge {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(
-                Implementation::new("flectar-mail", env!("CARGO_PKG_VERSION"))
-                    .with_title("Flectar Mail"),
+                Implementation::new("yours", env!("CARGO_PKG_VERSION"))
+                    .with_title("Yours"),
             )
             .with_instructions(tools::INSTRUCTIONS)
     }
@@ -181,13 +181,13 @@ async fn forward(data_dir: &std::path::Path, request: &Request) -> Response {
     {
         Ok(Ok(response)) if response.protocol == protocol::PROTOCOL => response,
         Ok(Ok(response)) => Response::error(format!(
-            "Flectar Mail {} is running, but the agent's app started Flectar Mail {}. Restart \
-             Flectar Mail, then try again.",
+            "Yours {} is running, but the agent's app started Yours {}. Restart \
+             Yours, then try again.",
             response.version,
             env!("CARGO_PKG_VERSION"),
         )),
-        Ok(Err(_)) => Response::error("Flectar Mail's answer couldn't be read."),
-        Err(_) => Response::error("Flectar Mail didn't answer in time."),
+        Ok(Err(_)) => Response::error("Yours's answer couldn't be read."),
+        Err(_) => Response::error("Yours didn't answer in time."),
     }
 }
 
@@ -260,7 +260,7 @@ mod tests {
         .await;
         let initialized = receive(&mut lines).await;
         assert_eq!(initialized["result"]["protocolVersion"], "2025-11-25");
-        assert_eq!(initialized["result"]["serverInfo"]["name"], "flectar-mail");
+        assert_eq!(initialized["result"]["serverInfo"]["name"], "yours");
         assert!(
             initialized["result"]["instructions"]
                 .as_str()

@@ -4,7 +4,7 @@
 //! a Unix socket guarded by an advisory lock, or a named pipe whose first
 //! instance is exclusive on Windows. A later launch asks that process to show
 //! its window, passing on any mail links it was opened with, and exits. So
-//! opening Flectar Mail from a launcher or a `mailto:` link while it runs in
+//! opening Yours from a launcher or a `mailto:` link while it runs in
 //! the tray uses the existing window instead of starting a second sync engine
 //! on the same database. A sign-in launch that finds the application already
 //! running exits without disturbing it.
@@ -273,7 +273,7 @@ mod imp {
             .map(PathBuf::from)
             .filter(|directory| directory.is_absolute() && directory.is_dir())
             .map(|directory| {
-                directory.join(format!("com.flectar.mail-{}.sock", profile_key(data_dir)))
+                directory.join(format!("org.yours.mail-{}.sock", profile_key(data_dir)))
             })
             .unwrap_or_else(|| data_dir.join("instance.sock"))
     }
@@ -314,6 +314,7 @@ mod imp {
         }
         let listener = UnixListener::bind(&path)?;
         listener.set_nonblocking(true)?;
+        eprintln!("instance lock: {} ({})", data_dir.join("instance.lock").display(), path.display());
         let metadata = std::fs::symlink_metadata(&path)?;
         endpoint.socket = Some((path, (metadata.dev(), metadata.ino())));
         endpoint.listener = Some(listener);
@@ -400,7 +401,7 @@ mod imp {
     }
 
     fn pipe_name(data_dir: &Path) -> String {
-        format!(r"\\.\pipe\com.flectar.mail-{}", profile_key(data_dir))
+        format!(r"\\.\pipe\org.yours.mail-{}", profile_key(data_dir))
     }
 
     /// Only this user can open the pipe. The default security descriptor

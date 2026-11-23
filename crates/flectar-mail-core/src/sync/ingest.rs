@@ -24,7 +24,7 @@ const LIVE_SKEW_MS: i64 = 60_000;
 
 /// The server receipt time from which an account's new mail counts as
 /// arriving live, for a sync that started at `started_at`. Earlier mail came
-/// in while Flectar Mail wasn't following the account; catching up with it
+/// in while Yours wasn't following the account; catching up with it
 /// stays silent.
 pub(crate) fn live_since(started_at: i64) -> i64 {
     started_at.saturating_sub(LIVE_SKEW_MS)

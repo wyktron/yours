@@ -27,7 +27,7 @@ pub(super) fn state() -> io::Result<State> {
     let link = NSURL::URLWithString(ns_string!("mailto:"))
         .ok_or_else(|| io::Error::other("mailto: is not a URL"))?;
     // Compare bundle identifiers, as Thunderbird does: another copy of
-    // Flectar Mail is still Flectar Mail.
+    // Yours is still Yours.
     let default = NSWorkspace::sharedWorkspace()
         .URLForApplicationToOpenURL(&link)
         .and_then(|application| NSBundle::bundleWithURL(&application))
@@ -52,7 +52,7 @@ pub(super) fn make_default(done: Done) {
         .is_some_and(|path| path.to_string().contains("/AppTranslocation/"))
     {
         done(Err(io::Error::other(
-            "move Flectar Mail to the Applications folder first",
+            "move Yours to the Applications folder first",
         )));
         return;
     }

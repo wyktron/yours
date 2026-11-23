@@ -4,7 +4,7 @@ set -euo pipefail
 project_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 build_dir="$project_dir/target/deb"
 package_root="$build_dir/debian/flectar-mail"
-executable="$project_dir/target/release/flectar-mail"
+executable="$project_dir/target/release/yours"
 version="$(sed -n '/^\[package\]$/,/^\[/s/^version = "\([^"]*\)"/\1/p' "$project_dir/Cargo.toml" | head -n 1)"
 # Debian sorts ~beta before the final version. A hyphen means a Debian revision.
 version="${version/-/\~}"
@@ -15,7 +15,7 @@ if [[ -z "$version" ]]; then
 fi
 
 app_features="${FLECTAR_APP_FEATURES:-}"
-build_args=(--locked --bin flectar-mail --manifest-path "$project_dir/Cargo.toml" --release --no-default-features --features remote-content,gpu-renderer)
+build_args=(--locked --bin yours --manifest-path "$project_dir/Cargo.toml" --release --no-default-features --features remote-content,gpu-renderer)
 if [[ -n "$app_features" ]]; then
   build_args+=(--features "$app_features")
 fi
@@ -41,15 +41,15 @@ mkdir -p \
   "$package_root/usr/share/icons/hicolor/scalable/apps" \
   "$package_root/usr/share/metainfo"
 
-install -m755 "$executable" "$package_root/usr/bin/flectar-mail"
+install -m755 "$executable" "$package_root/usr/bin/yours"
 python3 "$project_dir/scripts/stage-pdfium.py" "$pdfium_target" "$package_root/usr/lib/flectar-mail"
-python3 "$project_dir/scripts/test-pdf-preview.py" "$package_root/usr/bin/flectar-mail"
+python3 "$project_dir/scripts/test-pdf-preview.py" "$package_root/usr/bin/yours"
 python3 "$project_dir/scripts/linux-elf.py" verify "$package_root"
 python3 "$project_dir/scripts/stage-linux-metadata.py" --arch "$machine" "$package_root"
-install -m644 "$project_dir/resources/app-icon/flectar-mail-masked-512.png" \
-  "$package_root/usr/share/icons/hicolor/512x512/apps/com.flectar.mail.png"
-install -m644 "$project_dir/resources/app-icon/flectar-mail-masked.svg" \
-  "$package_root/usr/share/icons/hicolor/scalable/apps/com.flectar.mail.svg"
+install -m644 "$project_dir/resources/app-icon/icon-seal-512.png" \
+  "$package_root/usr/share/icons/hicolor/512x512/apps/org.yours.mail.png"
+install -m644 "$project_dir/resources/app-icon/icon-seal.svg" \
+  "$package_root/usr/share/icons/hicolor/scalable/apps/org.yours.mail.svg"
 install -m644 "$project_dir/LICENSE" \
   "$package_root/usr/share/doc/flectar-mail/LICENSE"
 cp -R "$project_dir/LICENSES" "$package_root/usr/share/doc/flectar-mail/LICENSES"
@@ -67,7 +67,7 @@ install -m644 "$project_dir/resources/fonts/google-sans-flex/README.md" \
 cp "$project_dir/resources/debian/source-control.in" "$build_dir/debian/control"
 shlib_substitution="$(
   cd "$build_dir"
-  dpkg-shlibdeps -O -edebian/flectar-mail/usr/bin/flectar-mail -edebian/flectar-mail/usr/lib/flectar-mail/libpdfium.so
+  dpkg-shlibdeps -O -edebian/flectar-mail/usr/bin/yours -edebian/flectar-mail/usr/lib/flectar-mail/libpdfium.so
 )"
 runtime_dependencies="${shlib_substitution#shlibs:Depends=}"
 runtime_dependencies+=", libfontconfig1, libwayland-client0, libx11-6, libx11-xcb1, libxkbcommon0, libxkbcommon-x11-0, hicolor-icon-theme, xdg-utils"

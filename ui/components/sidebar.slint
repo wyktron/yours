@@ -87,7 +87,7 @@ component UpdateNotice inherits Rectangle {
     open := TouchArea {
         width: parent.width - 38px;
         accessible-role: button;
-        accessible-label: @tr("Flectar Mail {} is out. Open its release page.", Updates.version);
+        accessible-label: @tr("Yours {} is out. Open its release page.", Updates.version);
         accessible-action-default => { Updates.open-release(); }
         mouse-cursor: pointer;
         clicked => { Updates.open-release(); }

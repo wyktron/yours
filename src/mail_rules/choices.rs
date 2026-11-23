@@ -216,7 +216,7 @@ pub(super) fn targets_exist(rule: &MailRule, folders: &[FolderInfo], labels: &[L
 
 /// Where `rule` runs, as the list and the editor tell: "server" when the
 /// servers of all its accounts run it, "some" for some of them, or "app"
-/// while Flectar Mail is open, with why. Empty when no server of its
+/// while Yours is open, with why. Empty when no server of its
 /// accounts runs rules, or the rule is off.
 pub(super) fn place(
     rule: &MailRule,

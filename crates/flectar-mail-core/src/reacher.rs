@@ -1,7 +1,7 @@
 //! Typed client for the local Reacher email-verification service.
 //!
 //! Reacher checks an address in three steps - syntax, MX records, and a live
-//! SMTP probe - and answers with one of four confidence levels. Flectar Mail
+//! SMTP probe - and answers with one of four confidence levels. Yours
 //! runs it on this machine only (see `docs/reacher.md`) and treats the answer
 //! as a hint for compose, so the client reports transport and server failures
 //! as clear errors instead of pretending the address is unknown.
@@ -11,7 +11,7 @@ use crate::models::Settings;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-/// The loopback endpoint installed for Flectar Mail.
+/// The loopback endpoint installed for Yours.
 pub const DEFAULT_URL: &str = "http://127.0.0.1:8084";
 const CHECK_PATH: &str = "/v0/check_email";
 /// A Reacher answer is about 1 KiB; this only bounds a broken server.

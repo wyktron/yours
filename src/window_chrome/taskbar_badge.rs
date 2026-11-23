@@ -1,4 +1,4 @@
-//! The unread count on the taskbar button of a copy of Flectar Mail without
+//! The unread count on the taskbar button of a copy of Yours without
 //! package identity, which Windows' own badges need: an overlay icon the app
 //! draws, as Thunderbird and Telegram do. It copies Windows 11's own badge,
 //! as Qt's does, in the colours of the taskbar's light or dark mode. Windows

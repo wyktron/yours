@@ -1,7 +1,7 @@
 //! Local, offline-first text embeddings for semantic search + RAG.
 //!
 //! Uses candle (pure Rust, CPU) to run small BERT-family sentence encoders
-//! (BGE / MiniLM). No ONNX runtime, no native ML libs - Flectar Mail stays a single
+//! (BGE / MiniLM). No ONNX runtime, no native ML libs - Yours stays a single
 //! static binary. Inference is CPU-heavy, so callers must run [`Embedder::embed`]
 //! off the DB writer thread (e.g. under `tokio::task::spawn_blocking`).
 

@@ -1,4 +1,4 @@
-//! Start Flectar Mail when the user signs in.
+//! Start Yours when the user signs in.
 //!
 //! The operating system's startup list is the source of truth. Users can also
 //! remove or disable the entry from their desktop settings, Task Manager or
@@ -105,7 +105,7 @@ fn launch_executable() -> io::Result<PathBuf> {
         .any(|component| component.as_os_str() == "AppTranslocation")
     {
         return Err(io::Error::other(
-            "move Flectar Mail to the Applications folder first",
+            "move Yours to the Applications folder first",
         ));
     }
     Ok(executable)
@@ -136,7 +136,7 @@ mod xdg {
         path::{Path, PathBuf},
     };
 
-    const FILE_NAME: &str = "com.flectar.mail.desktop";
+    const FILE_NAME: &str = "org.yours.mail.desktop";
     /// Records the launched executable without parsing the quoted `Exec` line.
     const EXECUTABLE_KEY: &str = "X-Flectar-Executable";
 
@@ -217,9 +217,9 @@ mod xdg {
         let contents = format!(
             "[Desktop Entry]\n\
              Type=Application\n\
-             Name=Flectar Mail\n\
-             Comment=Start Flectar Mail when you sign in\n\
-             Icon=com.flectar.mail\n\
+             Name=Yours\n\
+             Comment=Start Yours when you sign in\n\
+             Icon=org.yours.mail\n\
              TryExec={try_exec}\n\
              Exec={exec} {BACKGROUND_ARGUMENT}\n\
              Terminal=false\n\
@@ -509,7 +509,7 @@ mod registry {
     const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
     const APPROVED_KEY: &str =
         r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
-    const VALUE_NAME: &str = "Flectar Mail";
+    const VALUE_NAME: &str = "Yours";
 
     pub(super) fn read() -> io::Result<Option<Entry>> {
         let Some(command) = get_value(RUN_KEY, RRF_RT_REG_SZ)? else {
@@ -645,7 +645,7 @@ mod registry {
 
         #[test]
         fn command_line_round_trips_the_executable() {
-            let executable = Path::new(r"C:\Users\A B\AppData\Local\Programs\Flectar Mail\flectar-mail.exe");
+            let executable = Path::new(r"C:\Users\A B\AppData\Local\Programs\Yours\flectar-mail.exe");
             let command = command_line(executable);
             assert_eq!(
                 command.to_str().unwrap(),
@@ -776,7 +776,7 @@ mod portal {
         sync::{Mutex, PoisonError},
     };
 
-    const SIGN_IN_REASON: &str = "Start Flectar Mail when you sign in";
+    const SIGN_IN_REASON: &str = "Start Yours when you sign in";
     const BACKGROUND_REASON: &str = "Check for new mail while the window is closed";
 
     /// Every request also rewrites the sign-in entry from the record, so one

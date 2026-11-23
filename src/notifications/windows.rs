@@ -67,7 +67,7 @@ const ACTIVATION_ARGUMENT: &str = "--toast-activated";
 /// The new-mail sound of the user's sound scheme.
 const MAIL_SOUND: &str = "ms-winsoundevent:Notification.Mail";
 
-/// How this copy of Flectar Mail is installed, which decides who registers
+/// How this copy of Yours is installed, which decides who registers
 /// its app id and activator.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Install {
@@ -550,7 +550,7 @@ impl IClassFactory_Impl for Factory_Impl {
 
 /// The app icon a portable copy's toasts show, written where the registry
 /// can point at it.
-const PORTABLE_ICON: &[u8] = include_bytes!("../../resources/app-icon/flectar-mail-window.png");
+const PORTABLE_ICON: &[u8] = include_bytes!("../../resources/app-icon/icon-seal-256.png");
 
 /// Register a portable copy's app id and activator for the current user,
 /// pointing at this executable: what the installer does for an installed
@@ -562,7 +562,7 @@ fn register_portable() -> Result<(), String> {
     let app = windows_registry::CURRENT_USER
         .create(format!(r"Software\Classes\AppUserModelId\{PORTABLE_AUMID}"))
         .map_err(|error| error.to_string())?;
-    app.set_expand_string("DisplayName", "Flectar Mail")
+    app.set_expand_string("DisplayName", "Yours")
         .and_then(|()| app.set_string("CustomActivator", &activator))
         .map_err(|error| error.to_string())?;
     if let Some(icon) = portable_icon() {

@@ -778,38 +778,38 @@ msgid "Saving close behavior…"
 msgstr "Kapatma davranışı kaydediliyor…"
 
 #: ui/app.slint:315
-msgid "Closing the window will now keep Flectar Mail in the tray."
+msgid "Closing the window will now keep Yours in the tray."
 msgstr ""
-"Pencere kapatıldığında Flectar Mail artık tepside çalışmaya devam edecek."
+"Pencere kapatıldığında Yours artık tepside çalışmaya devam edecek."
 
 #: ui/app.slint:316
-msgid "Closing the window will now quit Flectar Mail."
-msgstr "Pencere kapatıldığında Flectar Mail artık kapanacak."
+msgid "Closing the window will now quit Yours."
+msgstr "Pencere kapatıldığında Yours artık kapanacak."
 
 #: ui/app.slint:317
 msgid "Could not save close behavior: {}"
 msgstr "Kapatma davranışı kaydedilemedi: {}"
 
 #: ui/app.slint:318
-msgid "Flectar Mail will start when you sign in."
-msgstr "Flectar Mail oturum açtığınızda başlatılacak."
+msgid "Yours will start when you sign in."
+msgstr "Yours oturum açtığınızda başlatılacak."
 
 #: ui/app.slint:319
-msgid "Flectar Mail will no longer start when you sign in."
-msgstr "Flectar Mail artık oturum açtığınızda başlatılmayacak."
+msgid "Yours will no longer start when you sign in."
+msgstr "Yours artık oturum açtığınızda başlatılmayacak."
 
 #: ui/app.slint:320
 msgid "Could not change startup behavior: {}"
 msgstr "Başlangıç davranışı değiştirilemedi: {}"
 
 #: ui/app.slint:321
-msgid "Allow Flectar Mail under Login Items in System Settings to finish."
+msgid "Allow Yours under Login Items in System Settings to finish."
 msgstr ""
-"Tamamlamak için Sistem Ayarları'ndaki Giriş Öğeleri bölümünde Flectar Mail'e "
+"Tamamlamak için Sistem Ayarları'ndaki Giriş Öğeleri bölümünde Yours'e "
 "izin verin."
 
 #: ui/app.slint:322
-msgid "Turn on Flectar Mail under Startup apps in Windows Settings to finish."
+msgid "Turn on Yours under Startup apps in Windows Settings to finish."
 msgstr ""
 
 #: ui/app.slint:327
@@ -992,12 +992,12 @@ msgid "Connect an account before creating a backup."
 msgstr "Yedek oluşturmadan önce bir hesap bağlayın."
 
 #: ui/app.slint:375
-msgid "Export Flectar Mail account backup"
-msgstr "Flectar Mail hesap yedeğini dışa aktar"
+msgid "Export Yours account backup"
+msgstr "Yours hesap yedeğini dışa aktar"
 
 #: ui/app.slint:376
-msgid "Flectar Mail backup"
-msgstr "Flectar Mail yedeği"
+msgid "Yours backup"
+msgstr "Yours yedeği"
 
 #: ui/app.slint:377 ui/dialogs/import-dialog.slint:407
 #: ui/views/onboarding-view.slint:223
@@ -1033,8 +1033,8 @@ msgid "Creating verified database snapshot…"
 msgstr "Doğrulanmış veritabanı anlık görüntüsü oluşturuluyor…"
 
 #: ui/app.slint:385
-msgid "All local Flectar Mail data was deleted."
-msgstr "Tüm yerel Flectar Mail verileri silindi."
+msgid "All local Yours data was deleted."
+msgstr "Tüm yerel Yours verileri silindi."
 
 #: ui/app.slint:386
 msgid "Could not delete all local data: {}"
@@ -1146,12 +1146,12 @@ msgid "Calendar update failed: {}"
 msgstr "Takvim güncellemesi başarısız: {}"
 
 #: ui/app.slint:425
-msgid "Only events created in Flectar Mail can be edited."
-msgstr "Yalnızca Flectar Mail'de oluşturulan etkinlikler düzenlenebilir."
+msgid "Only events created in Yours can be edited."
+msgstr "Yalnızca Yours'de oluşturulan etkinlikler düzenlenebilir."
 
 #: ui/app.slint:426
-msgid "Only events created in Flectar Mail can be deleted."
-msgstr "Yalnızca Flectar Mail'de oluşturulan etkinlikler silinebilir."
+msgid "Only events created in Yours can be deleted."
+msgstr "Yalnızca Yours'de oluşturulan etkinlikler silinebilir."
 
 #: ui/app.slint:427
 msgid "Calendar storage is unavailable."
@@ -1746,8 +1746,8 @@ msgstr "İleti yükleniyor…"
 
 #: ui/app.slint:596 ui/components/workspace-navigation.slint:787
 #: ui/tray.slint:13 ui/tray.slint:14
-msgid "Flectar Mail"
-msgstr "Flectar Mail"
+msgid "Yours"
+msgstr "Yours"
 
 #: ui/app.slint:1270 ui/app.slint:1283
 msgid "Global Labels (local only)"
@@ -1795,8 +1795,8 @@ msgid "Mailbox startup failed"
 msgstr "Posta kutusu başlatılamadı"
 
 #: ui/app.slint:2412
-msgid "Flectar Mail could not open local storage"
-msgstr "Flectar Mail yerel depolamayı açamadı"
+msgid "Yours could not open local storage"
+msgstr "Yours yerel depolamayı açamadı"
 
 #: ui/app.slint:2425
 msgid "Diagnostic ID: {}"
@@ -2005,7 +2005,7 @@ msgstr ""
 #: ui/components/account-mail-preferences.slint:169
 msgid ""
 "Add an alias or another address your mail server lets you send from. The "
-"server decides when you send; Flectar shows whether it accepted the last "
+"server decides when you send; Yours shows whether it accepted the last "
 "message."
 msgstr ""
 
@@ -2265,7 +2265,7 @@ msgid "App icon"
 msgstr ""
 
 #: ui/components/app-icon-picker.slint:105
-msgid "Used for the Dock and the menu bar while Flectar Mail is running."
+msgid "Used for the Dock and the menu bar while Yours is running."
 msgstr ""
 
 #: ui/components/app-icon-picker.slint:106
@@ -2282,7 +2282,7 @@ msgstr ""
 
 #: ui/components/app-icon-picker.slint:116
 msgid ""
-"The new icon appears after you leave Flectar Mail. Some launchers remove the "
+"The new icon appears after you leave Yours. Some launchers remove the "
 "old icon from the home screen."
 msgstr ""
 
@@ -2455,8 +2455,8 @@ msgid "Default calendar"
 msgstr "Varsayılan takvim"
 
 #: ui/components/calendar.slint:466
-msgid "Created in Flectar Mail"
-msgstr "Flectar Mail'de oluşturuldu"
+msgid "Created in Yours"
+msgstr "Yours'de oluşturuldu"
 
 #: ui/components/calendar.slint:466
 msgid "Synced provider event"
@@ -2928,7 +2928,7 @@ msgstr "Tarayıcıda oturum açmada sorun mu var?"
 
 #: ui/components/oauth-browser-help.slint:73
 msgid ""
-"Flectar could not reach the system browser from this app environment. Open "
+"Yours could not reach the system browser from this app environment. Open "
 "the link again or copy it into a browser on this device."
 msgstr ""
 "Flectar bu uygulama ortamından sistem tarayıcısına ulaşamadı. Bağlantıyı "
@@ -3635,9 +3635,9 @@ msgid "No incoming mail server is configured."
 msgstr "Gelen posta sunucusu yapılandırılmamış."
 
 #: ui/dialogs/import-dialog.slint:132
-msgid "The incoming server {} uses a protocol Flectar Mail does not support."
+msgid "The incoming server {} uses a protocol Yours does not support."
 msgstr ""
-"Gelen posta sunucusu {}, Flectar Mail'in desteklemediği bir protokol "
+"Gelen posta sunucusu {}, Yours'in desteklemediği bir protokol "
 "kullanıyor."
 
 #: ui/dialogs/import-dialog.slint:133
@@ -3645,9 +3645,9 @@ msgid "No outgoing mail server is configured."
 msgstr "Giden posta sunucusu yapılandırılmamış."
 
 #: ui/dialogs/import-dialog.slint:134
-msgid "The outgoing server {} uses a protocol Flectar Mail does not support."
+msgid "The outgoing server {} uses a protocol Yours does not support."
 msgstr ""
-"Giden posta sunucusu {}, Flectar Mail'in desteklemediği bir protokol "
+"Giden posta sunucusu {}, Yours'in desteklemediği bir protokol "
 "kullanıyor."
 
 #: ui/dialogs/import-dialog.slint:135
@@ -3664,61 +3664,61 @@ msgstr ""
 
 #: ui/dialogs/import-dialog.slint:137
 msgid ""
-"{} keeps your password off its unencrypted connection, but Flectar Mail "
+"{} keeps your password off its unencrypted connection, but Yours "
 "would send it in the clear. Turn on SSL/TLS or STARTTLS for this server "
 "first."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:139
 msgid ""
-"The incoming server connects without signing in, which Flectar Mail does not "
+"The incoming server connects without signing in, which Yours does not "
 "support."
 msgstr ""
-"Gelen posta sunucusu oturum açmadan bağlanıyor; Flectar Mail bunu "
+"Gelen posta sunucusu oturum açmadan bağlanıyor; Yours bunu "
 "desteklemiyor."
 
 #: ui/dialogs/import-dialog.slint:140
 msgid ""
-"The incoming server signs in with a client certificate, which Flectar Mail "
+"The incoming server signs in with a client certificate, which Yours "
 "does not support."
 msgstr ""
-"Gelen posta sunucusu bir istemci sertifikasıyla oturum açıyor; Flectar Mail "
+"Gelen posta sunucusu bir istemci sertifikasıyla oturum açıyor; Yours "
 "bunu desteklemiyor."
 
 #: ui/dialogs/import-dialog.slint:141
 msgid ""
-"The incoming server signs in with {}, which Flectar Mail does not support."
+"The incoming server signs in with {}, which Yours does not support."
 msgstr ""
-"Gelen posta sunucusu, Flectar Mail'in desteklemediği {} ile oturum açıyor."
+"Gelen posta sunucusu, Yours'in desteklemediği {} ile oturum açıyor."
 
 #: ui/dialogs/import-dialog.slint:142
 msgid ""
-"The outgoing server sends mail without signing in, which Flectar Mail does "
+"The outgoing server sends mail without signing in, which Yours does "
 "not support."
 msgstr ""
-"Giden posta sunucusu oturum açmadan posta gönderiyor; Flectar Mail bunu "
+"Giden posta sunucusu oturum açmadan posta gönderiyor; Yours bunu "
 "desteklemiyor."
 
 #: ui/dialogs/import-dialog.slint:143
 msgid ""
-"The outgoing server signs in with a client certificate, which Flectar Mail "
+"The outgoing server signs in with a client certificate, which Yours "
 "does not support."
 msgstr ""
-"Giden posta sunucusu bir istemci sertifikasıyla oturum açıyor; Flectar Mail "
+"Giden posta sunucusu bir istemci sertifikasıyla oturum açıyor; Yours "
 "bunu desteklemiyor."
 
 #: ui/dialogs/import-dialog.slint:144
 msgid ""
-"The outgoing server signs in with {}, which Flectar Mail does not support."
+"The outgoing server signs in with {}, which Yours does not support."
 msgstr ""
-"Giden posta sunucusu, Flectar Mail'in desteklemediği {} ile oturum açıyor."
+"Giden posta sunucusu, Yours'in desteklemediği {} ile oturum açıyor."
 
 #: ui/dialogs/import-dialog.slint:145
 msgid ""
-"The outgoing server signs in as {}. Flectar Mail uses one sign-in for both "
+"The outgoing server signs in as {}. Yours uses one sign-in for both "
 "servers."
 msgstr ""
-"Giden posta sunucusu {} olarak oturum açıyor. Flectar Mail her iki sunucu "
+"Giden posta sunucusu {} olarak oturum açıyor. Yours her iki sunucu "
 "için tek bir oturum açma kullanır."
 
 #: ui/dialogs/import-dialog.slint:146
@@ -3757,9 +3757,9 @@ msgstr ""
 
 #: ui/dialogs/import-dialog.slint:153
 msgid ""
-"Flectar Mail cannot use browser sign-in for {}. Sign in with an app password."
+"Yours cannot use browser sign-in for {}. Sign in with an app password."
 msgstr ""
-"Flectar Mail, {} için tarayıcıyla oturum açmayı kullanamaz. Uygulama "
+"Yours, {} için tarayıcıyla oturum açmayı kullanamaz. Uygulama "
 "parolasıyla oturum açın."
 
 #: ui/dialogs/import-dialog.slint:154
@@ -3834,7 +3834,7 @@ msgstr "Ayar dosyası çok büyük."
 #: ui/dialogs/import-dialog.slint:170
 msgid ""
 "This is not a supported settings export or mail file. Choose a .k9s file, a "
-"Thunderbird profile export or prefs.js, a Flectar Mail backup, or mail saved "
+"Thunderbird profile export or prefs.js, a Yours backup, or mail saved "
 "as .mbox or .eml files."
 msgstr ""
 
@@ -4007,7 +4007,7 @@ msgstr "İçe aktarma tamamlandı"
 #: ui/dialogs/import-dialog.slint:492
 msgid ""
 "Bring your accounts from Thunderbird, Thunderbird for Android, K-9 Mail, or "
-"a Flectar Mail backup, and mail from Thunderbird or saved mail files. "
+"a Yours backup, and mail from Thunderbird or saved mail files. "
 "Passwords are never imported: you sign in to each account afterward."
 msgstr ""
 
@@ -4026,7 +4026,7 @@ msgstr "{} (varsayılan profil)"
 #: ui/dialogs/import-dialog.slint:575
 msgid ""
 "Supported: Thunderbird for Android and K-9 Mail settings (.k9s), Thunderbird "
-"profile exports (.zip), profile folders and prefs.js, Flectar Mail backups "
+"profile exports (.zip), profile folders and prefs.js, Yours backups "
 "(.json), and mail saved as .mbox or .eml files, in maildir folders, or in "
 "ZIP archives of them."
 msgstr ""
@@ -4034,7 +4034,7 @@ msgstr ""
 #: ui/dialogs/import-dialog.slint:576
 msgid ""
 "Supported: Thunderbird for Android and K-9 Mail settings (.k9s), Thunderbird "
-"profile exports (.zip) and prefs.js, Flectar Mail backups (.json), and mail "
+"profile exports (.zip) and prefs.js, Yours backups (.json), and mail "
 "saved as .mbox or .eml files or in ZIP archives of them."
 msgstr ""
 
@@ -4069,8 +4069,8 @@ msgid "From Thunderbird. Existing accounts are never changed."
 msgstr "Thunderbird'den. Mevcut hesaplar asla değiştirilmez."
 
 #: ui/dialogs/import-dialog.slint:688
-msgid "Already in Flectar Mail"
-msgstr "Zaten Flectar Mail'de"
+msgid "Already in Yours"
+msgstr "Zaten Yours'de"
 
 #: ui/dialogs/import-dialog.slint:689
 msgid "Cannot be imported"
@@ -4126,11 +4126,11 @@ msgid "No accounts were imported."
 msgstr "Hiçbir hesap içe aktarılmadı."
 
 #: ui/dialogs/import-dialog.slint:762
-msgid "One account was already in Flectar Mail and was left unchanged."
+msgid "One account was already in Yours and was left unchanged."
 msgid_plural ""
-"{n} accounts were already in Flectar Mail and were left unchanged."
-msgstr[0] "Bir hesap zaten Flectar Mail'deydi ve değiştirilmedi."
-msgstr[1] "{n} hesap zaten Flectar Mail'deydi ve değiştirilmedi."
+"{n} accounts were already in Yours and were left unchanged."
+msgstr[0] "Bir hesap zaten Yours'deydi ve değiştirilmedi."
+msgstr[1] "{n} hesap zaten Yours'deydi ve değiştirilmedi."
 
 #: ui/dialogs/import-dialog.slint:768
 msgid ""
@@ -4307,10 +4307,10 @@ msgstr "E-posta görüntüleme hakkında"
 
 #: ui/dialogs/rendering-info-dialog.slint:124
 msgid ""
-"Flectar Mail uses a completely new email renderer built in Rust. It is still "
+"Yours uses a completely new email renderer built in Rust. It is still "
 "in its early stages, so some emails may not render correctly."
 msgstr ""
-"Flectar Mail, Rust ile geliştirilmiş tamamen yeni bir e-posta görüntüleyici "
+"Yours, Rust ile geliştirilmiş tamamen yeni bir e-posta görüntüleyici "
 "kullanır. Henüz erken aşamada olduğu için bazı e-postalar doğru "
 "görüntülenmeyebilir."
 
@@ -4364,8 +4364,8 @@ msgid "Calculating local storage…"
 msgstr "Yerel depolama hesaplanıyor…"
 
 #: ui/dialogs/settings-dialog.slint:216
-msgid "{} used by Flectar Mail"
-msgstr "Flectar Mail tarafından {} kullanılıyor"
+msgid "{} used by Yours"
+msgstr "Yours tarafından {} kullanılıyor"
 
 #: ui/dialogs/settings-dialog.slint:217
 msgid "Storage usage could not be calculated. Try again."
@@ -4686,8 +4686,8 @@ msgid "Follow your device language when a translation is available."
 msgstr "Bir çeviri mevcut olduğunda cihazınızın dilini kullanın."
 
 #: ui/dialogs/settings-dialog.slint:1214
-msgid "Choose the language used throughout Flectar Mail."
-msgstr "Flectar Mail genelinde kullanılacak dili seçin."
+msgid "Choose the language used throughout Yours."
+msgstr "Yours genelinde kullanılacak dili seçin."
 
 #: ui/dialogs/settings-dialog.slint:1224
 msgid "Time format"
@@ -4766,9 +4766,9 @@ msgid "Keep running in system tray"
 msgstr "Sistem tepsisinde çalışmayı sürdür"
 
 #: ui/dialogs/settings-dialog.slint:1345
-msgid "Closing the window hides Flectar Mail while mail continues syncing."
+msgid "Closing the window hides Yours while mail continues syncing."
 msgstr ""
-"Pencere kapatıldığında Flectar Mail gizlenir; e-postalar eşitlenmeye devam "
+"Pencere kapatıldığında Yours gizlenir; e-postalar eşitlenmeye devam "
 "eder."
 
 #: ui/dialogs/settings-dialog.slint:1346
@@ -4782,12 +4782,12 @@ msgid "Start automatically"
 msgstr "Otomatik başlat"
 
 #: ui/dialogs/settings-dialog.slint:1373
-msgid "Starts Flectar Mail in the system tray when you sign in."
-msgstr "Oturum açtığınızda Flectar Mail'i sistem tepsisinde başlatır."
+msgid "Starts Yours in the system tray when you sign in."
+msgstr "Oturum açtığınızda Yours'i sistem tepsisinde başlatır."
 
 #: ui/dialogs/settings-dialog.slint:1373
-msgid "Opens Flectar Mail when you sign in."
-msgstr "Oturum açtığınızda Flectar Mail'i açar."
+msgid "Opens Yours when you sign in."
+msgstr "Oturum açtığınızda Yours'i açar."
 
 #: ui/dialogs/settings-dialog.slint:1374
 msgid "Disabled by default; also listed in your system's startup apps."
@@ -4832,8 +4832,8 @@ msgid "Renderer"
 msgstr "Görüntüleyici"
 
 #: ui/dialogs/settings-dialog.slint:1454
-msgid "Changes take effect after restarting Flectar Mail."
-msgstr "Değişiklikler Flectar Mail yeniden başlatıldığında etkili olur."
+msgid "Changes take effect after restarting Yours."
+msgstr "Değişiklikler Yours yeniden başlatıldığında etkili olur."
 
 #: ui/dialogs/settings-dialog.slint:1454
 msgid "GPU mode is unavailable in this build."
@@ -5076,7 +5076,7 @@ msgstr "Gönderilen kopyalar"
 
 #: ui/dialogs/settings-dialog.slint:2092
 msgid ""
-"Choose who saves sent mail. Use Flectar if your server does not save a copy."
+"Choose who saves sent mail. Use Yours if your server does not save a copy."
 msgstr ""
 "Gönderilen postaları kimin kaydedeceğini seçin. Sunucunuz bir kopya "
 "kaydetmiyorsa Flectar kullanın."
@@ -5090,7 +5090,7 @@ msgid "Server saves a copy"
 msgstr "Sunucu bir kopya kaydeder"
 
 #: ui/dialogs/settings-dialog.slint:2093
-msgid "Flectar saves a copy"
+msgid "Yours saves a copy"
 msgstr "Flectar bir kopya kaydeder"
 
 #: ui/dialogs/settings-dialog.slint:2107
@@ -5098,7 +5098,7 @@ msgid "Keep mail on the server"
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2111
-msgid "Flectar Mail never removes mail from the server."
+msgid "Yours never removes mail from the server."
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2112
@@ -5212,9 +5212,9 @@ msgstr "Bağlan"
 
 #: ui/dialogs/settings-dialog.slint:2251
 msgid ""
-"See what Flectar Mail stores locally and manage the data on this device."
+"See what Yours stores locally and manage the data on this device."
 msgstr ""
-"Flectar Mail'in yerel olarak neleri depoladığını görün ve bu cihazdaki "
+"Yours'in yerel olarak neleri depoladığını görün ve bu cihazdaki "
 "verileri yönetin."
 
 #: ui/dialogs/settings-dialog.slint:2277
@@ -5325,8 +5325,8 @@ msgid "Delete everything"
 msgstr "Tümünü sil"
 
 #: ui/dialogs/settings-dialog.slint:2341
-msgid "Choose how Flectar Mail gets your attention."
-msgstr "Flectar Mail'in sizi nasıl uyaracağını seçin."
+msgid "Choose how Yours gets your attention."
+msgstr "Yours'in sizi nasıl uyaracağını seçin."
 
 #: ui/dialogs/settings-dialog.slint:2368
 msgid "Notification sounds"
@@ -5423,7 +5423,7 @@ msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2438
 msgid ""
-"Optional paid services from Flectar. Flectar Mail stays free and works "
+"Optional paid services from Flectar. Yours stays free and works "
 "without them."
 msgstr ""
 
@@ -5502,7 +5502,7 @@ msgid "Create and manage mailboxes for your team"
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2492
-msgid "New mailboxes appear in Flectar Mail automatically"
+msgid "New mailboxes appear in Yours automatically"
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2494
@@ -5516,12 +5516,12 @@ msgid ""
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2525
-msgid "Flectar Mail, its makers, and its community."
-msgstr "Flectar Mail, onu geliştirenler ve topluluğu."
+msgid "Yours, its makers, and its community."
+msgstr "Yours, onu geliştirenler ve topluluğu."
 
 #: ui/dialogs/settings-dialog.slint:2541 ui/views/onboarding-view.slint:121
-msgid "Flectar Mail logo"
-msgstr "Flectar Mail logosu"
+msgid "Yours logo"
+msgstr "Yours logosu"
 
 #: ui/dialogs/settings-dialog.slint:2561
 msgid "A native mail client for a calm, private inbox."
@@ -5565,10 +5565,10 @@ msgstr "Yalnızca AGPL-3.0."
 
 #: ui/dialogs/settings-dialog.slint:2619
 msgid ""
-"Flectar Mail is released under the GNU Affero General Public License v3.0 "
+"Yours is released under the GNU Affero General Public License v3.0 "
 "only."
 msgstr ""
-"Flectar Mail yalnızca GNU Affero Genel Kamu Lisansı v3.0 kapsamında "
+"Yours yalnızca GNU Affero Genel Kamu Lisansı v3.0 kapsamında "
 "yayımlanır."
 
 #: ui/dialogs/settings-dialog.slint:2625
@@ -5783,9 +5783,9 @@ msgstr "Tüm yerel veriler silinsin mi?"
 #: ui/dialogs/settings-dialog.slint:3234
 msgid ""
 "This removes every account, downloaded message, calendar, contact, "
-"preference, and credential stored by Flectar Mail on this device."
+"preference, and credential stored by Yours on this device."
 msgstr ""
-"Bu işlem Flectar Mail'in bu cihazda depoladığı tüm hesapları, indirilen "
+"Bu işlem Yours'in bu cihazda depoladığı tüm hesapları, indirilen "
 "iletileri, takvimleri, kişileri, tercihleri ve kimlik bilgilerini kaldırır."
 
 #: ui/dialogs/settings-dialog.slint:3236
@@ -5898,8 +5898,8 @@ msgid "Keep calendar"
 msgstr ""
 
 #: ui/tray.slint:23
-msgid "Show Flectar Mail"
-msgstr "Flectar Mail'i göster"
+msgid "Show Yours"
+msgstr "Yours'i göster"
 
 #: ui/tray.slint:27
 msgid "Quit"

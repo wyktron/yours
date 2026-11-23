@@ -8,10 +8,10 @@ export component FlectarTray inherits SystemTrayIcon {
     // Rust sets the chosen icon's tray image from AppIcon.tray-image, which
     // explains the small size; this compilation unit cannot share globals
     // with app.slint.
-    in property <image> image: @image-url("../resources/app-icon/flectar-mail-tray.png");
+    in property <image> image: @image-url("../resources/app-icon/tray-y-44.png");
     icon: root.image;
-    title: @tr("Flectar Mail");
-    tooltip: @tr("Flectar Mail");
+    title: @tr("Yours");
+    tooltip: @tr("Yours");
 
     callback show_window();
     callback quit_app();
@@ -20,7 +20,7 @@ export component FlectarTray inherits SystemTrayIcon {
 
     Menu {
         MenuItem {
-            title: @tr("Show Flectar Mail");
+            title: @tr("Show Yours");
             activated => { root.show_window(); }
         }
         MenuItem {

@@ -8,7 +8,13 @@ use crate::error::{CoreError, Result};
 #[cfg(secret_service)]
 mod secret_service;
 
-const SERVICE: &str = "flectar-mail";
+const SERVICE: &str = "yours-mail";
+/// The service earlier releases used. Secrets are copied to [`SERVICE`] the
+/// first time they are read, and stay readable here until that copy works, so
+/// the rename never loses a password.
+const LEGACY_SERVICE: &str = "flectar-mail";
+/// How many secrets this process has copied from the old service.
+static MIGRATED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 #[cfg(any(test, debug_assertions))]
 const MAX_INSECURE_CREDENTIAL_FILE_BYTES: u64 = 1024 * 1024;
 
@@ -53,9 +59,9 @@ impl From<keyring::Error> for CoreError {
     }
 }
 
-fn entry(account_id: i64, slot: &Slot) -> Result<keyring::Entry> {
+fn entry(service: &str, account_id: i64, slot: &Slot) -> Result<keyring::Entry> {
     let user = format!("{account_id}:{}", slot.key());
-    keyring::Entry::new(SERVICE, &user).map_err(Into::into)
+    keyring::Entry::new(service, &user).map_err(Into::into)
 }
 
 /// Store `secret` in `entry`. A Secret Service session without a default
@@ -105,20 +111,21 @@ const GENERATION_CHUNK_MARKER: &str = "\u{0}flectar-mail-chunks:v2:";
 // Chunk sanity cap; MAX_SECRET_UTF16 * this is far beyond any real secret.
 const MAX_CHUNKS: usize = 512;
 
-fn chunk_entry(account_id: i64, slot: &Slot, index: usize) -> Result<keyring::Entry> {
+fn chunk_entry(service: &str, account_id: i64, slot: &Slot, index: usize) -> Result<keyring::Entry> {
     let user = format!("{account_id}:{}:c{index}", slot.key());
-    keyring::Entry::new(SERVICE, &user).map_err(Into::into)
+    keyring::Entry::new(service, &user).map_err(Into::into)
 }
 
 #[cfg(target_os = "windows")]
 fn generation_chunk_entry(
+    service: &str,
     account_id: i64,
     slot: &Slot,
     generation: u8,
     index: usize,
 ) -> Result<keyring::Entry> {
     let user = format!("{account_id}:{}:g{generation}:c{index}", slot.key());
-    keyring::Entry::new(SERVICE, &user).map_err(Into::into)
+    keyring::Entry::new(service, &user).map_err(Into::into)
 }
 
 fn parse_generation_chunk_header(head: &str) -> Result<Option<(u8, usize)>> {
@@ -161,9 +168,9 @@ fn split_utf16_chunks(secret: &str, max_units: usize) -> Vec<String> {
 
 /// Delete `<slot>:c{index}` entries starting at `start`. Chunks are written
 /// contiguously, so stop at the first missing index and surface storage errors.
-fn delete_chunks_from(account_id: i64, slot: &Slot, start: usize) -> Result<()> {
+fn delete_chunks_from(service: &str, account_id: i64, slot: &Slot, start: usize) -> Result<()> {
     for index in start..start + MAX_CHUNKS {
-        match chunk_entry(account_id, slot, index)?.delete_credential() {
+        match chunk_entry(service, account_id, slot, index)?.delete_credential() {
             Ok(()) => {}
             Err(error) if is_absent(&error) => break,
             Err(error) => return Err(error.into()),
@@ -174,13 +181,14 @@ fn delete_chunks_from(account_id: i64, slot: &Slot, start: usize) -> Result<()> 
 
 #[cfg(target_os = "windows")]
 fn delete_generation_chunks_from(
+    service: &str,
     account_id: i64,
     slot: &Slot,
     generation: u8,
     start: usize,
 ) -> Result<()> {
     for index in start..start + MAX_CHUNKS {
-        match generation_chunk_entry(account_id, slot, generation, index)?.delete_credential() {
+        match generation_chunk_entry(service, account_id, slot, generation, index)?.delete_credential() {
             Ok(()) => {}
             Err(keyring::Error::NoEntry) => break,
             Err(error) => return Err(error.into()),
@@ -322,13 +330,13 @@ fn system_store(account_id: i64, slot: Slot, secret: &str) -> Result<()> {
     if chunks.len() <= 1 {
         // Replacing the primary entry commits the new value before stale
         // Windows chunks are cleaned up.
-        let result = set_password(&entry(account_id, &slot)?, secret);
+        let result = set_password(&entry(SERVICE, account_id, &slot)?, secret);
         #[cfg(target_os = "windows")]
         if result.is_ok() {
             for cleanup in [
-                delete_chunks_from(account_id, &slot, 0),
-                delete_generation_chunks_from(account_id, &slot, 0, 0),
-                delete_generation_chunks_from(account_id, &slot, 1, 0),
+                delete_chunks_from(SERVICE, account_id, &slot, 0),
+                delete_generation_chunks_from(SERVICE, account_id, &slot, 0, 0),
+                delete_generation_chunks_from(SERVICE, account_id, &slot, 1, 0),
             ] {
                 if let Err(error) = cleanup {
                     tracing::warn!(slot = %slot.key(), %error, "could not remove stale credential chunks");
@@ -343,7 +351,7 @@ fn system_store(account_id: i64, slot: Slot, secret: &str) -> Result<()> {
         // Alternate between two chunk generations. The primary header is
         // the commit point, so a crash while writing the inactive
         // generation leaves the previously committed value intact.
-        let current_generation = match entry(account_id, &slot)?.get_password() {
+        let current_generation = match entry(SERVICE, account_id, &slot)?.get_password() {
             Ok(head) => parse_generation_chunk_header(&head)
                 .ok()
                 .flatten()
@@ -353,12 +361,12 @@ fn system_store(account_id: i64, slot: Slot, secret: &str) -> Result<()> {
         };
         let target_generation = current_generation.map_or(0, |generation| generation ^ 1);
         for (index, part) in chunks.iter().enumerate() {
-            generation_chunk_entry(account_id, &slot, target_generation, index)?
+            generation_chunk_entry(SERVICE, account_id, &slot, target_generation, index)?
                 .set_password(part)
                 .map_err(CoreError::from)?;
         }
-        delete_generation_chunks_from(account_id, &slot, target_generation, chunks.len())?;
-        entry(account_id, &slot)?
+        delete_generation_chunks_from(SERVICE, account_id, &slot, target_generation, chunks.len())?;
+        entry(SERVICE, account_id, &slot)?
             .set_password(&format!(
                 "{GENERATION_CHUNK_MARKER}{target_generation}:{}",
                 chunks.len()
@@ -366,8 +374,8 @@ fn system_store(account_id: i64, slot: Slot, secret: &str) -> Result<()> {
             .map_err(CoreError::from)?;
 
         for cleanup in [
-            delete_chunks_from(account_id, &slot, 0),
-            delete_generation_chunks_from(account_id, &slot, target_generation ^ 1, 0),
+            delete_chunks_from(SERVICE, account_id, &slot, 0),
+            delete_generation_chunks_from(SERVICE, account_id, &slot, target_generation ^ 1, 0),
         ] {
             if let Err(error) = cleanup {
                 tracing::warn!(slot = %slot.key(), %error, "could not remove stale credential chunks");
@@ -383,11 +391,11 @@ fn system_store(account_id: i64, slot: Slot, secret: &str) -> Result<()> {
         // MAX_SECRET_UTF16 is unlimited on this platform, so this is only
         // a defensive fallback for an impossible oversized branch.
         for (index, part) in chunks.iter().enumerate() {
-            set_password(&chunk_entry(account_id, &slot, index)?, part)?;
+            set_password(&chunk_entry(SERVICE, account_id, &slot, index)?, part)?;
         }
-        delete_chunks_from(account_id, &slot, chunks.len())?;
+        delete_chunks_from(SERVICE, account_id, &slot, chunks.len())?;
         set_password(
-            &entry(account_id, &slot)?,
+            &entry(SERVICE, account_id, &slot)?,
             &format!("{CHUNK_MARKER}{}", chunks.len()),
         )
     }
@@ -403,12 +411,42 @@ fn system_load(account_id: i64, slot: Slot) -> Result<String> {
             .remove(&slot_key(account_id, &slot))
             .ok_or_else(|| CoreError::Auth("no stored credential".into()));
     }
-    load_current_secret(account_id, &slot)?
-        .ok_or_else(|| CoreError::Auth("no stored credential".into()))
+    if let Some(secret) = load_from(SERVICE, account_id, &slot)? {
+        return Ok(secret);
+    }
+    // Nothing is stored under the new name yet: read the secret the earlier
+    // service holds, copy it across, and keep using it even when the copy
+    // fails, so no password is lost.
+    match load_from(LEGACY_SERVICE, account_id, &slot) {
+        Ok(Some(secret)) => {
+            match set_password(&entry(SERVICE, account_id, &slot)?, &secret) {
+                Ok(()) => {
+                    let moved = MIGRATED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                    eprintln!(
+                        "credentials: moved {} for account {account_id} from {} to {} ({moved} moved)",
+                        slot.key(), LEGACY_SERVICE, SERVICE
+                    );
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        account_id,
+                        slot = %slot.key(),
+                        %error,
+                        "could not copy a credential to the new service; still reading the old one"
+                    );
+                }
+            }
+            Ok(secret)
+        }
+        Ok(None) => Err(CoreError::Auth("no stored credential".into())),
+        Err(error) => Err(error),
+    }
 }
 
-fn load_current_secret(account_id: i64, slot: &Slot) -> Result<Option<String>> {
-    let head = match entry(account_id, slot)?.get_password() {
+/// Read one secret from `service`, including the chunked encodings an earlier
+/// release may have written there.
+fn load_from(service: &str, account_id: i64, slot: &Slot) -> Result<Option<String>> {
+    let head = match entry(service, account_id, slot)?.get_password() {
         Ok(secret) => secret,
         Err(error) if is_absent(&error) => return Ok(None),
         Err(error) => return Err(error.into()),
@@ -418,7 +456,9 @@ fn load_current_secret(account_id: i64, slot: &Slot) -> Result<Option<String>> {
         {
             let mut out = String::new();
             for index in 0..count {
-                match generation_chunk_entry(account_id, slot, generation, index)?.get_password() {
+                match generation_chunk_entry(service, account_id, slot, generation, index)?
+                    .get_password()
+                {
                     Ok(secret) => out.push_str(&secret),
                     Err(keyring::Error::NoEntry) => {
                         return Err(CoreError::Auth("no stored credential".into()));
@@ -448,7 +488,7 @@ fn load_current_secret(account_id: i64, slot: &Slot) -> Result<Option<String>> {
     }
     let mut out = String::new();
     for index in 0..count {
-        let chunk = chunk_entry(account_id, slot, index)?;
+        let chunk = chunk_entry(service, account_id, slot, index)?;
         match chunk.get_password() {
             Ok(s) => out.push_str(&s),
             Err(e) if is_absent(&e) => {
@@ -499,16 +539,23 @@ fn system_delete(account_id: i64, slot: Slot) -> Result<()> {
         map.remove(&slot_key(account_id, &slot));
         return file_save(&path, &map);
     }
-    match entry(account_id, &slot)?.delete_credential() {
+    match entry(SERVICE, account_id, &slot)?.delete_credential() {
         Ok(()) => {}
         Err(error) if is_absent(&error) => {}
         Err(error) => return Err(error.into()),
     }
     #[cfg(target_os = "windows")]
     {
-        delete_chunks_from(account_id, &slot, 0)?;
-        delete_generation_chunks_from(account_id, &slot, 0, 0)?;
-        delete_generation_chunks_from(account_id, &slot, 1, 0)?;
+        delete_chunks_from(SERVICE, account_id, &slot, 0)?;
+        delete_generation_chunks_from(SERVICE, account_id, &slot, 0, 0)?;
+        delete_generation_chunks_from(SERVICE, account_id, &slot, 1, 0)?;
+    }
+    // The old service's copy goes with the account once the new one exists.
+    if let Ok(legacy) = entry(LEGACY_SERVICE, account_id, &slot)
+        && let Err(error) = legacy.delete_credential()
+        && !is_absent(&error)
+    {
+        tracing::warn!(account_id, slot = %slot.key(), %error, "could not delete the old credential");
     }
     Ok(())
 }

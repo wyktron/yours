@@ -337,7 +337,7 @@ pub(super) struct BackupRestore {
     pub(super) preferences: bool,
 }
 
-/// Restores a Flectar Mail account backup: account settings, profiles,
+/// Restores a Yours account backup: account settings, profiles,
 /// colors, and preferences. Existing accounts are kept unchanged.
 pub(super) fn restore_account_backup(
     app: &AppWindow,
@@ -354,7 +354,7 @@ pub(super) fn restore_account_backup(
         let backup: serde_json::Value =
             serde_json::from_slice(bytes).map_err(|error| format!("invalid JSON: {error}"))?;
         if backup.get("format").and_then(|value| value.as_str()) != Some(account_backup::FORMAT) {
-            return Err("this is not a Flectar Mail account backup".into());
+            return Err("this is not a Yours account backup".into());
         }
         let Some(version) = backup.get("version").and_then(|value| value.as_u64()) else {
             return Err("this backup version is not supported".into());
@@ -766,7 +766,7 @@ fn backup_dialog(app: &AppWindow, title: UiMessage) -> documents::DocumentDialog
     documents::DocumentDialog {
         title: translated(app, &title).to_string(),
         filter: Some((
-            translated(app, &UiMessage::plain("Flectar Mail backup")).to_string(),
+            translated(app, &UiMessage::plain("Yours backup")).to_string(),
             &["json"],
         )),
         directory: None,
@@ -1440,7 +1440,7 @@ pub(super) fn register_data_management_callbacks(
             "flectar-mail-backup-{}.json",
             Local::now().format("%Y-%m-%d")
         );
-        let dialog = backup_dialog(&app, UiMessage::plain("Export Flectar Mail account backup"));
+        let dialog = backup_dialog(&app, UiMessage::plain("Export Yours account backup"));
         let request = export_document_bytes(
             documents_for_backup.clone(),
             paths_for_backup.temp_dir(),
@@ -1758,7 +1758,7 @@ pub(super) fn register_data_management_callbacks(
                     app.set_storage_usage(ModelRc::default());
                     app.invoke_load_storage_usage();
                     app.set_sync_status(UiMessage::plain(
-                        "All local Flectar Mail data was deleted.",
+                        "All local Yours data was deleted.",
                     ));
                 }
                 Err(error) => app.set_sync_status(UiMessage::detail(

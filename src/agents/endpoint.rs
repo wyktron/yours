@@ -9,7 +9,7 @@ use std::path::Path;
 /// profiles never share one.
 fn endpoint_name(data_dir: &Path) -> String {
     format!(
-        "com.flectar.mail-{}-agents",
+        "org.yours.mail-{}-agents",
         crate::single_instance::profile_key(data_dir)
     )
 }

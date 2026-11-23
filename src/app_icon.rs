@@ -205,8 +205,8 @@ mod launcher {
     /// Where the theme looks for the installed icon, matching the scalable
     /// and 512 px copies the packages install.
     const SLOTS: [&str; 2] = [
-        "scalable/apps/com.flectar.mail.svg",
-        "512x512/apps/com.flectar.mail.png",
+        "scalable/apps/org.yours.mail.svg",
+        "512x512/apps/org.yours.mail.png",
     ];
 
     /// The latest icon to write; a single change in flight applies whichever

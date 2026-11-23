@@ -11,7 +11,7 @@ use std::{
 
 const MIME_TYPE: &str = "x-scheme-handler/mailto";
 /// The desktop entry the packages and the AppImage's `--integrate` install.
-const DESKTOP_ID: &str = "com.flectar.mail.desktop";
+const DESKTOP_ID: &str = "org.yours.mail.desktop";
 const DEFAULTS: &str = "Default Applications";
 const ADDED: &str = "Added Associations";
 const CACHE: &str = "MIME Cache";
@@ -202,7 +202,7 @@ impl Dirs {
         let id = self.own_desktop_id().ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::NotFound,
-                "Flectar Mail is not in the applications menu",
+                "Yours is not in the applications menu",
             )
         })?;
         let user = &self.config[0];
@@ -431,16 +431,16 @@ mod tests {
             "# mine\n[Default Applications]\ntext/html=firefox.desktop\n\n[Added Associations]\nx-scheme-handler/mailto = thunderbird.desktop;\n",
         );
         assert_eq!(list.get(ADDED, MIME_TYPE), Some("thunderbird.desktop;"));
-        list.set(DEFAULTS, MIME_TYPE, "com.flectar.mail.desktop;");
+        list.set(DEFAULTS, MIME_TYPE, "org.yours.mail.desktop;");
         list.set(
             ADDED,
             MIME_TYPE,
-            "com.flectar.mail.desktop;thunderbird.desktop;",
+            "org.yours.mail.desktop;thunderbird.desktop;",
         );
         list.set("Removed Associations", "text/plain", "x.desktop;");
         assert_eq!(
             list.text(),
-            "# mine\n[Default Applications]\ntext/html=firefox.desktop\nx-scheme-handler/mailto=com.flectar.mail.desktop;\n\n[Added Associations]\nx-scheme-handler/mailto=com.flectar.mail.desktop;thunderbird.desktop;\n\n[Removed Associations]\ntext/plain=x.desktop;\n"
+            "# mine\n[Default Applications]\ntext/html=firefox.desktop\nx-scheme-handler/mailto=org.yours.mail.desktop;\n\n[Added Associations]\nx-scheme-handler/mailto=org.yours.mail.desktop;thunderbird.desktop;\n\n[Removed Associations]\ntext/plain=x.desktop;\n"
         );
         list.remove(DEFAULTS, MIME_TYPE);
         assert_eq!(list.get(DEFAULTS, MIME_TYPE), None);
@@ -474,7 +474,7 @@ mod tests {
         // The user's choice wins, and the desktop's own list over it.
         fixture.write(
             &dirs.config[0].join("mimeapps.list"),
-            "[Default Applications]\nx-scheme-handler/mailto=com.flectar.mail.desktop;\n",
+            "[Default Applications]\nx-scheme-handler/mailto=org.yours.mail.desktop;\n",
         );
         assert_eq!(dirs.default_handler().as_deref(), Some(DESKTOP_ID));
         fixture.write(
@@ -493,7 +493,7 @@ mod tests {
         let user = dirs.config[0].join("mimeapps.list");
         fixture.write(
             &user,
-            "[Added Associations]\nx-scheme-handler/mailto=org.kde.kmail2.desktop;com.flectar.mail.desktop;\n",
+            "[Added Associations]\nx-scheme-handler/mailto=org.kde.kmail2.desktop;org.yours.mail.desktop;\n",
         );
         let desktop = dirs.config[0].join("kde-mimeapps.list");
         fixture.write(
@@ -509,7 +509,7 @@ mod tests {
         assert_eq!(dirs.default_handler().as_deref(), Some(DESKTOP_ID));
         assert_eq!(
             fs::read_to_string(&user).unwrap(),
-            "[Added Associations]\nx-scheme-handler/mailto=com.flectar.mail.desktop;org.kde.kmail2.desktop;\n\n[Default Applications]\nx-scheme-handler/mailto=com.flectar.mail.desktop;\n"
+            "[Added Associations]\nx-scheme-handler/mailto=org.yours.mail.desktop;org.kde.kmail2.desktop;\n\n[Default Applications]\nx-scheme-handler/mailto=org.yours.mail.desktop;\n"
         );
         assert_eq!(
             fs::read_to_string(&desktop).unwrap(),
@@ -536,7 +536,7 @@ mod tests {
         assert!(
             fs::read_to_string(dotfiles)
                 .unwrap()
-                .contains("x-scheme-handler/mailto=com.flectar.mail.desktop;")
+                .contains("x-scheme-handler/mailto=org.yours.mail.desktop;")
         );
     }
 

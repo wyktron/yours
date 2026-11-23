@@ -172,7 +172,7 @@ class ReleaseTests(unittest.TestCase):
 
     def test_flatpak_pdfium_archive_keeps_expected_layout(self):
         manifest = (
-            SCRIPTS.parent / "packaging/flatpak/com.flectar.mail.yml"
+            SCRIPTS.parent / "packaging/flatpak/org.yours.mail.yml"
         ).read_text()
         self.assertIn(
             "install -Dm0755 pdfium-runtime/lib/libpdfium.so "
@@ -303,7 +303,7 @@ class ReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "resources").mkdir()
-            for name in ("com.flectar.mail.desktop", "com.flectar.mail.metainfo.xml"):
+            for name in ("org.yours.mail.desktop", "org.yours.mail.metainfo.xml"):
                 shutil.copyfile(SCRIPTS.parent / "resources" / name, root / "resources" / name)
             for version in ("0.2.0-alpha.1", "0.2.0-beta.2", "0.2.0-rc.3", "0.2.0"):
                 with self.subTest(version=version):
@@ -311,10 +311,10 @@ class ReleaseTests(unittest.TestCase):
                     destination = root / version
                     with patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "1767225600"}):
                         stage_linux_metadata(root, destination, arch="aarch64")
-                    desktop = (destination / "usr/share/applications/com.flectar.mail.desktop").read_text()
+                    desktop = (destination / "usr/share/applications/org.yours.mail.desktop").read_text()
                     self.assertIn(f"X-AppImage-Version={version}\n", desktop)
                     self.assertIn("X-AppImage-Arch=aarch64\n", desktop)
-                    release = ET.parse(destination / "usr/share/metainfo/com.flectar.mail.metainfo.xml").find("./releases/release")
+                    release = ET.parse(destination / "usr/share/metainfo/org.yours.mail.metainfo.xml").find("./releases/release")
                     self.assertEqual(release.get("version"), version)
                     self.assertEqual(release.get("date"), "2026-01-01")
                     self.assertEqual(release.get("type"), "development" if "-" in version else "stable")
@@ -331,13 +331,13 @@ class ReleaseTests(unittest.TestCase):
                 flatpak = root / f"{version}-flatpak"
                 with patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "1767225600"}):
                     stage_linux_metadata(root, flatpak, flatpak=True)
-                desktop = (flatpak / "usr/share/applications/com.flectar.mail.desktop").read_text()
+                desktop = (flatpak / "usr/share/applications/org.yours.mail.desktop").read_text()
                 self.assertNotIn("X-AppImage-", desktop)
             # Every other package names the architecture it was built for.
             for arch in (None, "amd64", "arm64"):
                 with self.subTest(arch=arch), self.assertRaisesRegex(ValueError, "architecture"):
                     stage_linux_metadata(root, root / "unnamed", arch=arch)
-            for name in ("com.flectar.mail.desktop", "com.flectar.mail.metainfo.xml"):
+            for name in ("org.yours.mail.desktop", "org.yours.mail.metainfo.xml"):
                 self.assertEqual((root / "resources" / name).read_bytes(), (SCRIPTS.parent / "resources" / name).read_bytes())
 
     def test_appimage_integration_keeps_mail_link_arguments(self):
@@ -348,8 +348,8 @@ class ReleaseTests(unittest.TestCase):
             appdir = root / "Flectar Mail.AppDir"
             stage_linux_metadata(SCRIPTS.parent, appdir, arch="x86_64")
             for icon in (
-                "usr/share/icons/hicolor/512x512/apps/com.flectar.mail.png",
-                "usr/share/icons/hicolor/scalable/apps/com.flectar.mail.svg",
+                "usr/share/icons/hicolor/512x512/apps/org.yours.mail.png",
+                "usr/share/icons/hicolor/scalable/apps/org.yours.mail.svg",
             ):
                 (appdir / icon).parent.mkdir(parents=True, exist_ok=True)
                 (appdir / icon).write_text("icon")
@@ -365,7 +365,7 @@ class ReleaseTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             installed = home / "Applications/flectar-mail.AppImage"
-            desktop = (home / ".local/share/applications/com.flectar.mail.desktop").read_text()
+            desktop = (home / ".local/share/applications/org.yours.mail.desktop").read_text()
             exec_lines = [line for line in desktop.splitlines() if line.startswith("Exec=")]
             self.assertEqual(exec_lines, [f'Exec="{installed}" %U', f'Exec="{installed}" mailto:'])
             self.assertIn("MimeType=x-scheme-handler/mailto;\n", desktop)
@@ -451,9 +451,9 @@ class ReleaseTests(unittest.TestCase):
                 "scripts/build-deb.sh", "scripts/build-appimage.sh",
                 "scripts/stage-linux-metadata.py", "resources/AppRun",
                 "LICENSE", "THIRD_PARTY_NOTICES.md",
-                "resources/com.flectar.mail.desktop", "resources/com.flectar.mail.metainfo.xml",
-                "resources/app-icon/flectar-mail-masked-512.png",
-                "resources/app-icon/flectar-mail-masked.svg",
+                "resources/org.yours.mail.desktop", "resources/org.yours.mail.metainfo.xml",
+                "resources/app-icon/icon-seal-512.png",
+                "resources/app-icon/icon-seal.svg",
                 "resources/fonts/google-sans-flex/OFL.txt",
                 "resources/fonts/google-sans-flex/README.md",
                 "resources/debian/source-control.in", "resources/debian/control.in",
@@ -465,7 +465,7 @@ class ReleaseTests(unittest.TestCase):
             shutil.copytree(SCRIPTS.parent / "LICENSES", root / "LICENSES")
             (root / "Cargo.toml").write_text('[package]\nversion = "0.1.0-alpha.1"\n')
             (root / "target/release").mkdir(parents=True)
-            shutil.copyfile("/bin/true", root / "target/release/flectar-mail")
+            shutil.copyfile("/bin/true", root / "target/release/yours")
             # This test checks package metadata using fixture ELFs. Stub only
             # the download/renderer helpers in the disposable checkout; actual
             # native PDF rendering is exercised by the dedicated smoke tests.
@@ -546,8 +546,8 @@ class ReleaseTests(unittest.TestCase):
                         self.assertEqual(value.strip(), expected)
                     extracted = root / f"extracted-{machine}"
                     subprocess.run(["dpkg-deb", "--extract", str(package), str(extracted)], check=True)
-                    desktop_path = "usr/share/applications/com.flectar.mail.desktop"
-                    metainfo_path = "usr/share/metainfo/com.flectar.mail.metainfo.xml"
+                    desktop_path = "usr/share/applications/org.yours.mail.desktop"
+                    metainfo_path = "usr/share/metainfo/org.yours.mail.metainfo.xml"
                     desktop = (extracted / desktop_path).read_text()
                     self.assertIn("X-AppImage-Version=0.1.0-alpha.1\n", desktop)
                     self.assertIn(f"X-AppImage-Arch={machine}\n", desktop)
@@ -569,7 +569,7 @@ library = pathlib.Path(sys.argv[sys.argv.index("--library") + 1])
 assert library.name == "libxkbcommon-x11.so.0"
 for name in ("libxkbcommon-x11.so.0", "libxkbcommon.so.0"):
     shutil.copyfile(library.parent / name, appdir / "usr/lib" / name)
-(appdir / "com.flectar.mail.desktop").symlink_to("usr/share/applications/com.flectar.mail.desktop")
+(appdir / "org.yours.mail.desktop").symlink_to("usr/share/applications/org.yours.mail.desktop")
 ''')
                     pack = tools / f"appimagetool-{machine}.AppImage"
                     pack.write_text('''#!/usr/bin/env python3
@@ -577,8 +577,8 @@ import json, os, pathlib, sys
 appdir = pathlib.Path(sys.argv[1])
 pathlib.Path(sys.argv[2]).write_text(json.dumps({
     "version": os.environ.get("VERSION"),
-    "desktop": (appdir / "com.flectar.mail.desktop").read_text(),
-    "metainfo": (appdir / "usr/share/metainfo/com.flectar.mail.metainfo.xml").read_text(),
+    "desktop": (appdir / "org.yours.mail.desktop").read_text(),
+    "metainfo": (appdir / "usr/share/metainfo/org.yours.mail.metainfo.xml").read_text(),
 }))
 ''')
                     deploy.chmod(0o755)
@@ -603,7 +603,7 @@ pathlib.Path(sys.argv[2]).write_text(json.dumps({
                         json.loads(line)
                         for line in (root / "linux-elf-calls.jsonl").read_text().splitlines()
                     ]
-                    executable = str(root / "target/release/flectar-mail")
+                    executable = str(root / "target/release/yours")
                     self.assertEqual(calls, [
                         ["arch", executable],
                         ["verify", str(root / "target/deb/debian/flectar-mail")],

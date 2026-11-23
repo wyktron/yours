@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use url::Url;
 
 /// The name the server shows for the app password a sign-in creates.
-const USER_AGENT: &str = "Flectar Mail";
+const USER_AGENT: &str = "Yours";
 /// How long a sign-in in the browser has, as long as the server keeps its token.
 const LOGIN_WAIT: Duration = Duration::from_secs(20 * 60);
 const POLL_EVERY: Duration = Duration::from_secs(2);

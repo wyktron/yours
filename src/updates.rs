@@ -1,4 +1,4 @@
-//! Tells people who installed Flectar Mail from a release file that a newer
+//! Tells people who installed Yours from a release file that a newer
 //! release is out. App stores, Flathub and package managers update the app
 //! themselves, so only builds made for direct download ask (see
 //! [`offered`]).
@@ -371,7 +371,7 @@ pub(crate) async fn newest_release(current: &Version) -> Result<Option<Release>,
     let client = reqwest::Client::builder()
         // GitHub wants every request to name its client. Nothing else about
         // the app, the device or its user goes with it.
-        .user_agent("Flectar Mail update check")
+        .user_agent("Yours update check")
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(30))
         // GitHub redirects the API of a moved repository: follow that only

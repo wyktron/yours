@@ -154,10 +154,10 @@ jobs:
 
       - name: Validate desktop metadata
         run: |
-          desktop-file-validate resources/com.flectar.mail.desktop
+          desktop-file-validate resources/org.yours.mail.desktop
           # Network checks make private pre-publication repositories look like
           # broken URLs. Flathub performs its own online validation on submit.
-          appstreamcli validate --no-net resources/com.flectar.mail.metainfo.xml
+          appstreamcli validate --no-net resources/org.yours.mail.metainfo.xml
 
       - name: Make room for the release build
         # The app crate's release build peaks near all the memory a hosted
@@ -171,7 +171,7 @@ jobs:
           FLECTAR_MICROSOFT_DESKTOP_CLIENT_ID: ${{ secrets.FLECTAR_MICROSOFT_DESKTOP_CLIENT_ID }}
           # Release files tell of newer releases; stores update the app themselves.
           FLECTAR_UPDATE_CHECKS: github
-        run: cargo build --locked --release --no-default-features --features remote-content,gpu-renderer --bin flectar-mail
+        run: cargo build --locked --release --no-default-features --features remote-content,gpu-renderer --bin yours
 
       # The startup benchmark below must not measure swapped memory.
       - name: Take the build's swap away again
@@ -191,7 +191,7 @@ jobs:
       - name: Benchmark startup and idle resources
         run: |
           xvfb-run -a ./scripts/benchmark-startup.py \
-            --binary target/release/flectar-mail \
+            --binary target/release/yours \
             --profile-cache-dir resources/benchmarks/warm-cache \
             --rounds 3 \
             --idle-seconds 3
@@ -271,7 +271,7 @@ jobs:
           FLECTAR_MICROSOFT_DESKTOP_CLIENT_ID: ${{ secrets.FLECTAR_MICROSOFT_DESKTOP_CLIENT_ID }}
           # Release files tell of newer releases; stores update the app themselves.
           FLECTAR_UPDATE_CHECKS: github
-        run: cargo build --locked --release --no-default-features --features remote-content,gpu-renderer --bin flectar-mail
+        run: cargo build --locked --release --no-default-features --features remote-content,gpu-renderer --bin yours
       - name: Build and inspect RPM
         env:
           FLECTAR_SKIP_BUILD: "1"
@@ -362,18 +362,18 @@ jobs:
           EXPECTED_VERSION: ${{ needs.metadata.outputs.version }}
         run: |
           flatpak install --user --noninteractive -y target/flatpak/flectar-mail.flatpak
-          flatpak run --command=sh --env=EXPECTED_VERSION="$EXPECTED_VERSION" com.flectar.mail -c '
-            test -x /app/bin/flectar-mail
+          flatpak run --command=sh --env=EXPECTED_VERSION="$EXPECTED_VERSION" org.yours.mail -c '
+            test -x /app/bin/yours
             test -f /app/lib/flectar-mail/libpdfium.so
             test -x /usr/bin/gpg
-            test -f /app/share/applications/com.flectar.mail.desktop
-            test -f /app/share/metainfo/com.flectar.mail.metainfo.xml
-            ! grep -q X-AppImage /app/share/applications/com.flectar.mail.desktop
-            grep -q "version=\"$EXPECTED_VERSION\"" /app/share/metainfo/com.flectar.mail.metainfo.xml
+            test -f /app/share/applications/org.yours.mail.desktop
+            test -f /app/share/metainfo/org.yours.mail.metainfo.xml
+            ! grep -q X-AppImage /app/share/applications/org.yours.mail.desktop
+            grep -q "version=\"$EXPECTED_VERSION\"" /app/share/metainfo/org.yours.mail.metainfo.xml
           '
-          flatpak info --user --show-permissions com.flectar.mail
+          flatpak info --user --show-permissions org.yours.mail
           set +e
-          timeout 15s dbus-run-session -- xvfb-run -a flatpak run com.flectar.mail \
+          timeout 15s dbus-run-session -- xvfb-run -a flatpak run org.yours.mail \
             > target/flatpak/launch.log 2>&1
           status=$?
           set -e
@@ -382,7 +382,7 @@ jobs:
             echo "Flatpak launch smoke test exited unexpectedly with status $status" >&2
             exit 1
           fi
-          flatpak uninstall --user --noninteractive -y com.flectar.mail
+          flatpak uninstall --user --noninteractive -y org.yours.mail
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: flectar-mail-flatpak-${{ matrix.arch }}
@@ -437,7 +437,7 @@ jobs:
           FLECTAR_UPDATE_CHECKS: github
         run: |
           mkdir -p target
-          if cargo build --locked --release --no-default-features --features remote-content,gpu-renderer --bin flectar-mail 2>&1 | tee target/windows-build.log; then
+          if cargo build --locked --release --no-default-features --features remote-content,gpu-renderer --bin yours 2>&1 | tee target/windows-build.log; then
             exit 0
           fi
           # Keep the compiler's final diagnostics available in the check result,
@@ -460,7 +460,7 @@ jobs:
           New-Item -ItemType Directory -Force "target/package/windows/LICENSES/Noto Emoji" | Out-Null
           python scripts/stage-pdfium.py "win-$env:ARCH" target/package/windows
           if ($LASTEXITCODE -ne 0) { throw "PDFium staging failed" }
-          Copy-Item target/release/flectar-mail.exe target/package/windows/
+          Copy-Item target/release/yours.exe target/package/windows/
           Copy-Item README.md target/package/windows/
           Copy-Item LICENSE target/package/windows/
           Copy-Item LICENSES/* target/package/windows/LICENSES/ -Recurse -Force
@@ -469,17 +469,17 @@ jobs:
           Copy-Item resources/fonts/google-sans-flex/README.md "target/package/windows/LICENSES/Google Sans Flex/"
           Copy-Item resources/fonts/noto-emoji/OFL.txt "target/package/windows/LICENSES/Noto Emoji/"
           Copy-Item resources/fonts/noto-emoji/README.md "target/package/windows/LICENSES/Noto Emoji/"
-          python scripts/test-pdf-preview.py target/package/windows/flectar-mail.exe
+          python scripts/test-pdf-preview.py target/package/windows/yours.exe
           if ($LASTEXITCODE -ne 0) { throw "Packaged PDF preview test failed" }
           Compress-Archive -Path target/package/windows/* -DestinationPath "target/flectar-mail-windows-$env:ARCH.zip" -Force
 
       - name: Close the packaged app from its window
         shell: pwsh
         run: |
-          python scripts/test-clean-exit.py target/package/windows/flectar-mail.exe
+          python scripts/test-clean-exit.py target/package/windows/yours.exe
           if ($LASTEXITCODE -ne 0) { throw "The packaged app did not exit cleanly" }
           # The GDI fallback, and how its memory compares.
-          python scripts/test-clean-exit.py target/package/windows/flectar-mail.exe --gdi
+          python scripts/test-clean-exit.py target/package/windows/yours.exe --gdi
           if ($LASTEXITCODE -ne 0) { throw "The packaged app did not exit cleanly with GDI" }
 
       - name: Install pinned Inno Setup compiler
@@ -514,10 +514,10 @@ jobs:
           $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$destination`"")
           $process = Start-Process $installer -ArgumentList $arguments -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Installation failed: $($process.ExitCode)" }
-          if (-not (Test-Path "$destination/flectar-mail.exe")) { throw 'Installed executable is missing' }
+          if (-not (Test-Path "$destination/yours.exe")) { throw 'Installed executable is missing' }
           $process = Start-Process "$destination/unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Uninstall failed: $($process.ExitCode)" }
-          if (Test-Path "$destination/flectar-mail.exe") { throw 'Uninstall left the executable behind' }
+          if (Test-Path "$destination/yours.exe") { throw 'Uninstall left the executable behind' }
 
       - name: Build Microsoft Store package
         shell: pwsh
@@ -621,13 +621,13 @@ jobs:
           FLECTAR_MICROSOFT_DESKTOP_CLIENT_ID: ${{ secrets.FLECTAR_MICROSOFT_DESKTOP_CLIENT_ID }}
           # Release files tell of newer releases; stores update the app themselves.
           FLECTAR_UPDATE_CHECKS: github
-        run: cargo build --locked --release --no-default-features --features remote-content,gpu-renderer --bin flectar-mail
+        run: cargo build --locked --release --no-default-features --features remote-content,gpu-renderer --bin yours
 
       - name: Create ad-hoc signed app bundle
         run: |
           mkdir -p target/macos
           if ./scripts/package-macos.sh \
-            target/release/flectar-mail target/macos \
+            target/release/yours target/macos \
             "${{ matrix.architecture }}" 2>&1 | tee target/macos/package.log; then
             exit 0
           fi

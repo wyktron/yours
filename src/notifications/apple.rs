@@ -107,7 +107,7 @@ pub(crate) fn launched_for_click() -> bool {
     false
 }
 
-/// Whether this process runs from the Flectar Mail app bundle.
+/// Whether this process runs from the Yours app bundle.
 #[cfg(target_os = "macos")]
 fn in_app_bundle() -> bool {
     let bundle = NSBundle::mainBundle();

@@ -1,7 +1,7 @@
 //! Rules on the server (#238). Where an account's server runs Sieve scripts,
 //! over ManageSieve or JMAP, the app puts the account's rules in its own
 //! script there, as far as the server runs them as the app does, so they
-//! sort mail while Flectar Mail is closed. The app keeps trying every rule on
+//! sort mail while Yours is closed. The app keeps trying every rule on
 //! new mail while it's open, and finds the work of those the server ran
 //! done.
 //!
@@ -203,11 +203,11 @@ pub(crate) async fn mirror(
         Mirrored::Ask(Question::ReplaceChanges) => ServerRulesState::Edited,
         Mirrored::Refused(Refused::NoInclude(theirs)) => ServerRulesState::Failed(format!(
             "Your server runs your filter script \u{201c}{theirs}\u{201d} and can't run \
-             Flectar Mail's rules beside it"
+             Yours's rules beside it"
         )),
         Mirrored::Refused(Refused::TheirsReply(theirs)) => ServerRulesState::Failed(format!(
             "Your filter script \u{201c}{theirs}\u{201d} on the server sends automatic replies \
-             as Flectar Mail does. Turn one of them off"
+             as Yours does. Turn one of them off"
         )),
         Mirrored::Refused(Refused::Missing(extension)) => ServerRulesState::Failed(format!(
             "Your server lacks the Sieve extension \u{201c}{extension}\u{201d}"

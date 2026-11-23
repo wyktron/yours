@@ -12,7 +12,7 @@ export struct RuleRow {
     // mail to that is gone.
     problem: bool,
     // Where it runs, once some server can run rules: "server", "some" for
-    // the servers of some of its accounts, or "app" while Flectar Mail is
+    // the servers of some of its accounts, or "app" while Yours is
     // open. "" when no server of its accounts runs rules.
     place: string,
 }
@@ -23,7 +23,7 @@ export struct RulesNotice {
     account: string,
     // "run-before": the server runs the user's own filter script, named in
     // `detail`. "others": it runs rules saved on another device. "edited":
-    // Flectar Mail's script there was changed elsewhere. "failed": the
+    // Yours's script there was changed elsewhere. "failed": the
     // server can't take them, for the reason in `detail`.
     kind: string,
     detail: string,

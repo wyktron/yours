@@ -225,7 +225,7 @@ component StorageUsageCard inherits Rectangle {
         width: parent.width - 40px;
         height: max(22px, self.preferred-height);
         text: root.loading && !root.loaded ? @tr("Calculating local storage…")
-            : root.loaded ? @tr("{} used by Flectar Mail", root.total)
+            : root.loaded ? @tr("{} used by Yours", root.total)
             : root.error == "failed" ? @tr("Storage usage could not be calculated. Try again.")
             : @tr("Open Storage to calculate local usage.");
         color: root.secondary-text;
@@ -721,9 +721,9 @@ export component SettingsDialog inherits Rectangle {
         && (SystemNotifications.availability == "denied" || SystemNotifications.availability == "refused"
             || SystemNotifications.availability == "unavailable");
     private property <string> notifications-blocked-text: SystemNotifications.availability == "denied"
-        ? @tr("Notifications from Flectar Mail are turned off in your system settings.")
+        ? @tr("Notifications from Yours are turned off in your system settings.")
         : SystemNotifications.availability == "refused"
-        ? @tr("macOS doesn't allow notifications from Flectar Mail where it is now. Move it to the Applications folder, then open it again.")
+        ? @tr("macOS doesn't allow notifications from Yours where it is now. Move it to the Applications folder, then open it again.")
         : @tr("This system has no notification service running, so notifications can't be shown.");
     private property <bool> notifications-settings-offered: SystemNotifications.availability == "denied"
         && SystemNotifications.settings-openable;
@@ -735,24 +735,24 @@ export component SettingsDialog inherits Rectangle {
     // notifications and the app icon's count show.
     // What the last check for a new version found (src/updates.rs).
     private property <string> update-status: Updates.version != ""
-        ? @tr("Flectar Mail {} is out.", Updates.version)
+        ? @tr("Yours {} is out.", Updates.version)
         : Updates.checking ? @tr("Checking for a new version…")
-        : Updates.failed ? @tr("GitHub couldn't be reached. Flectar Mail tries again later.")
-        : Updates.current ? @tr("Flectar Mail is up to date.")
-        : @tr("Flectar Mail checks soon after it starts.");
+        : Updates.failed ? @tr("GitHub couldn't be reached. Yours tries again later.")
+        : Updates.current ? @tr("Yours is up to date.")
+        : @tr("Yours checks soon after it starts.");
     private property <bool> background-checks-noted: SystemNotifications.background-checks != ""
         && (root.notifications_enabled || root.unread_badge_enabled) && !root.notifications-blocked;
     private property <string> background-checks-text: AppIcon.platform == "android"
         ? (SystemNotifications.background-checks == "off"
-            ? @tr("Android restricts Flectar Mail in the background, so new mail shows up only while the app is open.")
+            ? @tr("Android restricts Yours in the background, so new mail shows up only while the app is open.")
             : SystemNotifications.background-checks == "low-power"
-            ? @tr("Battery Saver pauses checking for new mail while Flectar Mail is in the background.")
-            : @tr("Flectar Mail checks for new mail about every 15 minutes in the background, and less often while your phone is idle."))
+            ? @tr("Battery Saver pauses checking for new mail while Yours is in the background.")
+            : @tr("Yours checks for new mail about every 15 minutes in the background, and less often while your phone is idle."))
         : SystemNotifications.background-checks == "off"
-        ? @tr("Background App Refresh is off for Flectar Mail, so new mail shows up only while the app is open.")
+        ? @tr("Background App Refresh is off for Yours, so new mail shows up only while the app is open.")
         : SystemNotifications.background-checks == "low-power"
-        ? @tr("Low Power Mode pauses checking for new mail while Flectar Mail is in the background.")
-        : @tr("iOS decides how often Flectar Mail checks for new mail in the background, so notifications can arrive late.");
+        ? @tr("Low Power Mode pauses checking for new mail while Yours is in the background.")
+        : @tr("iOS decides how often Yours checks for new mail in the background, so notifications can arrive late.");
     private property <int> language-index: root.language_mode == "en" ? 1
         : root.language_mode == "es" ? 2
         : root.language_mode == "tr" ? 3
@@ -1368,7 +1368,7 @@ export component SettingsDialog inherits Rectangle {
                                     SettingsSelectRow {
                                         compact: root.compact;
                                         title: @tr("Display language");
-                                        description: root.language_mode == "system" ? @tr("Follow your device language when a translation is available.") : @tr("Choose the language used throughout Flectar Mail.");
+                                        description: root.language_mode == "system" ? @tr("Follow your device language when a translation is available.") : @tr("Choose the language used throughout Yours.");
                                         choices: root.language-options;
                                         selected-index: root.language-index;
                                         title-color: root.body-text;
@@ -1782,8 +1782,8 @@ export component SettingsDialog inherits Rectangle {
                                     VerticalBox {
                                         spacing: 5px;
                                         tray-title := Text { height: max(20px, self.preferred-height); text: root.tray_supported ? @tr("Keep running in system tray") : @tr("Keep running in the background"); color: root.heading; font-size: TypeScale.subtitle; font-weight: 700; }
-                                        tray-description := Text { height: max(17px, self.preferred-height); text: @tr("Closing the window hides Flectar Mail while mail continues syncing."); color: root.faint-text; font-size: TypeScale.secondary; wrap: word-wrap; }
-                                        tray-note := Text { height: max(16px, self.preferred-height); text: root.tray_supported ? @tr("Disabled by default; Quit from the tray menu stops the app.") : @tr("Disabled by default; open Flectar Mail again to bring its window back."); color: root.faint-text; font-size: TypeScale.caption; wrap: word-wrap; }
+                                        tray-description := Text { height: max(17px, self.preferred-height); text: @tr("Closing the window hides Yours while mail continues syncing."); color: root.faint-text; font-size: TypeScale.secondary; wrap: word-wrap; }
+                                        tray-note := Text { height: max(16px, self.preferred-height); text: root.tray_supported ? @tr("Disabled by default; Quit from the tray menu stops the app.") : @tr("Disabled by default; open Yours again to bring its window back."); color: root.faint-text; font-size: TypeScale.caption; wrap: word-wrap; }
                                     }
                                     Rectangle { horizontal-stretch: 1; }
                                     Switch {
@@ -1810,7 +1810,7 @@ export component SettingsDialog inherits Rectangle {
                                     VerticalBox {
                                         spacing: 5px;
                                         login-title := Text { height: max(20px, self.preferred-height); text: @tr("Start automatically"); color: root.heading; font-size: TypeScale.subtitle; font-weight: 700; }
-                                        login-description := Text { height: max(17px, self.preferred-height); text: !root.close_to_tray ? @tr("Opens Flectar Mail when you sign in.") : root.tray_supported ? @tr("Starts Flectar Mail in the system tray when you sign in.") : @tr("Starts Flectar Mail in the background when you sign in."); color: root.faint-text; font-size: TypeScale.secondary; wrap: word-wrap; }
+                                        login-description := Text { height: max(17px, self.preferred-height); text: !root.close_to_tray ? @tr("Opens Yours when you sign in.") : root.tray_supported ? @tr("Starts Yours in the system tray when you sign in.") : @tr("Starts Yours in the background when you sign in."); color: root.faint-text; font-size: TypeScale.secondary; wrap: word-wrap; }
                                         login-note := Text { height: max(16px, self.preferred-height); text: @tr("Disabled by default; also listed in your system's startup apps."); color: root.faint-text; font-size: TypeScale.caption; wrap: word-wrap; }
                                     }
                                     Rectangle { horizontal-stretch: 1; }
@@ -1840,17 +1840,17 @@ export component SettingsDialog inherits Rectangle {
                                         mailto-title := Text { height: max(20px, self.preferred-height); text: @tr("Default email app"); color: root.heading; font-size: TypeScale.subtitle; font-weight: 700; }
                                         mailto-description := Text {
                                             height: max(17px, self.preferred-height);
-                                            text: DefaultEmailApp.status == "default" ? @tr("Email links in browsers and other apps open in Flectar Mail.")
-                                                : DefaultEmailApp.status == "system-settings" ? @tr("To open email links from browsers and other apps here, choose Flectar Mail for email in your system's default apps.")
-                                                : DefaultEmailApp.status == "not-installed" ? @tr("Add Flectar Mail to your applications menu to open email links from browsers and other apps here.")
-                                                : @tr("Open email links from browsers and other apps in Flectar Mail.");
+                                            text: DefaultEmailApp.status == "default" ? @tr("Email links in browsers and other apps open in Yours.")
+                                                : DefaultEmailApp.status == "system-settings" ? @tr("To open email links from browsers and other apps here, choose Yours for email in your system's default apps.")
+                                                : DefaultEmailApp.status == "not-installed" ? @tr("Add Yours to your applications menu to open email links from browsers and other apps here.")
+                                                : @tr("Open email links from browsers and other apps in Yours.");
                                             color: root.faint-text;
                                             font-size: TypeScale.secondary;
                                             wrap: word-wrap;
                                         }
                                         mailto-note := Text {
                                             height: max(16px, self.preferred-height);
-                                            text: DefaultEmailApp.status == "not-default" && AppIcon.platform == "windows" ? @tr("Opens Default apps in Windows Settings, where you choose Flectar Mail.")
+                                            text: DefaultEmailApp.status == "not-default" && AppIcon.platform == "windows" ? @tr("Opens Default apps in Windows Settings, where you choose Yours.")
                                                 : DefaultEmailApp.status == "not-default" && AppIcon.platform == "macos" ? @tr("macOS asks you to confirm the change.")
                                                 : DefaultEmailApp.status == "not-installed" ? @tr("Run the AppImage with --integrate, or add it with your AppImage manager.")
                                                 : @tr("Links fill in a new message for you to review; files are never attached from them.");
@@ -1956,7 +1956,7 @@ export component SettingsDialog inherits Rectangle {
                                     SettingsSelectRow {
                                         compact: root.compact;
                                         title: @tr("Renderer");
-                                        description: RendererSettings.gpu-supported ? @tr("Changes take effect after restarting Flectar Mail.") : @tr("GPU mode is unavailable in this build.");
+                                        description: RendererSettings.gpu-supported ? @tr("Changes take effect after restarting Yours.") : @tr("GPU mode is unavailable in this build.");
                                         choices: RendererSettings.gpu-supported ? [@tr("CPU — Low Memory"), @tr("GPU — WGPU")] : [@tr("CPU — Low Memory")];
                                         selected-index: RendererSettings.gpu-supported && RendererSettings.preferred == "gpu" ? 1 : 0;
                                         title-color: root.body-text;
@@ -2092,7 +2092,7 @@ export component SettingsDialog inherits Rectangle {
                                                 overflow: elide;
                                             }
                                             Text {
-                                                text: @tr("Flectar asks for it when the app opens.");
+                                                text: @tr("Yours asks for it when the app opens.");
                                                 color: root.faint-text;
                                                 font-size: TypeScale.caption;
                                                 overflow: elide;
@@ -2114,7 +2114,7 @@ export component SettingsDialog inherits Rectangle {
                                             wrap: word-wrap;
                                         }
                                         Text {
-                                            text: @tr("Flectar asks for it when the app opens.");
+                                            text: @tr("Yours asks for it when the app opens.");
                                             color: root.faint-text;
                                             font-size: TypeScale.caption;
                                             wrap: word-wrap;
@@ -2285,7 +2285,7 @@ export component SettingsDialog inherits Rectangle {
                                     Text { text: @tr("Blocked senders"); color: root.heading; font-size: TypeScale.subtitle; font-weight: 700; wrap: word-wrap; }
                                     Text {
                                         height: self.preferred-height;
-                                        text: @tr("Their mail goes to Spam when Flectar Mail receives it. Block a sender from the menu of one of their messages.");
+                                        text: @tr("Their mail goes to Spam when Yours receives it. Block a sender from the menu of one of their messages.");
                                         color: root.faint-text;
                                         font-size: TypeScale.caption;
                                         wrap: word-wrap;
@@ -2345,7 +2345,7 @@ export component SettingsDialog inherits Rectangle {
                             SettingsPageTitle { label: @tr("Rules"); title-color: root.title-color; }
                             Text {
                                 height: max(root.compact ? 86px : 51px, self.preferred-height);
-                                text: @tr("Rules sort new mail as it arrives in an Inbox, trying them from the top. Where the server can run a rule, it does, so the rule works while Flectar Mail is closed. Other rules run while Flectar Mail is open.");
+                                text: @tr("Rules sort new mail as it arrives in an Inbox, trying them from the top. Where the server can run a rule, it does, so the rule works while Yours is closed. Other rules run while Yours is open.");
                                 color: root.secondary-text;
                                 font-size: TypeScale.secondary;
                                 wrap: word-wrap;
@@ -2363,10 +2363,10 @@ export component SettingsDialog inherits Rectangle {
                                         col: 0;
                                         horizontal-stretch: 1;
                                         vertical-alignment: center;
-                                        text: notice.kind == "run-before" ? @tr("The server for {} runs your filter script “{}”. Flectar Mail can run its rules there too, before that script, so they work while Flectar Mail is closed.", notice.account, notice.detail)
-                                            : notice.kind == "others" && notice.has-rules ? @tr("The server for {} runs rules saved on another device, so the rules here run while Flectar Mail is open.", notice.account)
+                                        text: notice.kind == "run-before" ? @tr("The server for {} runs your filter script “{}”. Yours can run its rules there too, before that script, so they work while Yours is closed.", notice.account, notice.detail)
+                                            : notice.kind == "others" && notice.has-rules ? @tr("The server for {} runs rules saved on another device, so the rules here run while Yours is open.", notice.account)
                                             : notice.kind == "others" ? @tr("The server for {} runs rules saved on another device.", notice.account)
-                                            : notice.kind == "edited" ? @tr("The script Flectar Mail keeps on the server for {} was changed elsewhere, so the rules here run while Flectar Mail is open.", notice.account)
+                                            : notice.kind == "edited" ? @tr("The script Yours keeps on the server for {} was changed elsewhere, so the rules here run while Yours is open.", notice.account)
                                             : @tr("The rules couldn't go to the server for {}. {}", notice.account, notice.detail);
                                         color: root.body-text;
                                         font-size: TypeScale.secondary;
@@ -2553,7 +2553,7 @@ export component SettingsDialog inherits Rectangle {
                             }
                             Text {
                                 height: max(root.compact ? 52px : 34px, self.preferred-height);
-                                text: @tr("Flectar Mail empties them while it's open, counting from when mail went into each folder. Gmail and Outlook.com empty both after 30 days themselves.");
+                                text: @tr("Yours empties them while it's open, counting from when mail went into each folder. Gmail and Outlook.com empty both after 30 days themselves.");
                                 color: root.secondary-text;
                                 font-size: TypeScale.secondary;
                                 wrap: word-wrap;
@@ -2954,8 +2954,8 @@ export component SettingsDialog inherits Rectangle {
                                         compact: root.compact;
                                         title: @tr("Sent copies");
                                         compact-description-height: 51px;
-                                        description: @tr("Choose who saves sent mail. Use Flectar if your server does not save a copy.");
-                                        choices: [@tr("Provider default"), @tr("Server saves a copy"), @tr("Flectar saves a copy")];
+                                        description: @tr("Choose who saves sent mail. Use Yours if your server does not save a copy.");
+                                        choices: [@tr("Provider default"), @tr("Server saves a copy"), @tr("Yours saves a copy")];
                                         selected-index: account.sent_copy_policy == "server" ? 1 : account.sent_copy_policy == "client" ? 2 : 0;
                                         title-color: root.body-text;
                                         description-color: root.faint-text;
@@ -2990,7 +2990,7 @@ export component SettingsDialog inherits Rectangle {
                                         compact-description-height: 51px;
                                         description: account.keep_on_server == "untilDeleted" ? @tr("Mail you delete here is removed from the server too.")
                                             : account.keep_on_server == "untilDownloaded" ? @tr("Mail is removed from the server once it's on this device.")
-                                            : account.keep_on_server == "always" ? @tr("Flectar Mail never removes mail from the server.")
+                                            : account.keep_on_server == "always" ? @tr("Yours never removes mail from the server.")
                                             : @tr("Mail is removed after this time, or once deleted here.");
                                         choices: root.keep-on-server-options;
                                         selected-index: root.keep-on-server-index(account.keep_on_server);
@@ -3131,7 +3131,7 @@ export component SettingsDialog inherits Rectangle {
                             SettingsPageTitle { label: @tr("Storage"); title-color: root.title-color; }
                             Text {
                                 height: max(root.compact ? 34px : 20px, self.preferred-height);
-                                text: @tr("See what Flectar Mail stores locally and manage the data on this device.");
+                                text: @tr("See what Yours stores locally and manage the data on this device.");
                                 color: root.secondary-text;
                                 font-size: TypeScale.secondary;
                                 vertical-alignment: center;
@@ -3221,7 +3221,7 @@ export component SettingsDialog inherits Rectangle {
                         content-width: self.visible-width;
                         VerticalBox { x: root.compact ? 16px : max(24px, (notifications-scroll.visible-width - 920px) / 2); width: root.compact ? notifications-scroll.visible-width - 32px : min(920px, notifications-scroll.visible-width - 48px); padding-top: root.compact ? LayoutMetrics.compact-header-height + 16px : 28px; padding-bottom: 32px; spacing: 10px;
                             SettingsPageTitle { label: @tr("Notifications"); title-color: root.title-color; }
-                            Text { height: max(20px, self.preferred-height); text: @tr("Choose how Flectar Mail gets your attention."); color: root.secondary-text; font-size: TypeScale.secondary; vertical-alignment: center; wrap: word-wrap; }
+                            Text { height: max(20px, self.preferred-height); text: @tr("Choose how Yours gets your attention."); color: root.secondary-text; font-size: TypeScale.secondary; vertical-alignment: center; wrap: word-wrap; }
                             Rectangle {
                                 height: max(root.compact ? 228px : 152px, self.preferred-height);
                                 vertical-stretch: 0;
@@ -3408,7 +3408,7 @@ export component SettingsDialog inherits Rectangle {
                                 ShortcutRow { title: @tr("Go to last tab"); keys: [Shortcuts.last-tab]; title-color: root.body-text; separator-color: root.faint-text; }
                             }
                             if WindowChrome.platform == "linux" : ShortcutSection { vertical-stretch: 0; title: @tr("General"); surface: root.surface; card-border-color: root.border-subtle; heading: root.heading;
-                                ShortcutRow { title: @tr("Quit Flectar Mail"); keys: [Shortcuts.quit]; title-color: root.body-text; separator-color: root.faint-text; }
+                                ShortcutRow { title: @tr("Quit Yours"); keys: [Shortcuts.quit]; title-color: root.body-text; separator-color: root.faint-text; }
                             }
                         }
                     }
@@ -3515,7 +3515,7 @@ export component SettingsDialog inherits Rectangle {
                             spacing: 14px;
 
                             SettingsPageTitle { label: @tr("About"); title-color: root.title-color; }
-                            Text { height: max(root.compact ? 34px : 17px, self.preferred-height); text: @tr("Flectar Mail, its makers, and its community."); color: root.secondary-text; font-size: TypeScale.secondary; vertical-alignment: center; wrap: word-wrap; }
+                            Text { height: max(root.compact ? 34px : 17px, self.preferred-height); text: @tr("Yours, its makers, and its community."); color: root.secondary-text; font-size: TypeScale.secondary; vertical-alignment: center; wrap: word-wrap; }
 
                             Rectangle {
                                 height: about-version.y + about-version.height + (root.compact ? 31px : 18px);
@@ -3531,14 +3531,14 @@ export component SettingsDialog inherits Rectangle {
                                     height: 62px;
                                     source: AppIcon.logo(AppIcon.variant);
                                     image-fit: contain;
-                                    accessible-label: @tr("Flectar Mail logo");
+                                    accessible-label: @tr("Yours logo");
                                 }
                                 about-name := Text {
                                     x: 20px;
                                     y: 104px;
                                     width: parent.width - 40px;
                                     height: max(28px, self.preferred-height);
-                                    text: @tr("Flectar Mail");
+                                    text: @tr("Yours");
                                     color: root.title-color;
                                     font-size: TypeScale.display-large;
                                     font-weight: 600;
@@ -3574,7 +3574,7 @@ export component SettingsDialog inherits Rectangle {
                             if Updates.offered : Rectangle {
                                 height: updates-rows.y + updates-rows.height + 10px;
                                 vertical-stretch: 0;
-                                updates-card := SettingsCard { title: @tr("Updates"); description: @tr("Flectar Mail looks for new versions once a day."); surface: root.surface; card-border-color: root.border-subtle; heading: root.heading; secondary-text: root.faint-text; }
+                                updates-card := SettingsCard { title: @tr("Updates"); description: @tr("Yours looks for new versions once a day."); surface: root.surface; card-border-color: root.border-subtle; heading: root.heading; secondary-text: root.faint-text; }
                                 updates-rows := VerticalBox {
                                     x: 20px;
                                     y: updates-card.content-y + 8px;
@@ -3709,7 +3709,7 @@ export component SettingsDialog inherits Rectangle {
                             Rectangle {
                                 height: privacy-links.y + privacy-links.height + 10px;
                                 vertical-stretch: 0;
-                                privacy-card := SettingsCard { title: @tr("Privacy"); description: @tr("How Flectar Mail handles your data."); surface: root.surface; card-border-color: root.border-subtle; heading: root.heading; secondary-text: root.faint-text; }
+                                privacy-card := SettingsCard { title: @tr("Privacy"); description: @tr("How Yours handles your data."); surface: root.surface; card-border-color: root.border-subtle; heading: root.heading; secondary-text: root.faint-text; }
                                 privacy-links := VerticalBox {
                                     x: 20px;
                                     y: privacy-card.content-y + 8px;
@@ -3731,7 +3731,7 @@ export component SettingsDialog inherits Rectangle {
                                     if root.privacy-consent-withdrawable : Rectangle {
                                         height: root.compact ? withdraw-button.y + withdraw-button.height + 8px : max(withdraw-note.y + withdraw-note.height, withdraw-button.y + withdraw-button.height) + 8px;
                                         Image { x: 10px; y: withdraw-note.y + (withdraw-note.height - self.height) / 2; width: LayoutMetrics.icon-size; height: LayoutMetrics.icon-size; source: @image-url("../icons/lucide/outline/check-circle.svg"); colorize: root.accent; image-fit: contain; accessible-role: none; }
-                                        withdraw-note := Text { x: 48px; y: 10px; width: root.compact ? parent.width - 48px : withdraw-button.x - 68px; height: max(42px, self.preferred-height); text: @tr("You agreed to this policy when you started Flectar Mail. Withdrawing consent closes the app until you agree again."); color: root.secondary-text; font-size: TypeScale.caption; wrap: word-wrap; vertical-alignment: center; }
+                                        withdraw-note := Text { x: 48px; y: 10px; width: root.compact ? parent.width - 48px : withdraw-button.x - 68px; height: max(42px, self.preferred-height); text: @tr("You agreed to this policy when you started Yours. Withdrawing consent closes the app until you agree again."); color: root.secondary-text; font-size: TypeScale.caption; wrap: word-wrap; vertical-alignment: center; }
                                         withdraw-button := Button { x: root.compact ? 0px : parent.width - self.width; y: root.compact ? withdraw-note.y + withdraw-note.height + 12px : withdraw-note.y + (withdraw-note.height - self.height) / 2; width: root.compact ? parent.width : max(170px, self.content-width); text: @tr("Withdraw consent…"); clicked => { root.withdraw_privacy_confirmation = true; } }
                                     }
                                 }
@@ -3739,7 +3739,7 @@ export component SettingsDialog inherits Rectangle {
 
                             Rectangle {
                                 height: license-notice.y + license-notice.height + (root.compact ? 50px : 38px);
-                                license-card := SettingsCard { title: @tr("License"); description: root.compact ? @tr("AGPL-3.0-only.") : @tr("Flectar Mail is released under the GNU Affero General Public License v3.0 only."); surface: root.surface; card-border-color: root.border-subtle; heading: root.heading; secondary-text: root.faint-text; }
+                                license-card := SettingsCard { title: @tr("License"); description: root.compact ? @tr("AGPL-3.0-only.") : @tr("Yours is released under the GNU Affero General Public License v3.0 only."); surface: root.surface; card-border-color: root.border-subtle; heading: root.heading; secondary-text: root.faint-text; }
                                 license-notice := Text {
                                     x: 20px;
                                     y: license-card.content-y + 18px;
@@ -4377,7 +4377,7 @@ export component SettingsDialog inherits Rectangle {
             height: parent.height;
             open <=> root.delete_data_confirmation;
             title: @tr("Delete all local data?");
-            description: @tr("This removes every account, downloaded message, calendar, contact, preference, and credential stored by Flectar Mail on this device.");
+            description: @tr("This removes every account, downloaded message, calendar, contact, preference, and credential stored by Yours on this device.");
             detail: LocalMailUi.account-id >= 0
                 ? @tr("Imported mail and the mail of any POP3 account are stored only on this device and will be deleted. Mail and events on Gmail, Outlook, and IMAP servers will not be deleted.")
                 : root.has_device_mail
@@ -4403,7 +4403,7 @@ export component SettingsDialog inherits Rectangle {
             height: parent.height;
             open <=> root.withdraw_privacy_confirmation;
             title: @tr("Withdraw privacy consent?");
-            description: @tr("Flectar Mail will stop and show the privacy consent screen the next time you open it.");
+            description: @tr("Yours will stop and show the privacy consent screen the next time you open it.");
             detail: @tr("Your local mail and settings stay on this device. You can delete them on the Storage page in Settings.");
             confirm-label: @tr("Withdraw consent");
             cancel-label: @tr("Cancel");

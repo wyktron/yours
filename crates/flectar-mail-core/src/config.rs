@@ -10,6 +10,233 @@ pub struct Paths {
     pub cache_dir: PathBuf,
 }
 
+
+/// The durable profile directory, and the one earlier releases used. The
+/// rename copies the old profile across once; the old directory is never
+/// removed, and stays in use if the copy cannot be verified.
+#[cfg(desktop)]
+const PROFILE_DIR: &str = "yours-mail";
+#[cfg(desktop)]
+const LEGACY_PROFILE_DIR: &str = "flectar-mail";
+/// Reconstructable caches keep their earlier directory name, so the rename
+/// does not pay to copy them.
+#[cfg(desktop)]
+const LEGACY_CACHE_DIR: &str = "flectar-mail";
+#[cfg(desktop)]
+const MIGRATION_MARKER: &str = ".migrated-from-flectar-mail";
+
+#[cfg(desktop)]
+#[derive(Debug, Default, PartialEq, Eq)]
+struct ProfileSize {
+    files: u64,
+    bytes: u64,
+}
+
+#[cfg(desktop)]
+#[derive(Debug, Default, PartialEq, Eq)]
+struct ProfileRows {
+    messages: i64,
+    accounts: i64,
+    folders: i64,
+    calendar_events: i64,
+}
+
+/// Use the renamed profile directory, copying the old one across the first
+/// time. Returns the old directory when the copy cannot be verified, so the
+/// user keeps a working profile either way.
+#[cfg(desktop)]
+fn migrate_legacy_profile(root: &std::path::Path) -> crate::error::Result<PathBuf> {
+    let current = root.join(PROFILE_DIR);
+    let legacy = root.join(LEGACY_PROFILE_DIR);
+    if current.exists() || !legacy.is_dir() {
+        return Ok(current);
+    }
+    let staging = root.join(format!(".{PROFILE_DIR}.migrating"));
+    match copy_legacy_profile(&legacy, &current, &staging) {
+        Ok(()) => Ok(current),
+        Err(error) => {
+            // Never leave a half profile that a later start would mistake for
+            // a finished migration.
+            let _ = std::fs::remove_dir_all(&staging);
+            eprintln!(
+                "data: could not copy the profile from {} to {}: {error}; \
+                 continuing with the old profile",
+                legacy.display(),
+                current.display()
+            );
+            Ok(legacy)
+        }
+    }
+}
+
+#[cfg(desktop)]
+fn copy_legacy_profile(
+    legacy: &std::path::Path,
+    current: &std::path::Path,
+    staging: &std::path::Path,
+) -> std::io::Result<()> {
+    // Creating it exclusively also refuses a second migration: a concurrent
+    // bridge process falls back to the old profile instead of copying too.
+    std::fs::create_dir(staging)?;
+    eprintln!(
+        "data: moving the profile from {} to {}; the old directory is kept",
+        legacy.display(),
+        current.display()
+    );
+    let source_size = profile_size(legacy)?;
+    let copied = copy_profile_tree(legacy, staging)?;
+    if copied != source_size {
+        return Err(std::io::Error::other(format!(
+            "copied {} files ({} bytes) but the source holds {} files ({} bytes)",
+            copied.files, copied.bytes, source_size.files, source_size.bytes
+        )));
+    }
+    let rows = verify_profile_databases(staging)?;
+    write_migration_marker(staging, legacy, &copied, &rows)?;
+    std::fs::rename(staging, current)?;
+    eprintln!(
+        "data: copied and verified {} files, {} bytes, messages={}, accounts={}, \
+         folders={}, calendar events={}; using {}",
+        copied.files,
+        copied.bytes,
+        rows.messages,
+        rows.accounts,
+        rows.folders,
+        rows.calendar_events,
+        current.display()
+    );
+    Ok(())
+}
+
+#[cfg(desktop)]
+fn copy_profile_tree(source: &std::path::Path, destination: &std::path::Path) -> std::io::Result<ProfileSize> {
+    let mut total = ProfileSize::default();
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let from = entry.path();
+        let to = destination.join(entry.file_name());
+        let kind = entry.file_type()?;
+        if kind.is_dir() {
+            std::fs::create_dir(&to)?;
+            let nested = copy_profile_tree(&from, &to)?;
+            copy_permissions(&from, &to)?;
+            total.files += nested.files;
+            total.bytes += nested.bytes;
+        } else if kind.is_file() {
+            let bytes = std::fs::copy(&from, &to)?;
+            total.files += 1;
+            total.bytes += bytes;
+        } else if kind.is_symlink() {
+            #[cfg(unix)]
+            {
+                std::os::unix::fs::symlink(std::fs::read_link(&from)?, &to)?;
+                total.files += 1;
+            }
+        }
+        // Sockets, pipes and the like are runtime state, not profile data.
+    }
+    Ok(total)
+}
+
+#[cfg(desktop)]
+fn profile_size(root: &std::path::Path) -> std::io::Result<ProfileSize> {
+    let mut total = ProfileSize::default();
+    for entry in std::fs::read_dir(root)? {
+        let entry = entry?;
+        let kind = entry.file_type()?;
+        if kind.is_dir() {
+            let nested = profile_size(&entry.path())?;
+            total.files += nested.files;
+            total.bytes += nested.bytes;
+        } else if kind.is_file() {
+            total.files += 1;
+            total.bytes += entry.metadata()?.len();
+        } else if kind.is_symlink() {
+            total.files += 1;
+        }
+    }
+    Ok(total)
+}
+
+#[cfg(desktop)]
+fn copy_permissions(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
+    let permissions = std::fs::metadata(from)?.permissions();
+    std::fs::set_permissions(to, permissions)
+}
+
+/// Open the copied databases and count their rows, so a truncated or corrupt
+/// copy fails the migration instead of replacing a working profile.
+#[cfg(desktop)]
+fn verify_profile_databases(dir: &std::path::Path) -> std::io::Result<ProfileRows> {
+    let mail = dir.join("flectar-mail.db");
+    let calendar = dir.join("flectar-calendar.db");
+    let mut rows = ProfileRows::default();
+    if mail.is_file() {
+        let connection = rusqlite::Connection::open(&mail).map_err(sqlite_error)?;
+        quick_check(&connection)?;
+        rows.messages = count_rows(&connection, "messages")?;
+        rows.accounts = count_rows(&connection, "accounts")?;
+        rows.folders = count_rows(&connection, "folders")?;
+    }
+    if calendar.is_file() {
+        let connection = rusqlite::Connection::open(&calendar).map_err(sqlite_error)?;
+        quick_check(&connection)?;
+        rows.calendar_events = count_rows(&connection, "calendar_events")?;
+    }
+    Ok(rows)
+}
+
+#[cfg(desktop)]
+fn quick_check(connection: &rusqlite::Connection) -> std::io::Result<()> {
+    let result: String = connection
+        .query_row("PRAGMA quick_check", [], |row| row.get(0))
+        .map_err(sqlite_error)?;
+    if result != "ok" {
+        return Err(std::io::Error::other(format!(
+            "SQLite quick_check reported {result}"
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(desktop)]
+fn count_rows(connection: &rusqlite::Connection, table: &str) -> std::io::Result<i64> {
+    connection
+        .query_row(&format!("SELECT count(*) FROM {table}"), [], |row| {
+            row.get(0)
+        })
+        .map_err(sqlite_error)
+}
+
+#[cfg(desktop)]
+fn sqlite_error(error: rusqlite::Error) -> std::io::Error {
+    std::io::Error::other(error.to_string())
+}
+
+#[cfg(desktop)]
+fn write_migration_marker(
+    dir: &std::path::Path,
+    legacy: &std::path::Path,
+    size: &ProfileSize,
+    rows: &ProfileRows,
+) -> std::io::Result<()> {
+    use std::io::Write;
+    let copied_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_secs());
+    let mut marker = std::fs::File::create(dir.join(MIGRATION_MARKER))?;
+    writeln!(marker, "source={}", legacy.display())?;
+    writeln!(marker, "copied_at_unix={copied_at}")?;
+    writeln!(marker, "files={}", size.files)?;
+    writeln!(marker, "bytes={}", size.bytes)?;
+    writeln!(marker, "messages={}", rows.messages)?;
+    writeln!(marker, "accounts={}", rows.accounts)?;
+    writeln!(marker, "folders={}", rows.folders)?;
+    writeln!(marker, "calendar_events={}", rows.calendar_events)?;
+    writeln!(marker, "verified=sizes,sqlite quick_check,row counts")?;
+    marker.sync_all()?;
+    Ok(())
+}
 impl Paths {
     /// Resolve desktop directories. Mobile hosts inject their sandbox paths
     /// through `Paths::new`; silently using the process working directory is
@@ -26,10 +253,8 @@ impl Paths {
                 "the operating system has no application cache directory".into(),
             )
         })?;
-        Ok(Self::new(
-            data_root.join("flectar-mail"),
-            cache_root.join("flectar-mail"),
-        ))
+        let data_dir = migrate_legacy_profile(&data_root)?;
+        Ok(Self::new(data_dir, cache_root.join(LEGACY_CACHE_DIR)))
     }
 
     pub fn new(data_dir: PathBuf, cache_dir: PathBuf) -> Self {

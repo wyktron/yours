@@ -52,20 +52,20 @@ const MAX_SUBJECT_CHARS: usize = 998;
 const MAX_DRAFT_CHARS: usize = 100_000;
 
 const ACCESS_OFF: &str =
-    "Agent access is off. The user can turn it on in Flectar Mail, in Settings, AI agents.";
-const DRAFTS_OFF: &str = "Writing drafts is off. The user can turn it on in Flectar Mail, in \
+    "Agent access is off. The user can turn it on in Yours, in Settings, AI agents.";
+const DRAFTS_OFF: &str = "Writing drafts is off. The user can turn it on in Yours, in \
 Settings, AI agents.";
 
 /// The refusal for a permission the user hasn't given, such as "Moving
 /// messages".
 fn turned_off(what: &str) -> String {
-    format!("{what} is off. The user can turn it on in Flectar Mail, in Settings, AI agents.")
+    format!("{what} is off. The user can turn it on in Yours, in Settings, AI agents.")
 }
 const ON_DEVICE_CANT_SEND: &str = "Mail on this device is answered from an email account. \
 Pass the account_id of one agents can read.";
 const NOT_AGENTS_DRAFT: &str = "Agents can change only their own drafts, and only until the \
 user changes them. Write a new draft instead.";
-const NOT_SHARED: &str = "That isn't available to agents. The user chooses what agents can read in Flectar Mail's \
+const NOT_SHARED: &str = "That isn't available to agents. The user chooses what agents can read in Yours's \
      Settings.";
 
 /// Answers agents on the endpoint for `data_dir` until dropped.
@@ -99,7 +99,7 @@ impl AgentServer {
                     .await;
                     let response = match request {
                         Ok(Ok(request)) => answer(&core, &limiter, request).await,
-                        _ => Response::error("Flectar Mail couldn't read the request."),
+                        _ => Response::error("Yours couldn't read the request."),
                     };
                     let _ = protocol::write_line(writer, &response).await;
                 });
@@ -190,7 +190,7 @@ enum Failure {
 
 impl From<CoreError> for Failure {
     fn from(error: CoreError) -> Self {
-        Self::Failed(format!("Flectar Mail couldn't do that: {error}"))
+        Self::Failed(format!("Yours couldn't do that: {error}"))
     }
 }
 
@@ -198,15 +198,15 @@ impl From<CoreError> for Failure {
 async fn answer(core: &Core, limiter: &Mutex<RateLimiter>, request: Request) -> Response {
     if request.protocol != protocol::PROTOCOL {
         return Response::error(format!(
-            "The agent's connection comes from Flectar Mail {}, but the app that's running is \
-             {}. Restart Flectar Mail, then try again.",
+            "The agent's connection comes from Yours {}, but the app that's running is \
+             {}. Restart Yours, then try again.",
             request.version,
             env!("CARGO_PKG_VERSION"),
         ));
     }
     let access = match core.get_settings().await {
         Ok(settings) => settings.agent_access,
-        Err(_) => return Response::error("Flectar Mail couldn't read its settings."),
+        Err(_) => return Response::error("Yours couldn't read its settings."),
     };
     if !access.enabled {
         return Response::error(ACCESS_OFF);
@@ -944,7 +944,7 @@ fn render_message(
     let (text, body, text_chars) = if encrypted {
         (
             "This message is end-to-end encrypted, so its text is withheld. The user can open it \
-             in Flectar Mail."
+             in Yours."
                 .to_owned(),
             None,
             0,
@@ -1103,7 +1103,7 @@ async fn create_draft(
     Ok(Answer {
         text: format!(
             "Saved draft {draft_id} in the Drafts of {from}. The user reviews and sends it in \
-             Flectar Mail."
+             Yours."
         ),
         structured: json!({ "draft_id": draft_id, "account_id": account_id }),
         account_id: Some(account_id),
@@ -1192,7 +1192,7 @@ async fn update_draft(
         Err(error) => return Err(error.into()),
     };
     Ok(Answer {
-        text: format!("Saved draft {saved}. The user reviews and sends it in Flectar Mail."),
+        text: format!("Saved draft {saved}. The user reviews and sends it in Yours."),
         structured: json!({ "draft_id": saved, "account_id": account_id }),
         account_id: Some(account_id),
         folder_id: None,
@@ -1235,13 +1235,13 @@ async fn send_draft(
         }
         Err(super::ReviewRefused::NoComposer) => {
             return Err(Failure::Failed(
-                "Flectar Mail couldn't show the draft. Try again once its window is open.".into(),
+                "Yours couldn't show the draft. Try again once its window is open.".into(),
             ));
         }
     }
     Ok(Answer {
         text: format!(
-            "Opened draft {draft_id} in Flectar Mail for the user to check. It's sent only if \
+            "Opened draft {draft_id} in Yours for the user to check. It's sent only if \
              they send it themselves."
         ),
         structured: json!({ "draft_id": draft_id, "status": "waiting_for_user" }),

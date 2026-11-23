@@ -3,7 +3,7 @@ set -euo pipefail
 trap 'status=$?; printf "macOS packaging failed at line %s: %s\n" "$LINENO" "$BASH_COMMAND" >&2; exit "$status"' ERR
 
 project_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-binary_path="${1:-$project_dir/target/release/flectar-mail}"
+binary_path="${1:-$project_dir/target/release/yours}"
 output_dir="${2:-$project_dir/target/macos}"
 architecture="${3:-$(uname -m)}"
 case "$architecture" in
@@ -50,7 +50,7 @@ chmod 0755 "$app_dir/Contents/Frameworks/libpdfium.dylib"
 
 # Every size follows Apple's macOS icon grid (resources/app-icon/generate.py),
 # so the Dock shows the icon at the size of other apps' icons.
-iconutil -c icns "$project_dir/resources/app-icon/flectar-mail.iconset" \
+iconutil -c icns "$project_dir/resources/app-icon/yours.iconset" \
   -o "$app_dir/Contents/Resources/FlectarMail.icns"
 
 cp "$project_dir/LICENSE" "$app_dir/Contents/Resources/Licenses/Flectar Mail/LICENSE"

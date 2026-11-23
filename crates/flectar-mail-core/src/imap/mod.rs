@@ -696,7 +696,7 @@ where
     })
 }
 
-/// Identify Flectar Mail to servers that implement RFC 2971. Some services
+/// Identify Yours to servers that implement RFC 2971. Some services
 /// accept authentication but reject mailbox access until the client sends this
 /// command. Keep the payload limited to public application metadata.
 async fn identify_client(session: &mut Session) {
@@ -716,7 +716,7 @@ async fn identify_client(session: &mut Session) {
 
     match session
         .id([
-            ("name", Some("Flectar Mail")),
+            ("name", Some("Yours")),
             ("version", Some(env!("CARGO_PKG_VERSION"))),
             ("vendor", Some("Flectar")),
         ])

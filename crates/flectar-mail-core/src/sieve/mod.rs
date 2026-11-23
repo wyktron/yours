@@ -430,7 +430,7 @@ fn refused_script(error: Error) -> CoreError {
             CoreError::Other(if quota {
                 "Your server has no room for another filter script".into()
             } else {
-                format!("Your server refused Flectar Mail's script. It said \u{201c}{text}\u{201d}")
+                format!("Your server refused Yours's script. It said \u{201c}{text}\u{201d}")
             })
         }
         error => core_error(error),

@@ -149,13 +149,13 @@ pub(crate) fn load_tab(app: &AppWindow, runtime: &Handle, core: Arc<Core>, confi
     ui.set_auto_reply_saving(false);
     let cant = match config.mail_protocol {
         MailProtocol::Pop3 => UiMessage::plain(
-            "POP3 accounts can't have automatic replies from Flectar Mail. Your provider's webmail may offer them.",
+            "POP3 accounts can't have automatic replies from Yours. Your provider's webmail may offer them.",
         ),
         MailProtocol::Imap => UiMessage::plain(
-            "Flectar Mail found no way to set automatic replies on this account's server. Your provider's webmail may offer them.",
+            "Yours found no way to set automatic replies on this account's server. Your provider's webmail may offer them.",
         ),
         _ => UiMessage::plain(
-            "Flectar Mail can't set this account's automatic replies yet. Your provider's webmail can.",
+            "Yours can't set this account's automatic replies yet. Your provider's webmail can.",
         ),
     };
     let kind = match (config.provider, config.mail_protocol) {
@@ -457,7 +457,7 @@ impl Saver {
                     app.set_oauth_in_progress(true);
                     app.set_oauth_browser_error(false);
                     app.set_sync_status(UiMessage::plain(
-                        "Allow Flectar Mail to change Gmail settings in your browser.",
+                        "Allow Yours to change Gmail settings in your browser.",
                     ));
                 });
                 oauth_browser::begin(browser_app, url, opener)

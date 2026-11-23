@@ -223,9 +223,9 @@ fn refused(error: jmap_client::Error) -> CoreError {
             }
             _ => match set.description() {
                 Some(said) => format!(
-                    "Your server refused Flectar Mail's script. It said \u{201c}{said}\u{201d}"
+                    "Your server refused Yours's script. It said \u{201c}{said}\u{201d}"
                 ),
-                None => "Your server refused Flectar Mail's script".into(),
+                None => "Your server refused Yours's script".into(),
             },
         }),
         _ => map_error(error),

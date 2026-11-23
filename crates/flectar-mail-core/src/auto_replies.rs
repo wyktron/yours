@@ -52,7 +52,7 @@ impl Core {
 
     /// Saves `reply` as account `account_id`'s automatic replies on its
     /// server, and gives them as the server keeps them now. The first time,
-    /// Google asks the user to let Flectar Mail change Gmail settings, on the
+    /// Google asks the user to let Yours change Gmail settings, on the
     /// page `open_url` opens. On an IMAP server that runs the user's own
     /// filter script, nothing changes until the user `allowed` what saving
     /// asks.
@@ -92,7 +92,7 @@ impl Core {
                             })
                             .await?;
                         return Err(CoreError::Auth(
-                            "Google didn't let Flectar Mail change this account's Gmail \
+                            "Google didn't let Yours change this account's Gmail \
                              settings. Save again to allow it"
                                 .into(),
                         ));
@@ -113,7 +113,7 @@ impl Core {
                 match graph::GraphReplies::new()?.save(&token, &reply).await {
                     Err(CoreError::NeedsReauth) => {
                         return Err(CoreError::Auth(
-                            "Microsoft didn't let Flectar Mail change this account's settings. \
+                            "Microsoft didn't let Yours change this account's settings. \
                              Sign in to the account again, then save again"
                                 .into(),
                         ));
@@ -145,7 +145,7 @@ impl Core {
                     crate::jmap::vacation::save(&connected, &reply).await?
                 } else {
                     return Err(CoreError::Other(
-                        "Flectar Mail can't set this account's automatic replies yet".into(),
+                        "Yours can't set this account's automatic replies yet".into(),
                     ));
                 }
             }
@@ -175,7 +175,7 @@ impl Core {
             }
             Provider::Generic => {
                 return Err(CoreError::Other(
-                    "Flectar Mail can't set this account's automatic replies".into(),
+                    "Yours can't set this account's automatic replies".into(),
                 ));
             }
         };

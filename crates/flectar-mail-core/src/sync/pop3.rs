@@ -383,7 +383,7 @@ enum Synced {
 }
 
 /// `catch_up` holds the UIDLs the server listed when this worker first
-/// reached it: mail that came in while Flectar Mail wasn't following the
+/// reached it: mail that came in while Yours wasn't following the
 /// account. Catching up with it stays silent, as IMAP's Inbox baseline and the
 /// Gmail and JMAP live cutoffs keep it.
 async fn sync(
@@ -509,7 +509,7 @@ struct Candidate {
     /// The message's date, when already known.
     sent_at: Option<i64>,
     attempts: i64,
-    /// Whether it arrived while Flectar Mail followed the account, so that
+    /// Whether it arrived while Yours followed the account, so that
     /// it may notify. The session settles it.
     live: bool,
     /// Whether it is new mail that rules sort (#238): anything after the

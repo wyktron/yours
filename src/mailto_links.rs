@@ -1,5 +1,5 @@
 //! Opening mailto links, whether clicked in a message or handed over by the
-//! system when Flectar Mail is the default email app.
+//! system when Yours is the default email app.
 //!
 //! Links wait until the mail store is ready and an account can send, then
 //! each opens the main window's composer pre-filled for the user to review;

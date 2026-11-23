@@ -778,11 +778,11 @@ msgid "Saving close behavior…"
 msgstr ""
 
 #: ui/app.slint:315
-msgid "Closing the window will now keep Flectar Mail in the tray."
+msgid "Closing the window will now keep Yours in the tray."
 msgstr ""
 
 #: ui/app.slint:316
-msgid "Closing the window will now quit Flectar Mail."
+msgid "Closing the window will now quit Yours."
 msgstr ""
 
 #: ui/app.slint:317
@@ -790,11 +790,11 @@ msgid "Could not save close behavior: {}"
 msgstr ""
 
 #: ui/app.slint:318
-msgid "Flectar Mail will start when you sign in."
+msgid "Yours will start when you sign in."
 msgstr ""
 
 #: ui/app.slint:319
-msgid "Flectar Mail will no longer start when you sign in."
+msgid "Yours will no longer start when you sign in."
 msgstr ""
 
 #: ui/app.slint:320
@@ -802,11 +802,11 @@ msgid "Could not change startup behavior: {}"
 msgstr ""
 
 #: ui/app.slint:321
-msgid "Allow Flectar Mail under Login Items in System Settings to finish."
+msgid "Allow Yours under Login Items in System Settings to finish."
 msgstr ""
 
 #: ui/app.slint:322
-msgid "Turn on Flectar Mail under Startup apps in Windows Settings to finish."
+msgid "Turn on Yours under Startup apps in Windows Settings to finish."
 msgstr ""
 
 #: ui/app.slint:327
@@ -988,11 +988,11 @@ msgid "Connect an account before creating a backup."
 msgstr ""
 
 #: ui/app.slint:375
-msgid "Export Flectar Mail account backup"
+msgid "Export Yours account backup"
 msgstr ""
 
 #: ui/app.slint:376
-msgid "Flectar Mail backup"
+msgid "Yours backup"
 msgstr ""
 
 #: ui/app.slint:377 ui/dialogs/import-dialog.slint:407
@@ -1029,7 +1029,7 @@ msgid "Creating verified database snapshot…"
 msgstr ""
 
 #: ui/app.slint:385
-msgid "All local Flectar Mail data was deleted."
+msgid "All local Yours data was deleted."
 msgstr ""
 
 #: ui/app.slint:386
@@ -1144,11 +1144,11 @@ msgid "Calendar update failed: {}"
 msgstr ""
 
 #: ui/app.slint:425
-msgid "Only events created in Flectar Mail can be edited."
+msgid "Only events created in Yours can be edited."
 msgstr ""
 
 #: ui/app.slint:426
-msgid "Only events created in Flectar Mail can be deleted."
+msgid "Only events created in Yours can be deleted."
 msgstr ""
 
 #: ui/app.slint:427
@@ -1734,7 +1734,7 @@ msgstr ""
 
 #: ui/app.slint:596 ui/components/workspace-navigation.slint:787
 #: ui/tray.slint:13 ui/tray.slint:14
-msgid "Flectar Mail"
+msgid "Yours"
 msgstr ""
 
 #: ui/app.slint:1270 ui/app.slint:1283
@@ -1783,7 +1783,7 @@ msgid "Mailbox startup failed"
 msgstr ""
 
 #: ui/app.slint:2412
-msgid "Flectar Mail could not open local storage"
+msgid "Yours could not open local storage"
 msgstr ""
 
 #: ui/app.slint:2425
@@ -1991,7 +1991,7 @@ msgstr ""
 #: ui/components/account-mail-preferences.slint:169
 msgid ""
 "Add an alias or another address your mail server lets you send from. The "
-"server decides when you send; Flectar shows whether it accepted the last "
+"server decides when you send; Yours shows whether it accepted the last "
 "message."
 msgstr ""
 
@@ -2226,7 +2226,7 @@ msgid "App icon"
 msgstr ""
 
 #: ui/components/app-icon-picker.slint:105
-msgid "Used for the Dock and the menu bar while Flectar Mail is running."
+msgid "Used for the Dock and the menu bar while Yours is running."
 msgstr ""
 
 #: ui/components/app-icon-picker.slint:106
@@ -2243,7 +2243,7 @@ msgstr ""
 
 #: ui/components/app-icon-picker.slint:116
 msgid ""
-"The new icon appears after you leave Flectar Mail. Some launchers remove the "
+"The new icon appears after you leave Yours. Some launchers remove the "
 "old icon from the home screen."
 msgstr ""
 
@@ -2416,7 +2416,7 @@ msgid "Default calendar"
 msgstr ""
 
 #: ui/components/calendar.slint:466
-msgid "Created in Flectar Mail"
+msgid "Created in Yours"
 msgstr ""
 
 #: ui/components/calendar.slint:466
@@ -2886,7 +2886,7 @@ msgstr ""
 
 #: ui/components/oauth-browser-help.slint:73
 msgid ""
-"Flectar could not reach the system browser from this app environment. Open "
+"Yours could not reach the system browser from this app environment. Open "
 "the link again or copy it into a browser on this device."
 msgstr ""
 
@@ -3587,7 +3587,7 @@ msgid "No incoming mail server is configured."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:132
-msgid "The incoming server {} uses a protocol Flectar Mail does not support."
+msgid "The incoming server {} uses a protocol Yours does not support."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:133
@@ -3595,7 +3595,7 @@ msgid "No outgoing mail server is configured."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:134
-msgid "The outgoing server {} uses a protocol Flectar Mail does not support."
+msgid "The outgoing server {} uses a protocol Yours does not support."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:135
@@ -3612,48 +3612,48 @@ msgstr ""
 
 #: ui/dialogs/import-dialog.slint:137
 msgid ""
-"{} keeps your password off its unencrypted connection, but Flectar Mail "
+"{} keeps your password off its unencrypted connection, but Yours "
 "would send it in the clear. Turn on SSL/TLS or STARTTLS for this server "
 "first."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:139
 msgid ""
-"The incoming server connects without signing in, which Flectar Mail does not "
+"The incoming server connects without signing in, which Yours does not "
 "support."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:140
 msgid ""
-"The incoming server signs in with a client certificate, which Flectar Mail "
+"The incoming server signs in with a client certificate, which Yours "
 "does not support."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:141
 msgid ""
-"The incoming server signs in with {}, which Flectar Mail does not support."
+"The incoming server signs in with {}, which Yours does not support."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:142
 msgid ""
-"The outgoing server sends mail without signing in, which Flectar Mail does "
+"The outgoing server sends mail without signing in, which Yours does "
 "not support."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:143
 msgid ""
-"The outgoing server signs in with a client certificate, which Flectar Mail "
+"The outgoing server signs in with a client certificate, which Yours "
 "does not support."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:144
 msgid ""
-"The outgoing server signs in with {}, which Flectar Mail does not support."
+"The outgoing server signs in with {}, which Yours does not support."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:145
 msgid ""
-"The outgoing server signs in as {}. Flectar Mail uses one sign-in for both "
+"The outgoing server signs in as {}. Yours uses one sign-in for both "
 "servers."
 msgstr ""
 
@@ -3691,7 +3691,7 @@ msgstr ""
 
 #: ui/dialogs/import-dialog.slint:153
 msgid ""
-"Flectar Mail cannot use browser sign-in for {}. Sign in with an app password."
+"Yours cannot use browser sign-in for {}. Sign in with an app password."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:154
@@ -3758,7 +3758,7 @@ msgstr ""
 #: ui/dialogs/import-dialog.slint:170
 msgid ""
 "This is not a supported settings export or mail file. Choose a .k9s file, a "
-"Thunderbird profile export or prefs.js, a Flectar Mail backup, or mail saved "
+"Thunderbird profile export or prefs.js, a Yours backup, or mail saved "
 "as .mbox or .eml files."
 msgstr ""
 
@@ -3925,7 +3925,7 @@ msgstr ""
 #: ui/dialogs/import-dialog.slint:492
 msgid ""
 "Bring your accounts from Thunderbird, Thunderbird for Android, K-9 Mail, or "
-"a Flectar Mail backup, and mail from Thunderbird or saved mail files. "
+"a Yours backup, and mail from Thunderbird or saved mail files. "
 "Passwords are never imported: you sign in to each account afterward."
 msgstr ""
 
@@ -3944,7 +3944,7 @@ msgstr ""
 #: ui/dialogs/import-dialog.slint:575
 msgid ""
 "Supported: Thunderbird for Android and K-9 Mail settings (.k9s), Thunderbird "
-"profile exports (.zip), profile folders and prefs.js, Flectar Mail backups "
+"profile exports (.zip), profile folders and prefs.js, Yours backups "
 "(.json), and mail saved as .mbox or .eml files, in maildir folders, or in "
 "ZIP archives of them."
 msgstr ""
@@ -3952,7 +3952,7 @@ msgstr ""
 #: ui/dialogs/import-dialog.slint:576
 msgid ""
 "Supported: Thunderbird for Android and K-9 Mail settings (.k9s), Thunderbird "
-"profile exports (.zip) and prefs.js, Flectar Mail backups (.json), and mail "
+"profile exports (.zip) and prefs.js, Yours backups (.json), and mail "
 "saved as .mbox or .eml files or in ZIP archives of them."
 msgstr ""
 
@@ -3985,7 +3985,7 @@ msgid "From Thunderbird. Existing accounts are never changed."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:688
-msgid "Already in Flectar Mail"
+msgid "Already in Yours"
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:689
@@ -4041,9 +4041,9 @@ msgid "No accounts were imported."
 msgstr ""
 
 #: ui/dialogs/import-dialog.slint:762
-msgid "One account was already in Flectar Mail and was left unchanged."
+msgid "One account was already in Yours and was left unchanged."
 msgid_plural ""
-"{n} accounts were already in Flectar Mail and were left unchanged."
+"{n} accounts were already in Yours and were left unchanged."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -4216,7 +4216,7 @@ msgstr ""
 
 #: ui/dialogs/rendering-info-dialog.slint:124
 msgid ""
-"Flectar Mail uses a completely new email renderer built in Rust. It is still "
+"Yours uses a completely new email renderer built in Rust. It is still "
 "in its early stages, so some emails may not render correctly."
 msgstr ""
 
@@ -4267,7 +4267,7 @@ msgid "Calculating local storage…"
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:216
-msgid "{} used by Flectar Mail"
+msgid "{} used by Yours"
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:217
@@ -4584,7 +4584,7 @@ msgid "Follow your device language when a translation is available."
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:1214
-msgid "Choose the language used throughout Flectar Mail."
+msgid "Choose the language used throughout Yours."
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:1224
@@ -4662,7 +4662,7 @@ msgid "Keep running in system tray"
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:1345
-msgid "Closing the window hides Flectar Mail while mail continues syncing."
+msgid "Closing the window hides Yours while mail continues syncing."
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:1346
@@ -4674,11 +4674,11 @@ msgid "Start automatically"
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:1373
-msgid "Starts Flectar Mail in the system tray when you sign in."
+msgid "Starts Yours in the system tray when you sign in."
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:1373
-msgid "Opens Flectar Mail when you sign in."
+msgid "Opens Yours when you sign in."
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:1374
@@ -4722,7 +4722,7 @@ msgid "Renderer"
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:1454
-msgid "Changes take effect after restarting Flectar Mail."
+msgid "Changes take effect after restarting Yours."
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:1454
@@ -4945,7 +4945,7 @@ msgstr "Gesendete Kopien"
 
 #: ui/dialogs/settings-dialog.slint:2092
 msgid ""
-"Choose who saves sent mail. Use Flectar if your server does not save a copy."
+"Choose who saves sent mail. Use Yours if your server does not save a copy."
 msgstr ""
 "Wähle, wer gesendete E-Mails speichert. Verwende Flectar, wenn dein Server "
 "keine Kopie speichert."
@@ -4959,7 +4959,7 @@ msgid "Server saves a copy"
 msgstr "Server speichert eine Kopie"
 
 #: ui/dialogs/settings-dialog.slint:2093
-msgid "Flectar saves a copy"
+msgid "Yours saves a copy"
 msgstr "Flectar speichert eine Kopie"
 
 #: ui/dialogs/settings-dialog.slint:2107
@@ -4967,7 +4967,7 @@ msgid "Keep mail on the server"
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2111
-msgid "Flectar Mail never removes mail from the server."
+msgid "Yours never removes mail from the server."
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2112
@@ -5078,7 +5078,7 @@ msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2251
 msgid ""
-"See what Flectar Mail stores locally and manage the data on this device."
+"See what Yours stores locally and manage the data on this device."
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2277
@@ -5181,7 +5181,7 @@ msgid "Delete everything"
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2341
-msgid "Choose how Flectar Mail gets your attention."
+msgid "Choose how Yours gets your attention."
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2368
@@ -5279,7 +5279,7 @@ msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2438
 msgid ""
-"Optional paid services from Flectar. Flectar Mail stays free and works "
+"Optional paid services from Flectar. Yours stays free and works "
 "without them."
 msgstr ""
 
@@ -5358,7 +5358,7 @@ msgid "Create and manage mailboxes for your team"
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2492
-msgid "New mailboxes appear in Flectar Mail automatically"
+msgid "New mailboxes appear in Yours automatically"
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2494
@@ -5372,11 +5372,11 @@ msgid ""
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2525
-msgid "Flectar Mail, its makers, and its community."
+msgid "Yours, its makers, and its community."
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2541 ui/views/onboarding-view.slint:121
-msgid "Flectar Mail logo"
+msgid "Yours logo"
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2561
@@ -5421,7 +5421,7 @@ msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:2619
 msgid ""
-"Flectar Mail is released under the GNU Affero General Public License v3.0 "
+"Yours is released under the GNU Affero General Public License v3.0 "
 "only."
 msgstr ""
 
@@ -5633,7 +5633,7 @@ msgstr ""
 #: ui/dialogs/settings-dialog.slint:3234
 msgid ""
 "This removes every account, downloaded message, calendar, contact, "
-"preference, and credential stored by Flectar Mail on this device."
+"preference, and credential stored by Yours on this device."
 msgstr ""
 
 #: ui/dialogs/settings-dialog.slint:3236
@@ -5743,7 +5743,7 @@ msgid "Keep calendar"
 msgstr ""
 
 #: ui/tray.slint:23
-msgid "Show Flectar Mail"
+msgid "Show Yours"
 msgstr ""
 
 #: ui/tray.slint:27

@@ -567,7 +567,7 @@ fn store_new(conn: &Connection, document: String, favorite: bool) -> Result<i64>
 }
 
 /// Convert an older database inside migration 13's transaction. Contacts
-/// saved in Flectar Mail become local entries. Every cached CardDAV card
+/// saved in Yours become local entries. Every cached CardDAV card
 /// becomes its own entry, including cards the old directory hid because they
 /// had no email address. An edit that was waiting to upload is applied to its
 /// card and stays pending; an edit shared by several cards cannot be assigned
