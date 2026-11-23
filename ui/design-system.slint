@@ -107,9 +107,9 @@ export global SettingsIconPalette {
 // button and view. Palette.color-scheme is set by AppWindow's theme setting,
 // so all consumers update together when the user changes appearance.
 export global AppTheme {
-    // Color scheme and palette are separate preferences. This lets every
-    // preset follow the OS while a custom palette keeps independent light and
-    // dark values. The default branch below is the original Flectar palette.
+    // Color scheme and palette are separate preferences. Most presets follow
+    // the OS; the dark-only schemes and the custom palette carry their own
+    // values. The default branch below is the original Flectar palette.
     in-out property <string> preset: "default";
     in-out property <color> custom-light-primary: #0969da;
     in-out property <color> custom-light-page-bg: #f2f2f0;
@@ -124,65 +124,92 @@ export global AppTheme {
     // Set with WindowChrome.top-bar, while the tab strip spans the window.
     in property <bool> top-bar: false;
 
-    // OLED is a black-tuned dark scheme: it forces the dark set even when the
-    // system is in light mode, so the panel really is black.
-    out property <bool> dark: Palette.color-scheme == ColorScheme.dark || preset == "oled";
+    // OLED, Pixel and Space are dark-only schemes: they force the dark set
+    // even when the system is in light mode, so their surfaces stay true to the
+    // references instead of turning into a washed-out light approximation.
+    out property <bool> dark: Palette.color-scheme == ColorScheme.dark
+        || preset == "oled" || preset == "pixel" || preset == "space";
 
+    // Pixel and Space are colour-only translations of their references: Pixel
+    // HQ's night office becomes a midnight-violet canvas with neon mint
+    // actions, a hot-pink focus accent and near-black borders; Dark Space's
+    // flat black chrome becomes layered blue-black surfaces, soft slate
+    // borders and cream text around a deep aurora blue.
     // Each non-default preset starts from five user-facing foundation colors.
     // The rest of the semantic tokens are derived consistently, so adding a
     // component never expands the persisted theme schema.
     out property <color> light-primary: preset == "default" ? #0969da
         : preset == "teal" ? #006b7a : preset == "green" ? #2f6f44
-        : preset == "purple" ? #78418a : custom-light-primary;
+        : preset == "purple" ? #78418a
+        : preset == "pixel" ? #0a7a56 : preset == "space" ? #2f5fd0
+        : custom-light-primary;
     out property <color> dark-primary: preset == "default" ? #0969da
         : preset == "teal" ? #006b7a : preset == "green" ? #2f6f44
-        : preset == "purple" ? #78418a : custom-dark-primary;
+        : preset == "purple" ? #78418a
+        : preset == "pixel" ? #3ff0b0 : preset == "space" ? #2f5fd0
+        : custom-dark-primary;
     private property <color> themed-primary: dark ? dark-primary : light-primary;
     private property <color> themed-page-bg: preset == "oled" ? #000000
+        : preset == "pixel" ? #100d20 : preset == "space" ? #04060c
         : preset == "teal" ? (dark ? #0b1519 : #edf5f7)
         : preset == "green" ? (dark ? #101711 : #f1f5ef)
         : preset == "purple" ? (dark ? #171119 : #f6f1f7)
         : dark ? custom-dark-page-bg : custom-light-page-bg;
     // Both schemes are exposed for message appearance independent of the UI.
+    // Pixel and Space force dark in the UI but keep on-palette light message
+    // colors for the explicit Light message-appearance choice.
     out property <color> light-surface: preset == "default" ? #ffffff
         : preset == "teal" ? #fbfefe : preset == "green" ? #fcfdfb
-        : preset == "purple" ? #fdfbfe : custom-light-surface;
+        : preset == "purple" ? #fdfbfe
+        : preset == "pixel" ? #fbf9ff : preset == "space" ? #fffdf7
+        : custom-light-surface;
     out property <color> dark-surface: preset == "default" ? #18191a
         : preset == "oled" ? #0a0a0a
+        : preset == "pixel" ? #1b1734 : preset == "space" ? #0a0f19
         : preset == "teal" ? #122026 : preset == "green" ? #182019
         : preset == "purple" ? #201722 : custom-dark-surface;
     out property <color> light-text: preset == "default" ? #202120
         : preset == "teal" ? #173039 : preset == "green" ? #213026
-        : preset == "purple" ? #332537 : custom-light-text;
+        : preset == "purple" ? #332537
+        : preset == "pixel" ? #241d3f : preset == "space" ? #1a2333
+        : custom-light-text;
     out property <color> dark-text: preset == "default" ? #f3f3f2
         : preset == "oled" ? #f5f5f5
+        : preset == "pixel" ? #f2eeff : preset == "space" ? #f3ecdd
         : preset == "teal" ? #e5f0f2 : preset == "green" ? #e9f0e6
         : preset == "purple" ? #f1e8f3 : custom-dark-text;
     private property <color> themed-surface: dark ? dark-surface : light-surface;
     private property <color> themed-text: dark ? dark-text : light-text;
     private property <color> themed-border: preset == "oled" ? #262626
+        : preset == "pixel" ? #06040e : preset == "space" ? #202c40
         : preset == "teal" ? (dark ? #294047 : #c8dadd)
         : preset == "green" ? (dark ? #344039 : #ccd8c8)
         : preset == "purple" ? (dark ? #46354a : #dfd0e2)
         : dark ? custom-dark-border : custom-light-border;
     private property <color> themed-accent: dark
-        ? themed-primary.mix(white, 0.62)
+        ? (preset == "pixel" ? #ff6fae
+            : preset == "space" ? #9cc2ff
+            : themed-primary.mix(white, 0.62))
         : themed-primary;
 
     out property <color> page-bg: preset == "default" ? (dark ? #111213 : #f2f2f0) : themed-page-bg;
     out property <color> surface: preset == "default" ? (dark ? #18191a : #ffffff) : themed-surface;
     out property <color> surface-raised: preset == "default" ? (dark ? #131415 : #fafaf8)
+        : preset == "pixel" ? #211b3e : preset == "space" ? #0d1524
         : themed-surface.mix(themed-page-bg, 0.72);
     // The sidebars' own tint, also a soft fill on the content.
     out property <color> sidebar-tint: preset == "default" ? (dark ? #151617 : #f0f0ee)
+        : preset == "pixel" ? #15112a : preset == "space" ? #070b13
         : themed-page-bg.mix(themed-surface, 0.72);
     // Under the tab strip, sidebars share the content's surface, so the
     // active tab opens into one color wherever it sits; dividers alone
     // separate the panes there.
     out property <color> sidebar-bg: root.top-bar ? root.surface : root.sidebar-tint;
     out property <color> control-bg: preset == "default" ? (dark ? #232425 : #f1f1ef)
+        : preset == "pixel" ? #2a2348 : preset == "space" ? #111a2b
         : themed-surface.mix(themed-text, dark ? 0.90 : 0.94);
     out property <color> muted-control-bg: preset == "default" ? (dark ? #242526 : #e8e8e5)
+        : preset == "pixel" ? #221d3b : preset == "space" ? #0e1624
         : themed-surface.mix(themed-text, dark ? 0.86 : 0.90);
     // Product actions deliberately keep the established Flectar blue in both
     // themes. The lighter dark-theme accent remains available for selection,
@@ -194,14 +221,19 @@ export global AppTheme {
     out property <color> accent-hover: preset == "default" ? (dark ? #74b1ff : #1675df) : themed-accent.mix(white, 0.88);
     out property <color> accent-pressed: preset == "default" ? (dark ? #428de8 : #0757b5) : themed-accent.mix(black, 0.84);
     out property <color> accent-soft: preset == "default" ? (dark ? #26364a : #dcecff)
+        : preset == "pixel" ? #3a1f45 : preset == "space" ? #17263c
         : themed-accent.mix(themed-surface, dark ? 0.20 : 0.14);
     out property <color> accent-pale: preset == "default" ? (dark ? #1c2a3a : #edf6ff)
+        : preset == "pixel" ? #271630 : preset == "space" ? #0e1726
         : themed-accent.mix(themed-surface, dark ? 0.11 : 0.07);
     out property <color> selected-row: preset == "default" ? (dark ? #252627 : #e9e9e6)
+        : preset == "pixel" ? #241d3f : preset == "space" ? #131b2a
         : themed-surface.mix(themed-text, dark ? 0.90 : 0.93);
     out property <color> avatar-bg: preset == "default" ? (dark ? #303132 : #e6e6e2)
+        : preset == "pixel" ? #2c2450 : preset == "space" ? #182130
         : themed-surface.mix(themed-text, dark ? 0.84 : 0.89);
     out property <color> avatar-selected-bg: preset == "default" ? (dark ? #354860 : #d5e8ff)
+        : preset == "pixel" ? #4a2856 : preset == "space" ? #22354f
         : themed-accent.mix(themed-surface, dark ? 0.28 : 0.18);
     out property <color> border: preset == "default" ? (dark ? #292a2b : #d9d9d6) : themed-border;
     out property <color> border-subtle: preset == "default" ? (dark ? #232425 : #e6e6e2)

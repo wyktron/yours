@@ -615,19 +615,26 @@ export component ThemeEditor inherits Rectangle {
         Rectangle { height: 1px; background: AppTheme.border-subtle; }
         Text { height: max(18px, self.preferred-height); text: @tr("Palette"); color: AppTheme.secondary; font-size: TypeScale.caption; font-weight: 700; vertical-alignment: center; }
 
+        // Eight presets share one desktop row. Let the cards shrink below the
+        // component minimum so a narrow settings pane keeps every palette on
+        // screen instead of clipping the last card.
         if !root.compact : HorizontalBox {
             padding: 0px;
             spacing: 8px;
-            ThemePresetCard { horizontal-stretch: 1; name: @tr("Default"); preview-primary: #0969da; preview-page: AppTheme.dark ? #111213 : #f2f2f0; preview-surface: AppTheme.dark ? #18191a : white; preview-text: AppTheme.dark ? #f3f3f2 : #202120; selected: AppTheme.preset == "default"; chosen => { root.choose-preset("default"); } }
-            ThemePresetCard { horizontal-stretch: 1; name: @tr("Teal"); preview-primary: #006b7a; preview-page: AppTheme.dark ? #0b1519 : #edf5f7; preview-surface: AppTheme.dark ? #122026 : #fbfefe; preview-text: AppTheme.dark ? #e5f0f2 : #173039; selected: AppTheme.preset == "teal"; chosen => { root.choose-preset("teal"); } }
-            ThemePresetCard { horizontal-stretch: 1; name: @tr("Green"); preview-primary: #2f6f44; preview-page: AppTheme.dark ? #101711 : #f1f5ef; preview-surface: AppTheme.dark ? #182019 : #fcfdfb; preview-text: AppTheme.dark ? #e9f0e6 : #213026; selected: AppTheme.preset == "green"; chosen => { root.choose-preset("green"); } }
-            ThemePresetCard { horizontal-stretch: 1; name: @tr("Purple"); preview-primary: #78418a; preview-page: AppTheme.dark ? #171119 : #f6f1f7; preview-surface: AppTheme.dark ? #201722 : #fdfbfe; preview-text: AppTheme.dark ? #f1e8f3 : #332537; selected: AppTheme.preset == "purple"; chosen => { root.choose-preset("purple"); } }
-ThemePresetCard { horizontal-stretch: 1; name: @tr("OLED"); preview-primary: #5ca3ff; preview-page: #000000; preview-surface: #0a0a0a; preview-text: #f5f5f5; selected: AppTheme.preset == "oled"; chosen => { root.choose-preset("oled"); } }
-            ThemePresetCard { horizontal-stretch: 1; name: @tr("Custom"); preview-primary: root.current-primary; preview-page: root.current-page-bg; preview-surface: root.current-surface; preview-text: root.current-text; selected: AppTheme.preset == "custom"; chosen => { root.choose-preset("custom"); } }
+            ThemePresetCard { horizontal-stretch: 1; min-width: 0px; name: @tr("Default"); preview-primary: #0969da; preview-page: AppTheme.dark ? #111213 : #f2f2f0; preview-surface: AppTheme.dark ? #18191a : white; preview-text: AppTheme.dark ? #f3f3f2 : #202120; selected: AppTheme.preset == "default"; chosen => { root.choose-preset("default"); } }
+            ThemePresetCard { horizontal-stretch: 1; min-width: 0px; name: @tr("Teal"); preview-primary: #006b7a; preview-page: AppTheme.dark ? #0b1519 : #edf5f7; preview-surface: AppTheme.dark ? #122026 : #fbfefe; preview-text: AppTheme.dark ? #e5f0f2 : #173039; selected: AppTheme.preset == "teal"; chosen => { root.choose-preset("teal"); } }
+            ThemePresetCard { horizontal-stretch: 1; min-width: 0px; name: @tr("Green"); preview-primary: #2f6f44; preview-page: AppTheme.dark ? #101711 : #f1f5ef; preview-surface: AppTheme.dark ? #182019 : #fcfdfb; preview-text: AppTheme.dark ? #e9f0e6 : #213026; selected: AppTheme.preset == "green"; chosen => { root.choose-preset("green"); } }
+            ThemePresetCard { horizontal-stretch: 1; min-width: 0px; name: @tr("Purple"); preview-primary: #78418a; preview-page: AppTheme.dark ? #171119 : #f6f1f7; preview-surface: AppTheme.dark ? #201722 : #fdfbfe; preview-text: AppTheme.dark ? #f1e8f3 : #332537; selected: AppTheme.preset == "purple"; chosen => { root.choose-preset("purple"); } }
+            ThemePresetCard { horizontal-stretch: 1; min-width: 0px; name: @tr("OLED"); preview-primary: #5ca3ff; preview-page: #000000; preview-surface: #0a0a0a; preview-text: #f5f5f5; selected: AppTheme.preset == "oled"; chosen => { root.choose-preset("oled"); } }
+            ThemePresetCard { horizontal-stretch: 1; min-width: 0px; name: @tr("Pixel"); preview-primary: #3ff0b0; preview-page: #100d20; preview-surface: #1b1734; preview-text: #f2eeff; selected: AppTheme.preset == "pixel"; chosen => { root.choose-preset("pixel"); } }
+            ThemePresetCard { horizontal-stretch: 1; min-width: 0px; name: @tr("Space"); preview-primary: #2f5fd0; preview-page: #04060c; preview-surface: #0a0f19; preview-text: #f3ecdd; selected: AppTheme.preset == "space"; chosen => { root.choose-preset("space"); } }
+            ThemePresetCard { horizontal-stretch: 1; min-width: 0px; name: @tr("Custom"); preview-primary: root.current-primary; preview-page: root.current-page-bg; preview-surface: root.current-surface; preview-text: root.current-text; selected: AppTheme.preset == "custom"; chosen => { root.choose-preset("custom"); } }
         }
         if root.compact : VerticalBox {
             padding: 0px;
             spacing: 8px;
+            // Two cards per row keep every preset reachable on a phone, with
+            // Pixel and Space continuing the dark schemes after OLED.
             HorizontalBox {
                 padding: 0px;
                 spacing: 8px;
@@ -639,14 +646,18 @@ ThemePresetCard { horizontal-stretch: 1; name: @tr("OLED"); preview-primary: #5c
                 spacing: 8px;
                 ThemePresetCard { horizontal-stretch: 1; min-width: 0px; label-bottom-padding: 6px; name: @tr("Green"); preview-primary: #2f6f44; preview-page: AppTheme.dark ? #101711 : #f1f5ef; preview-surface: AppTheme.dark ? #182019 : #fcfdfb; preview-text: AppTheme.dark ? #e9f0e6 : #213026; selected: AppTheme.preset == "green"; chosen => { root.choose-preset("green"); } }
                 ThemePresetCard { horizontal-stretch: 1; min-width: 0px; label-bottom-padding: 6px; name: @tr("OLED"); preview-primary: #5ca3ff; preview-page: #000000; preview-surface: #0a0a0a; preview-text: #f5f5f5; selected: AppTheme.preset == "oled"; chosen => { root.choose-preset("oled"); } }
-                ThemePresetCard { horizontal-stretch: 1; min-width: 0px; label-bottom-padding: 6px; name: @tr("Purple"); preview-primary: #78418a; preview-page: AppTheme.dark ? #171119 : #f6f1f7; preview-surface: AppTheme.dark ? #201722 : #fdfbfe; preview-text: AppTheme.dark ? #f1e8f3 : #332537; selected: AppTheme.preset == "purple"; chosen => { root.choose-preset("purple"); } }
             }
             HorizontalBox {
                 padding: 0px;
                 spacing: 8px;
-                Rectangle { horizontal-stretch: 1; }
+                ThemePresetCard { horizontal-stretch: 1; min-width: 0px; label-bottom-padding: 6px; name: @tr("Pixel"); preview-primary: #3ff0b0; preview-page: #100d20; preview-surface: #1b1734; preview-text: #f2eeff; selected: AppTheme.preset == "pixel"; chosen => { root.choose-preset("pixel"); } }
+                ThemePresetCard { horizontal-stretch: 1; min-width: 0px; label-bottom-padding: 6px; name: @tr("Space"); preview-primary: #2f5fd0; preview-page: #04060c; preview-surface: #0a0f19; preview-text: #f3ecdd; selected: AppTheme.preset == "space"; chosen => { root.choose-preset("space"); } }
+            }
+            HorizontalBox {
+                padding: 0px;
+                spacing: 8px;
+                ThemePresetCard { horizontal-stretch: 1; min-width: 0px; label-bottom-padding: 6px; name: @tr("Purple"); preview-primary: #78418a; preview-page: AppTheme.dark ? #171119 : #f6f1f7; preview-surface: AppTheme.dark ? #201722 : #fdfbfe; preview-text: AppTheme.dark ? #f1e8f3 : #332537; selected: AppTheme.preset == "purple"; chosen => { root.choose-preset("purple"); } }
                 ThemePresetCard { horizontal-stretch: 1; min-width: 0px; label-bottom-padding: 6px; name: @tr("Custom"); preview-primary: root.current-primary; preview-page: root.current-page-bg; preview-surface: root.current-surface; preview-text: root.current-text; selected: AppTheme.preset == "custom"; chosen => { root.choose-preset("custom"); } }
-                Rectangle { horizontal-stretch: 1; }
             }
         }
 
