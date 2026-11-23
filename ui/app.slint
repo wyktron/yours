@@ -27,7 +27,7 @@ import { WindowChrome, WindowControls, WindowDragArea } from "window-chrome.slin
 // Rust registers the separate Noto Emoji face before constructing this window.
 import "../resources/fonts/google-sans-flex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf";
 
-import { Palette, ScrollView } from "std-widgets.slint";
+import { Palette, ScrollView, TextEdit } from "std-widgets.slint";
 import { ActivitySpinner } from "components/activity-spinner.slint";
 import { InterfaceText, TypeScale } from "typography.slint";
 export { AppTheme, MotionSettings, ThemeUtilities } from "design-system.slint";
@@ -3215,6 +3215,13 @@ export component AppWindow inherits Window {
                         horizontal-stretch: 1;
                         overflow: elide;
                     }
+                    Button {
+                        text: @tr("Copy");
+                        clicked => {
+                            summary-editor.select-all();
+                            summary-editor.copy();
+                        }
+                    }
                     Button { text: @tr("Close"); clicked => { root.summary-open = false; } }
                 }
                 if root.summary-busy : HorizontalLayout {
@@ -3245,20 +3252,15 @@ export component AppWindow inherits Window {
                     font-size: 13px;
                     wrap: word-wrap;
                 }
-                ScrollView {
+                // A read-only editor, not a Text: the summary must be
+                // selectable and copyable, and it scrolls its own content.
+                summary-editor := TextEdit {
                     vertical-stretch: 1;
-                    // Wrap against the visible width, not the text's preferred
-                    // width: otherwise the line runs past the card and is cut.
-                    viewport-width: self.width;
-                    Text {
-                        width: parent.width;
-                        height: self.preferred-height;
-                        text: root.summary-text;
-                        color: AppTheme.body;
-                        font-size: 13px;
-                        wrap: word-wrap;
-                        vertical-alignment: top;
-                    }
+                    text: root.summary-text;
+                    read-only: true;
+                    wrap: TextWrap.word-wrap;
+                    font-size: 13px;
+                    edited => { }
                 }
             }
         }
