@@ -1,5 +1,6 @@
 import { HorizontalBox } from "std-widgets.slint";
-import { AccountRow, ComposeContact } from "../models.slint";
+import { AccountRow, AddressCheck, ComposeContact } from "../models.slint";
+import { AddressChecks } from "address-checks.slint";
 import { Avatar } from "avatar.slint";
 import { IconButton } from "controls.slint";
 import { ModeButton, RecipientRow } from "composer-controls.slint";
@@ -305,6 +306,8 @@ export component ComposerRecipients inherits Rectangle {
     in-out property <string> cc;
     in-out property <string> bcc;
     in property <[ComposeContact]> contacts: [];
+    // One chip per complete recipient, filled by the local Reacher check.
+    in property <[AddressCheck]> address-checks: [];
     in property <color> accent-background;
     in property <color> accent-color;
     in property <color> background-color;
@@ -318,12 +321,21 @@ export component ComposerRecipients inherits Rectangle {
     in-out property <int> highlighted-contact: 0;
     callback search-contacts(string);
     callback contact-selected(int);
+    // The To, Cc and Bcc fields changed, for address verification.
+    callback addresses-changed(string, string, string);
     private property <bool> show-cc: root.cc != "";
     private property <bool> show-bcc: root.bcc != "";
     // Recipients filled in for the user, such as from a mail link, always
     // show, even in a row that was toggled off.
-    changed cc => { if (root.cc != "") { root.show-cc = true; } }
-    changed bcc => { if (root.bcc != "") { root.show-bcc = true; } }
+    changed to => { root.addresses-changed(root.to, root.cc, root.bcc); }
+    changed cc => {
+        if (root.cc != "") { root.show-cc = true; }
+        root.addresses-changed(root.to, root.cc, root.bcc);
+    }
+    changed bcc => {
+        if (root.bcc != "") { root.show-bcc = true; }
+        root.addresses-changed(root.to, root.cc, root.bcc);
+    }
     private property <bool> suggestions-dismissed: false;
     // Suggestion rows hold a name and an address that grow with the platform font.
     private property <length> suggestion-pitch: 13px + max(18px, suggestion-name-probe.preferred-height)
@@ -408,6 +420,14 @@ export component ComposerRecipients inherits Rectangle {
                     text-color: root.body-color;
                     placeholder-color: root.muted-color;
                     focus-color: root.accent-color;
+                }
+
+                if root.address-checks.length > 0 : AddressChecks {
+                    checks: root.address-checks;
+                    text-color: root.body-color;
+                    muted-color: root.muted-color;
+                    chip-border-color: root.subtle-border-color;
+                    chip-background: root.raised-color;
                 }
             }
 

@@ -322,6 +322,9 @@ export global I18n {
         if (key == "Could not save the cleanup preference: {}") { return @tr("Could not save the cleanup preference: {}", argument); }
         if (key == "Notification preferences are active for this session.") { return @tr("Notification preferences are active for this session."); }
         if (key == "Notification preferences saved.") { return @tr("Notification preferences saved."); }
+        if (key == "Address check settings saved.") { return @tr("Address check settings saved."); }
+        if (key == "Address check settings are active for this session.") { return @tr("Address check settings are active for this session."); }
+        if (key == "Could not save address check settings: {}") { return @tr("Could not save address check settings: {}", argument); }
         if (key == "Update preference saved.") { return @tr("Update preference saved."); }
         if (key == "AI agents can be set up once an account is added.") { return @tr("AI agents can be set up once an account is added."); }
         if (key == "No folders") { return @tr("No folders"); }
@@ -1017,6 +1020,8 @@ export component AppWindow inherits Window {
     callback save_avatar_visibility(bool);
     callback save_show_tabs(bool);
     callback save_spelling_enabled(bool);
+    callback save_reacher_enabled(bool);
+    callback save_reacher_url(string);
     callback save_conversation_view(bool);
     callback save_group_mail_by_date(bool);
     callback choose_download_directory();
@@ -1421,6 +1426,9 @@ export component AppWindow inherits Window {
     // dictionary is installed to check with.
     in property <bool> spelling_available: false;
     in-out property <bool> spelling_enabled: true;
+    // The local Reacher service's address checks: on or off, and its endpoint.
+    in-out property <bool> reacher_enabled: true;
+    in-out property <string> reacher_url: "http://127.0.0.1:8084";
     in property <bool> spelling_installed: true;
     // Whose spell checker this platform uses: "hunspell", "windows" or "macos".
     in property <string> spelling_system: "";
@@ -2356,6 +2364,8 @@ export component AppWindow inherits Window {
             show_tabs <=> root.show_tabs;
             spelling_available: root.spelling_available;
             spelling_enabled <=> root.spelling_enabled;
+            reacher_enabled <=> root.reacher_enabled;
+            reacher_url <=> root.reacher_url;
             spelling_installed: root.spelling_installed;
             spelling_system: root.spelling_system;
             group_mail_by_date <=> root.group_mail_by_date;
@@ -2471,6 +2481,8 @@ export component AppWindow inherits Window {
             save_list_rows => { root.save_list_rows(); }
             save_show_tabs(enabled) => { root.save_show_tabs(enabled); }
             save_spelling_enabled(enabled) => { root.save_spelling_enabled(enabled); }
+            save_reacher_enabled(enabled) => { root.save_reacher_enabled(enabled); }
+            save_reacher_url(url) => { root.save_reacher_url(url); }
             prepare_profile_members(profile-id, account-id) => {
                 root.prepare_profile_members(profile-id, account-id);
             }

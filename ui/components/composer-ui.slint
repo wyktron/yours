@@ -1,4 +1,4 @@
-import { AccountRow, ComposeAttachment, ComposeLink, ComposeContact, ComposeEditorTile, EmailTemplateRow, LocalizedMessage, SpellingLanguage } from "../models.slint";
+import { AccountRow, AddressCheck, ComposeAttachment, ComposeLink, ComposeContact, ComposeEditorTile, EmailTemplateRow, LocalizedMessage, SpellingLanguage } from "../models.slint";
 import { AppTheme } from "../design-system.slint";
 import { TypeScale } from "../typography.slint";
 import { Button } from "button.slint";
@@ -30,6 +30,8 @@ export global ComposerUi {
     in-out property <int> account-id: -1;
     in-out property <string> from-label: @tr("No connected account");
     in property <[ComposeContact]> contact-suggestions: [];
+    // One chip per complete recipient address, with the local Reacher answer.
+    in property <[AddressCheck]> address-checks: [];
     in property <[ComposeAttachment]> attachments: [];
     in property <string> attachment-summary: "";
     // Files the message sends by link, and whether a storage service is there to send them.
@@ -157,6 +159,8 @@ export global ComposerUi {
     callback deliver-individually-toggled(bool);
     // Every change of the To field, for the choice above.
     callback recipients-changed(string);
+    // Every change of any recipient field, for address verification.
+    callback addresses-changed(string, string, string);
     // Opens a picker for images to put in the text at the caret.
     callback insert-images();
     callback remove-attachment(int);
@@ -261,6 +265,7 @@ export component BoundComposer inherits EmailComposer {
     accounts: ComposerUi.accounts;
     selected-account-id <=> ComposerUi.account-id;
     contact-suggestions: ComposerUi.contact-suggestions;
+    address-checks: ComposerUi.address-checks;
     attachments: ComposerUi.attachments;
     links: ComposerUi.links;
     link-sharing: ComposerUi.link-sharing;
@@ -358,6 +363,7 @@ export component BoundComposer inherits EmailComposer {
     deliver-individually-visible: ComposerUi.deliver-individually-visible;
     deliver-individually-toggled(on) => { ComposerUi.deliver-individually-toggled(on); }
     recipients-changed(recipients) => { ComposerUi.recipients-changed(recipients); }
+    addresses-changed(to, cc, bcc) => { ComposerUi.addresses-changed(to, cc, bcc); }
     insert-images => { ComposerUi.insert-images(); }
     remove-attachment(index) => { ComposerUi.remove-attachment(index); }
     remove-link(index) => { ComposerUi.remove-link(index); }

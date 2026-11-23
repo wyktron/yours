@@ -1036,6 +1036,63 @@ pub(super) fn register_settings_preference_callbacks(
     });
 
     let app_weak = app.as_weak();
+    let state_for_reacher = Rc::clone(state);
+    let runtime_for_reacher = runtime.clone();
+    app.on_save_reacher_enabled(move |enabled| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        crate::composer::set_address_checks_enabled(enabled);
+        app.set_reacher_enabled(enabled);
+        let Some(core) = state_for_reacher.borrow().core.clone() else {
+            app.set_sync_status(UiMessage::plain(
+                "Address check settings are active for this session.",
+            ));
+            crate::composer::address_checks_changed();
+            return;
+        };
+        match runtime_for_reacher.block_on(core.set_reacher_enabled(enabled)) {
+            Ok(()) => {
+                app.set_sync_status(UiMessage::plain("Address check settings saved."));
+                crate::composer::address_checks_changed();
+            }
+            Err(error) => app.set_sync_status(UiMessage::detail(
+                "Could not save address check settings: {}",
+                error,
+            )),
+        }
+    });
+
+    let app_weak = app.as_weak();
+    let state_for_reacher_url = Rc::clone(state);
+    let runtime_for_reacher_url = runtime.clone();
+    app.on_save_reacher_url(move |url| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        let Some(core) = state_for_reacher_url.borrow().core.clone() else {
+            app.set_reacher_url(url);
+            app.set_sync_status(UiMessage::plain(
+                "Address check settings are active for this session.",
+            ));
+            return;
+        };
+        match runtime_for_reacher_url.block_on(core.set_reacher_url(&url)) {
+            Ok(()) => {
+                app.set_reacher_url(url);
+                app.set_sync_status(UiMessage::plain("Address check settings saved."));
+                // Answers from the old service must not keep colouring chips.
+                crate::composer::reset_address_checks();
+                crate::composer::address_checks_changed();
+            }
+            Err(error) => app.set_sync_status(UiMessage::detail(
+                "Could not save address check settings: {}",
+                error,
+            )),
+        }
+    });
+
+    let app_weak = app.as_weak();
     let state_for_tabs = Rc::clone(state);
     let runtime_for_tabs = runtime.clone();
     app.on_save_show_tabs(move |enabled| {

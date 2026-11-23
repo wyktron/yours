@@ -704,6 +704,9 @@ pub(super) fn restore_account_backup(
         settings.spelling_languages.clone(),
     );
     crate::spelling::apply_to_window(app);
+    app.set_reacher_enabled(settings.reacher_enabled);
+    app.set_reacher_url(settings.reacher_url.clone().into());
+    crate::composer::set_address_checks_enabled(settings.reacher_enabled);
     apply_mail_grouping(app, state, runtime, settings.mail_grouping());
     app.set_show_account_markers(settings.show_account_badges);
     crate::window_chrome::apply_preference(
@@ -1718,6 +1721,10 @@ pub(super) fn register_data_management_callbacks(
                     crate::app_icon::apply(&app, Default::default());
                     app.set_show_avatars(true);
                     crate::apply_list_rows(&app, &Default::default());
+                    app.set_reacher_enabled(true);
+                    app.set_reacher_url(flectar_mail_core::reacher::DEFAULT_URL.into());
+                    crate::composer::set_address_checks_enabled(true);
+                    crate::composer::reset_address_checks();
                     app.set_show_tabs(true);
                     apply_mail_grouping(
                         &app,

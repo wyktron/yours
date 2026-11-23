@@ -384,6 +384,9 @@ export component SettingsDialog inherits Rectangle {
     in-out property <bool> show_tabs: true;
     in property <bool> spelling_available: false;
     in-out property <bool> spelling_enabled: true;
+    // Address checks: the local Reacher service's switch and endpoint.
+    in-out property <bool> reacher_enabled: true;
+    in-out property <string> reacher_url: "http://127.0.0.1:8084";
     in property <bool> spelling_installed: false;
     in property <string> spelling_system: "";
     in-out property <bool> group_mail_by_date: true;
@@ -538,6 +541,8 @@ export component SettingsDialog inherits Rectangle {
     callback save_avatar_visibility(bool);
     callback save_show_tabs(bool);
     callback save_spelling_enabled(bool);
+    callback save_reacher_enabled(bool);
+    callback save_reacher_url(string);
     callback save_group_mail_by_date(bool);
     callback save_conversation_view(bool);
     callback choose_download_directory();
@@ -781,6 +786,7 @@ export component SettingsDialog inherits Rectangle {
             ? @tr("general theme appearance palette app icon dock taskbar launcher language time clock 12-hour 24-hour workspace layout window frameless title bar renderer privacy remote images sync group messages date inbox tray background startup sign in login download location folder attachments save tabs conversations threads reduce motion animation accessibility text size font") + " " + @tr("sending undo send delay take back") + " " + @tr("large files share by link cloud storage nextcloud owncloud google drive onedrive expiry password")
                 + " " + @tr("spelling spell check dictionary misspelled words")
                 + " " + @tr("writing default text style font typeface text size")
+                + " " + @tr("address checks reacher email verification deliverability recipient mailbox exists risky endpoint")
                 + " " + @tr("message list density compact comfortable rows preview lines")
                 + " " + @tr("mark read opened delay receipts")
             : section == "Accounts"
@@ -1517,6 +1523,50 @@ export component SettingsDialog inherits Rectangle {
                                         description-color: root.faint-text;
                                         selected(index, value) => { root.select-compose-size(index); }
                                     }
+                                }
+                            }
+
+                            Rectangle {
+                                height: max(root.compact ? 236px : 210px, self.preferred-height);
+                                background: root.surface;
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: root.border-subtle;
+                                VerticalBox {
+                                    padding-top: 15px;
+                                    padding-right: 20px;
+                                    padding-bottom: 15px;
+                                    padding-left: 20px;
+                                    spacing: 6px;
+                                    Text { text: @tr("Address checks"); color: root.heading; font-size: TypeScale.subtitle; font-weight: 700; wrap: word-wrap; }
+                                    SettingsSwitchRow {
+                                        compact: root.compact;
+                                        title: @tr("Check recipient addresses");
+                                        description: @tr("Ask the local Reacher service whether each new recipient's mailbox exists, and color its address chip.");
+                                        checked: root.reacher_enabled;
+                                        title-color: root.body-text;
+                                        description-color: root.faint-text;
+                                        toggled(checked) => {
+                                            root.reacher_enabled = checked;
+                                            root.save_reacher_enabled(checked);
+                                        }
+                                    }
+                                    Rectangle { height: 1px; background: root.border-subtle; }
+                                    Text { text: @tr("Endpoint"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                    HorizontalBox {
+                                        spacing: 8px;
+                                        LineEdit {
+                                            horizontal-stretch: 1;
+                                            text <=> root.reacher_url;
+                                            placeholder-text: @tr("http://127.0.0.1:8084");
+                                            input-label: @tr("Reacher endpoint");
+                                        }
+                                        Button {
+                                            text: @tr("Save");
+                                            clicked => { root.save_reacher_url(root.reacher_url); }
+                                        }
+                                    }
+                                    Text { height: max(17px, self.preferred-height); text: @tr("Checks stay on this machine and never block writing a message. Leave empty to use the installed service."); color: root.faint-text; font-size: TypeScale.secondary; wrap: word-wrap; }
                                 }
                             }
 

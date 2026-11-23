@@ -326,6 +326,42 @@ impl crate::Core {
         let cfg = ReacherConfig::from_settings(&settings);
         check(&cfg, email).await
     }
+
+    /// Turn address checks on or off, keeping the endpoint.
+    pub async fn set_reacher_enabled(&self, enabled: bool) -> Result<()> {
+        self.db
+            .write(move |conn| {
+                let mut settings = crate::db::repo::settings::get(conn)?;
+                settings.reacher_enabled = enabled;
+                crate::db::repo::settings::set(conn, &settings)
+            })
+            .await
+    }
+
+    /// Save the Reacher endpoint, falling back to the installed one when empty.
+    ///
+    /// The trim and fallback happen here rather than at the endpoint builder so
+    /// every caller persists the same value the check will use.
+    pub async fn set_reacher_url(&self, url: &str) -> Result<()> {
+        let url = normalize_url(url);
+        self.db
+            .write(move |conn| {
+                let mut settings = crate::db::repo::settings::get(conn)?;
+                settings.reacher_url = url;
+                crate::db::repo::settings::set(conn, &settings)
+            })
+            .await
+    }
+}
+
+/// The endpoint stored in Settings: trimmed, and the installed one when empty.
+fn normalize_url(url: &str) -> String {
+    let url = url.trim();
+    if url.is_empty() {
+        DEFAULT_URL.to_owned()
+    } else {
+        url.to_owned()
+    }
 }
 
 #[cfg(test)]
@@ -475,6 +511,15 @@ mod tests {
         let json = serde_json::to_value(settings).unwrap();
         assert_eq!(json["reacherUrl"].as_str(), Some(DEFAULT_URL));
         assert_eq!(json["reacherEnabled"], true);
+    }
+
+    #[test]
+    fn saving_an_empty_endpoint_keeps_the_installed_service() {
+        assert_eq!(normalize_url("  "), DEFAULT_URL);
+        assert_eq!(
+            normalize_url(" http://127.0.0.1:9999/ "),
+            "http://127.0.0.1:9999/"
+        );
     }
 
     #[test]

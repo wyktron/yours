@@ -476,6 +476,14 @@ export struct ComposeContact {
     initials: string,
 }
 
+// One complete recipient address and the local Reacher answer for it:
+// "checking", "safe", "invalid", "unknown" or "risky". The wording and the
+// colour stay in the UI so they follow the language and theme.
+export struct AddressCheck {
+    address: string,
+    state: string,
+}
+
 // Mirrors flectar_mail_core::models::ContactSync.
 export enum ContactSyncState { local, detached, synced, pending, conflict, unavailable, failed }
 

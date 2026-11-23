@@ -1,7 +1,7 @@
 import { AccountMailPreferences } from "account-mail-preferences.slint";
 import { SettingsSelectRow } from "settings-components.slint";
 import { ScrollView, VerticalBox } from "std-widgets.slint";
-import { AccountRow, ComposeAttachment, ComposeLink, ComposeContact, ComposeEditorTile, EmailTemplateRow, SpellingLanguage } from "../models.slint";
+import { AccountRow, AddressCheck, ComposeAttachment, ComposeLink, ComposeContact, ComposeEditorTile, EmailTemplateRow, SpellingLanguage } from "../models.slint";
 import { ComposerFromRow, ComposerHeader, ComposerRecipients, ComposerSubject } from "composer-fields.slint";
 import { ComposerAttachments, ComposerFooter, ComposerNotice, ComposerPhotos, ComposerToolbar, DiscardConfirmation, ImageAltEditor, ImageBar, ImageResizeFrame, LinkEditor } from "composer-actions.slint";
 import { EmailTemplates } from "email-templates.slint";
@@ -38,6 +38,8 @@ export component EmailComposer inherits Rectangle {
     in property <[AccountRow]> accounts: [];
     in-out property <int> selected-account-id: -1;
     in property <[ComposeContact]> contact-suggestions: [];
+    // One chip per complete recipient address, with the Reacher answer.
+    in property <[AddressCheck]> address-checks: [];
     in property <[ComposeAttachment]> attachments: [];
     in property <[ComposeLink]> links: [];
     in property <bool> link-sharing: false;
@@ -151,6 +153,8 @@ export component EmailComposer inherits Rectangle {
     callback schedule();
     // The To field changed, for the footer's deliver-individually choice.
     callback recipients-changed(string);
+    // Any recipient field changed, for address verification.
+    callback addresses-changed(string, string, string);
     callback deliver-individually-toggled(bool);
     callback insert-images;
     callback remove-attachment(int);
@@ -338,6 +342,9 @@ export component EmailComposer inherits Rectangle {
             if root.to != "" || root.signature-mode {
                 body-input.focus();
             }
+            // A draft, reply or message moved into a window arrived with its
+            // recipients already in the fields.
+            root.addresses-changed(root.to, root.cc, root.bcc);
         }
     }
     changed editor-width => { root.editor-layout-changed(); }
@@ -488,6 +495,7 @@ export component EmailComposer inherits Rectangle {
             cc <=> root.cc;
             bcc <=> root.bcc;
             contacts: root.contact-suggestions;
+            address-checks: root.address-checks;
             accent-background: root.accent-background;
             accent-color: root.accent-color;
             background-color: root.background-color;
@@ -502,6 +510,9 @@ export component EmailComposer inherits Rectangle {
             }
             contact-selected(index) => {
                 root.to = root.select-contact(index, root.to);
+            }
+            addresses-changed(to, cc, bcc) => {
+                root.addresses-changed(to, cc, bcc);
             }
         }
 

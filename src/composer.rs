@@ -10,10 +10,13 @@ use flectar_mail_core::models::{
     Address, AttachmentMeta, Importance, QueueSendArgs, SaveDraftArgs, SenderIdentity, Settings,
     Signature,
 };
+use flectar_mail_core::reacher::ReacherVerdict;
 use slint::SharedString;
 #[cfg(desktop)]
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Weak;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 mod forward;
 mod link_block;
@@ -29,6 +32,64 @@ use plain_text::PlainEdit;
 
 thread_local! {
     static COMPOSERS: RefCell<Option<Rc<Composers>>> = const { RefCell::new(None) };
+}
+
+/// Whether Settings has address checks on. Kept beside the composers so typing
+/// never has to read the database to decide whether to draw a chip.
+static ADDRESS_CHECKS_ENABLED: AtomicBool = AtomicBool::new(true);
+/// Typing settles for this long before the addresses are sent to Reacher.
+const ADDRESS_CHECK_DEBOUNCE: Duration = Duration::from_millis(450);
+/// The local service is small; never keep more than a handful of probes open.
+const ADDRESS_CHECKS_IN_FLIGHT: usize = 3;
+
+/// What the composers know about one address this session. The cache is shared
+/// by every composer, so the same address is only ever guessed once.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AddressCheckState {
+    Queued,
+    Checking,
+    Checked(ReacherVerdict),
+}
+
+/// Settings has an "Address checks" switch; the composers read it here.
+pub(crate) fn set_address_checks_enabled(enabled: bool) {
+    ADDRESS_CHECKS_ENABLED.store(enabled, Ordering::Relaxed);
+}
+
+/// The switch or endpoint changed: redraw open composers and check their
+/// addresses again with the new setting.
+pub(crate) fn address_checks_changed() {
+    COMPOSERS.with(|slot| {
+        let Some(composers) = slot.borrow().clone() else {
+            return;
+        };
+        refresh_all_address_checks(&composers);
+        let sessions = composers.sessions.borrow().clone();
+        for session in sessions {
+            session.refresh_address_checks_ui();
+            session.schedule_address_checks();
+        }
+        // Queued work survives a switch turned off and resumes when it is on.
+        composers.pump_address_checks();
+    });
+}
+
+/// The endpoint changed: answers from the previous service must not be shown.
+pub(crate) fn reset_address_checks() {
+    COMPOSERS.with(|slot| {
+        let Some(composers) = slot.borrow().clone() else {
+            return;
+        };
+        composers
+            .address_check_epoch
+            .set(composers.address_check_epoch.get().wrapping_add(1));
+        composers.address_checks.borrow_mut().clear();
+        composers.address_check_queue.borrow_mut().clear();
+        let sessions = composers.sessions.borrow().clone();
+        for session in sessions {
+            session.refresh_address_checks_ui();
+        }
+    });
 }
 
 /// How long a message's own window may take to appear. Winit drops a window
@@ -53,6 +114,13 @@ pub(super) struct Composers {
     /// Wakes the composers when a quoted message's image finished loading.
     quote_wake: UiWake,
     quote_poll_pending: Cell<bool>,
+    /// Every address checked this session, including the ones queued or in
+    /// flight, so the same address is never asked twice.
+    address_checks: RefCell<HashMap<String, AddressCheckState>>,
+    address_check_queue: RefCell<VecDeque<String>>,
+    address_checks_running: Cell<usize>,
+    /// Bumped when the endpoint changes, to discard answers already on their way.
+    address_check_epoch: Cell<u64>,
     /// Files dropped on the main window with no message open there, for the
     /// new one they start. They arrive one at a time.
     #[cfg(desktop)]
@@ -87,6 +155,8 @@ pub(super) struct ComposeSession {
     /// Bumped when the message is cleared, so a file picker or a download of
     /// the original's files that finishes later attaches to nothing.
     generation: Cell<u64>,
+    /// Bumped for each edit of the recipient fields; an older debounce is ignored.
+    address_check_generation: Cell<u64>,
     pub(super) document: RefCell<RichComposeDocument>,
     pub(super) editor: RefCell<LazyComposeEditor>,
     contacts: RefCell<Vec<Address>>,
@@ -246,6 +316,10 @@ pub(super) fn install(
         sessions: RefCell::default(),
         quote_wake: UiWake::new(app.as_weak(), |app| app.invoke_refresh_composer_quotes()),
         quote_poll_pending: Cell::new(false),
+        address_checks: RefCell::default(),
+        address_check_queue: RefCell::default(),
+        address_checks_running: Cell::new(0),
+        address_check_epoch: Cell::new(0),
         #[cfg(desktop)]
         dropped: RefCell::default(),
     });
@@ -582,6 +656,7 @@ fn copy_composer(from: &ComposerUi<'_>, to: &ComposerUi<'_>) {
     to.set_quote_text(from.get_quote_text());
     to.set_quote_expanded(from.get_quote_expanded());
     to.set_quote_height(from.get_quote_height());
+    to.set_address_checks(from.get_address_checks());
 }
 
 /// The sender and signature a message chose, for it moving to another window.
@@ -615,6 +690,54 @@ fn compose_recipients(recipients: &str) -> Result<Vec<Address>, String> {
         .filter(|recipient| !recipient.is_empty())
         .map(crate::mail::parse_address)
         .collect()
+}
+
+/// The complete addresses of every recipient field, in To, Cc, Bcc order and
+/// without duplicates. Incomplete fragments are ignored, as sending ignores
+/// them only until it reports the first bad address.
+fn recipient_addresses(ui: &ComposerUi<'_>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut addresses = Vec::new();
+    for field in [ui.get_to(), ui.get_cc(), ui.get_bcc()] {
+        for address in field
+            .split([',', ';', '\n'])
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .filter_map(|value| crate::mail::parse_address(value).ok())
+            .map(|address| address.email.trim().to_owned())
+            .filter(|email| !email.is_empty())
+        {
+            if seen.insert(check_key(&address)) {
+                addresses.push(address);
+            }
+        }
+    }
+    addresses
+}
+
+fn check_key(address: &str) -> String {
+    address.trim().to_ascii_lowercase()
+}
+
+const fn verdict_state(verdict: ReacherVerdict) -> &'static str {
+    match verdict {
+        ReacherVerdict::Safe => "safe",
+        ReacherVerdict::Invalid => "invalid",
+        ReacherVerdict::Unknown => "unknown",
+        ReacherVerdict::Risky => "risky",
+    }
+}
+
+/// Redraw every live composer from the shared cache, when a result arrives or
+/// the setting changes.
+fn refresh_all_address_checks(composers: &Rc<Composers>) {
+    let sessions = composers.sessions.borrow().clone();
+    for session in sessions {
+        if session.disposed.get() {
+            continue;
+        }
+        session.refresh_address_checks_ui();
+    }
 }
 
 /// How many complete addresses the To field names, for the choice above.
@@ -658,6 +781,87 @@ fn copy_appearance(app: &AppWindow, window: &ComposerWindow) {
 impl Composers {
     fn core(&self) -> Option<CoreMailSource> {
         self.state.borrow().core.clone()
+    }
+
+    /// Start queued checks while there is room for them. The local service is
+    /// small, so this is the only place a request is launched.
+    fn pump_address_checks(self: &Rc<Self>) {
+        if !ADDRESS_CHECKS_ENABLED.load(Ordering::Relaxed) {
+            return;
+        }
+        let Some(core) = self.core() else {
+            // Without a core nothing can answer; yellow chips are honest.
+            let mut checked = self.address_checks.borrow_mut();
+            let mut queue = self.address_check_queue.borrow_mut();
+            while let Some(key) = queue.pop_front() {
+                checked.insert(
+                    key,
+                    AddressCheckState::Checked(ReacherVerdict::Unknown),
+                );
+            }
+            drop(queue);
+            drop(checked);
+            refresh_all_address_checks(self);
+            return;
+        };
+        loop {
+            if self.address_checks_running.get() >= ADDRESS_CHECKS_IN_FLIGHT {
+                return;
+            }
+            let Some(key) = self.address_check_queue.borrow_mut().pop_front() else {
+                return;
+            };
+            let queued = matches!(
+                self.address_checks.borrow().get(&key),
+                Some(AddressCheckState::Queued)
+            );
+            if !queued {
+                continue;
+            }
+            self.address_checks
+                .borrow_mut()
+                .insert(key.clone(), AddressCheckState::Checking);
+            self.address_checks_running
+                .set(self.address_checks_running.get() + 1);
+            let weak = Rc::downgrade(self);
+            let epoch = self.address_check_epoch.get();
+            let address = key.clone();
+            let core = core.clone();
+            let spawned = slint::spawn_local(async move {
+                let verdict = core.reacher_check(&address).await.ok();
+                if let Some(composers) = weak.upgrade() {
+                    composers.finish_address_check(&address, epoch, verdict);
+                }
+            });
+            if spawned.is_err() {
+                self.address_checks.borrow_mut().insert(
+                    key,
+                    AddressCheckState::Checked(ReacherVerdict::Unknown),
+                );
+                self.address_checks_running
+                    .set(self.address_checks_running.get().saturating_sub(1));
+                refresh_all_address_checks(self);
+            }
+        }
+    }
+
+    fn finish_address_check(
+        self: &Rc<Self>,
+        address: &str,
+        epoch: u64,
+        verdict: Option<ReacherVerdict>,
+    ) {
+        self.address_checks_running
+            .set(self.address_checks_running.get().saturating_sub(1));
+        // An endpoint change invalidates answers already on their way.
+        if epoch == self.address_check_epoch.get() {
+            self.address_checks.borrow_mut().insert(
+                address.to_owned(),
+                AddressCheckState::Checked(verdict.unwrap_or(ReacherVerdict::Unknown)),
+            );
+            refresh_all_address_checks(self);
+        }
+        self.pump_address_checks();
     }
 
     /// The message the main window's composer shows.
@@ -722,6 +926,7 @@ impl Composers {
             next_link: Cell::new(0),
             link_timer: Timer::default(),
             generation: Cell::new(0),
+            address_check_generation: Cell::new(0),
             document: RefCell::default(),
             editor: RefCell::default(),
             contacts: RefCell::default(),
@@ -1300,6 +1505,106 @@ impl ComposeSession {
         self.composers.upgrade()
     }
 
+    /// The recipient fields changed: redraw the chips at once and wait for
+    /// typing to settle before asking the service.
+    fn recipients_edited(self: &Rc<Self>) {
+        self.refresh_address_checks_ui();
+        self.schedule_address_checks();
+    }
+
+    /// Wait for the fields to stop changing, then check the addresses that
+    /// have no answer yet. Each edit supersedes the previous debounce.
+    fn schedule_address_checks(self: &Rc<Self>) {
+        if self.host().is_none() {
+            return;
+        }
+        let generation = self.address_check_generation.get().wrapping_add(1);
+        self.address_check_generation.set(generation);
+        let weak = self.reference();
+        Timer::single_shot(ADDRESS_CHECK_DEBOUNCE, move || {
+            let Some(session) = weak.upgrade() else {
+                return;
+            };
+            if session.disposed.get() || session.address_check_generation.get() != generation {
+                return;
+            }
+            session.run_address_checks();
+        });
+    }
+
+    fn run_address_checks(self: &Rc<Self>) {
+        let Some(host) = self.host() else {
+            return;
+        };
+        let ui = host.ui();
+        if !ui.get_open() {
+            return;
+        }
+        self.refresh_address_checks_ui();
+        if !ADDRESS_CHECKS_ENABLED.load(Ordering::Relaxed) {
+            return;
+        }
+        let Some(composers) = self.composers() else {
+            return;
+        };
+        let mut pending = Vec::new();
+        {
+            let checked = composers.address_checks.borrow();
+            for address in recipient_addresses(&ui) {
+                let key = check_key(&address);
+                if !checked.contains_key(&key) {
+                    pending.push(key);
+                }
+            }
+        }
+        if pending.is_empty() {
+            return;
+        }
+        {
+            let mut checked = composers.address_checks.borrow_mut();
+            let mut queue = composers.address_check_queue.borrow_mut();
+            for key in pending {
+                checked.insert(key.clone(), AddressCheckState::Queued);
+                queue.push_back(key);
+            }
+        }
+        composers.pump_address_checks();
+    }
+
+    /// Draw one chip per current recipient from the shared session cache.
+    fn refresh_address_checks_ui(&self) {
+        let Some(host) = self.host() else {
+            return;
+        };
+        let ui = host.ui();
+        if !ui.get_open() {
+            ui.set_address_checks(ModelRc::default());
+            return;
+        }
+        let Some(composers) = self.composers() else {
+            return;
+        };
+        let rows = if ADDRESS_CHECKS_ENABLED.load(Ordering::Relaxed) {
+            let checked = composers.address_checks.borrow();
+            recipient_addresses(&ui)
+                .into_iter()
+                .map(|address| {
+                    let state = match checked.get(&check_key(&address)) {
+                        Some(AddressCheckState::Checked(verdict)) => verdict_state(*verdict),
+                        _ => "checking",
+                    };
+                    AddressCheck {
+                        address: address.into(),
+                        state: state.into(),
+                    }
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        ui.set_address_checks(ModelRc::new(VecModel::from(rows)));
+    }
+
     /// Fill the editor and the formatting state from the document.
     fn apply_document(&self, host: &HostRef) {
         {
@@ -1730,6 +2035,8 @@ impl ComposeSession {
         self.photos.clear();
         // A picker still open for this composer must not attach to another.
         self.generation.set(self.generation.get().wrapping_add(1));
+        self.address_check_generation
+            .set(self.address_check_generation.get().wrapping_add(1));
         self.preferences_generation
             .set(self.preferences_generation.get().wrapping_add(1));
         self.clear_spelling();
@@ -1861,6 +2168,12 @@ impl ComposeSession {
                 && let Some(host) = session.host()
             {
                 update_recipient_options(&host.ui(), &recipients);
+            }
+        });
+        let weak = self.reference();
+        ui.on_addresses_changed(move |_, _, _| {
+            if let Some(session) = weak.upgrade() {
+                session.recipients_edited();
             }
         });
         let weak = self.reference();
@@ -2097,6 +2410,9 @@ impl ComposeSession {
         // A message that moves into its own window copied its To field before
         // this host's callbacks existed, so set the choice from it here.
         update_recipient_options(&ui, &ui.get_to());
+        // Likewise, draw its chips from the cache and check anything new.
+        self.refresh_address_checks_ui();
+        self.schedule_address_checks();
     }
 
     fn close(self: &Rc<Self>) {

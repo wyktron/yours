@@ -3185,6 +3185,33 @@ impl CoreMailSource {
             .map_err(|error| error.to_string())
     }
 
+    /// What the local Reacher service says about one address. Settings are read
+    /// by the core for every call, so a changed endpoint or switch applies at
+    /// once; transport failures stay errors for the caller to map.
+    pub async fn reacher_check(
+        &self,
+        email: &str,
+    ) -> Result<flectar_mail_core::reacher::ReacherVerdict, String> {
+        self.core
+            .reacher_check(email)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    pub async fn set_reacher_enabled(&self, enabled: bool) -> Result<(), String> {
+        self.core
+            .set_reacher_enabled(enabled)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    pub async fn set_reacher_url(&self, url: &str) -> Result<(), String> {
+        self.core
+            .set_reacher_url(url)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
     pub async fn wait_for_send(&self, action_id: i64) -> Result<(), String> {
         self.core
             .wait_for_send(action_id)

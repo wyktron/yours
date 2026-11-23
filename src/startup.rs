@@ -1347,6 +1347,9 @@ pub(crate) fn apply_settings(app: &AppWindow, settings: &Settings) {
         settings.spelling_languages.clone(),
     );
     crate::spelling::apply_to_window(app);
+    app.set_reacher_enabled(settings.reacher_enabled);
+    app.set_reacher_url(settings.reacher_url.clone().into());
+    crate::composer::set_address_checks_enabled(settings.reacher_enabled);
     app.set_suggest_learned_contacts(settings.suggest_learned_contacts);
     app.set_close_to_tray(settings.close_to_tray && !cfg!(mobile));
     crate::window_chrome::apply_preference(

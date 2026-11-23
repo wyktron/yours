@@ -1,0 +1,133 @@
+import { ScrollView } from "std-widgets.slint";
+import { AddressCheck } from "../models.slint";
+import { AppTheme } from "../design-system.slint";
+import { TypeScale } from "../typography.slint";
+
+// What a Reacher answer means, in the words the service itself uses.
+global AddressCheckText {
+    public pure function message(state: string) -> string {
+        return state == "safe" ? @tr("Mailbox exists")
+            : state == "invalid" ? @tr("Address does not exist")
+            : state == "risky" ? @tr("Mailbox may be full or risky")
+            : state == "unknown" ? @tr("Could not verify")
+            : "";
+    }
+}
+
+// One address and its verdict. Until the answer arrives it keeps the neutral
+// look of any other chip in the composer; then only the border, dot and short
+// verdict take the verdict colour.
+component AddressCheckChip inherits Rectangle {
+    in property <AddressCheck> check;
+    in property <color> text-color;
+    in property <color> muted-color;
+    in property <color> chip-border-color;
+    in property <color> chip-background;
+
+    private property <string> message: AddressCheckText.message(root.check.state);
+    private property <bool> answered: root.check.state != "checking";
+    private property <color> verdict-color:
+        root.check.state == "safe" ? (AppTheme.dark ? #69db7c : #237b3e)
+        : root.check.state == "invalid" ? (AppTheme.dark ? #ff8787 : #b42318)
+        : root.check.state == "risky" ? (AppTheme.dark ? #da77f2 : #7b2d8e)
+        : (AppTheme.dark ? #ffd43b : #8a6100);
+    private property <length> address-width: min(190px, address-probe.preferred-width);
+    private property <length> message-width: root.answered && root.message != ""
+        ? min(205px, message-probe.preferred-width) : 0px;
+
+    width: 28px + root.address-width + (root.message-width > 0px ? 8px + root.message-width : 0px);
+    height: 26px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: root.answered ? root.verdict-color.transparentize(0.3) : root.chip-border-color;
+    background: root.answered ? root.verdict-color.transparentize(0.9) : root.chip-background;
+    accessible-role: text;
+    accessible-label: root.message == ""
+        ? @tr("{}: checking address", root.check.address)
+        : @tr("{}: {}", root.check.address, root.message);
+
+    address-probe := Text {
+        visible: false;
+        text: root.check.address;
+        font-size: TypeScale.caption;
+        font-weight: 600;
+    }
+
+    message-probe := Text {
+        visible: false;
+        text: root.message;
+        font-size: TypeScale.caption;
+    }
+
+    Rectangle {
+        x: 9px;
+        y: (parent.height - 8px) / 2;
+        width: 8px;
+        height: 8px;
+        border-radius: 4px;
+        background: root.answered ? root.verdict-color : root.muted-color;
+    }
+
+    Text {
+        x: 23px;
+        y: 0px;
+        width: root.address-width;
+        height: parent.height;
+        text: root.check.address;
+        color: root.text-color;
+        font-size: TypeScale.caption;
+        font-weight: 600;
+        overflow: elide;
+        vertical-alignment: center;
+    }
+
+    if root.message-width > 0px : Text {
+        x: 23px + root.address-width + 8px;
+        y: 0px;
+        width: root.message-width;
+        height: parent.height;
+        text: root.message;
+        color: root.verdict-color;
+        font-size: TypeScale.caption;
+        overflow: elide;
+        vertical-alignment: center;
+    }
+}
+
+// The addresses of the current message, one chip each, in a strip that pans
+// sideways when a message has more recipients than fit.
+export component AddressChecks inherits Rectangle {
+    in property <[AddressCheck]> checks: [];
+    in property <color> text-color;
+    in property <color> muted-color;
+    in property <color> chip-border-color;
+    in property <color> chip-background;
+
+    visible: root.checks.length > 0;
+    height: root.checks.length > 0 ? 32px : 0px;
+    background: transparent;
+
+    ScrollView {
+        x: 12px;
+        y: 2px;
+        width: max(0px, parent.width - 24px);
+        height: 28px;
+        content-width: max(self.visible-width, chip-row.preferred-width);
+        content-height: self.visible-height;
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        mouse-drag-pan-enabled: true;
+
+        chip-row := HorizontalLayout {
+            height: 28px;
+            spacing: 6px;
+            for check in root.checks : AddressCheckChip {
+                check: check;
+                text-color: root.text-color;
+                muted-color: root.muted-color;
+                chip-border-color: root.chip-border-color;
+                chip-background: root.chip-background;
+            }
+        }
+    }
+}
