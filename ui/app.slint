@@ -29,6 +29,7 @@ import "../resources/fonts/google-sans-flex/GoogleSansFlex-VariableFont_GRAD,RON
 
 import { Palette, ScrollView, TextEdit } from "std-widgets.slint";
 import { ActivitySpinner } from "components/activity-spinner.slint";
+import { Starfield } from "components/starfield.slint";
 import { InterfaceText, TypeScale } from "typography.slint";
 export { AppTheme, MotionSettings, ThemeUtilities } from "design-system.slint";
 export { InterfaceText } from "typography.slint";
@@ -1615,7 +1616,10 @@ export component AppWindow inherits Window {
         && (root.tabs-on || WindowChrome.controls-visible);
     changed tabs-on => { root.sync-window-chrome(); }
     // A tone apart from the workspace, so the active tab can open into it.
-    private property <color> tab-strip-bg: AppTheme.sidebar-tint.mix(AppTheme.title, 0.94);
+    // Space keeps the strip translucent, like its panes, so the stars carry
+    // into the chrome. A mix would calculate the tint opaque.
+    private property <color> tab-strip-bg: AppTheme.preset == "space" ? AppTheme.surface-raised
+        : AppTheme.sidebar-tint.mix(AppTheme.title, 0.94);
     changed top-bar => { root.sync-window-chrome(); }
     private property <length> content-x: root.safe-area-insets.left;
     private property <length> content-y: root.safe-area-insets.top + (root.top-bar ? WindowChrome.band-height : 0px);
@@ -1849,6 +1853,17 @@ export component AppWindow inherits Window {
         init => { root.sync-window-chrome(); }
     }
 
+    // The Space theme's starfield sits on the window's true-black page, behind
+    // every pane. Other presets instantiate nothing here at all. The timer
+    // stops while motion is reduced or the window is hidden to the tray.
+    if AppTheme.preset == "space" : Starfield {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        active: MotionSettings.movement && !root.render-suspended && !root.minimized;
+    }
+
     // Toolbar rows sit above this band; wherever they have no interactive
     // content, input falls through to it and moves the window.
     if WindowChrome.controls-visible : WindowDragArea {
@@ -1865,7 +1880,8 @@ export component AppWindow inherits Window {
         y: root.content-y;
         width: root.content-width;
         height: root.content-height;
-        background: root.page-bg;
+        // Transparent in Space so the starfield stays behind the first paint.
+        background: AppTheme.preset == "space" ? transparent : root.page-bg;
         accessible-role: groupbox;
         accessible-label: I18n.loading-local-data();
 
@@ -1905,7 +1921,8 @@ export component AppWindow inherits Window {
         y: root.content-y;
         width: root.content-width;
         height: root.content-height;
-        background: root.page-bg;
+        // Space's page is already painted by the window over the starfield.
+        background: AppTheme.preset == "space" ? transparent : root.page-bg;
 
         product-rail := ProductRail {
             visible: !root.compact-layout;
@@ -2144,7 +2161,8 @@ export component AppWindow inherits Window {
             hour-labels: root.calendar_hour_labels;
             selected-date-has-events: root.calendar_selected_date_has_events;
             view-mode: root.calendar_view_mode;
-            background-color: root.page-bg;
+            // Space lets the shared starfield show between calendar surfaces.
+            background-color: AppTheme.preset == "space" ? transparent : root.page-bg;
             sidebar-color: root.sidebar-bg;
             surface-color: root.surface;
             ui-border-color: root.border;

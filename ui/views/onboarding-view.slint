@@ -94,7 +94,8 @@ export component OnboardingView inherits Rectangle {
         root.account-protocol = protocol;
     }
 
-    background: root.page-bg;
+    // Space keeps the shared starfield visible behind onboarding too.
+    background: AppTheme.preset == "space" ? transparent : root.page-bg;
 
     setup-scroll := ScrollView {
         width: parent.width;

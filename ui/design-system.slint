@@ -133,8 +133,9 @@ export global AppTheme {
     // Pixel and Space are colour-only translations of their references: Pixel
     // HQ's night office becomes a midnight-violet canvas with neon mint
     // actions, a hot-pink focus accent and near-black borders; Dark Space's
-    // flat black chrome becomes layered blue-black surfaces, soft slate
-    // borders and cream text around a deep aurora blue.
+    // flat black chrome becomes a true #000000 page with a moving starfield,
+    // translucent blue-black surfaces, soft slate borders and cream text
+    // around a deep aurora blue.
     // Each non-default preset starts from five user-facing foundation colors.
     // The rest of the semantic tokens are derived consistently, so adding a
     // component never expands the persisted theme schema.
@@ -150,7 +151,7 @@ export global AppTheme {
         : custom-dark-primary;
     private property <color> themed-primary: dark ? dark-primary : light-primary;
     private property <color> themed-page-bg: preset == "oled" ? #000000
-        : preset == "pixel" ? #100d20 : preset == "space" ? #04060c
+        : preset == "pixel" ? #100d20 : preset == "space" ? #000000
         : preset == "teal" ? (dark ? #0b1519 : #edf5f7)
         : preset == "green" ? (dark ? #101711 : #f1f5ef)
         : preset == "purple" ? (dark ? #171119 : #f6f1f7)
@@ -193,23 +194,29 @@ export global AppTheme {
         : themed-primary;
 
     out property <color> page-bg: preset == "default" ? (dark ? #111213 : #f2f2f0) : themed-page-bg;
-    out property <color> surface: preset == "default" ? (dark ? #18191a : #ffffff) : themed-surface;
+    // Space paints its panes just short of opaque: the starfield underneath
+    // reads as a faint glimmer through the chrome, never as noise behind text.
+    // 0.94 alpha keeps every text token far above 4.5:1 over the effective
+    // background, even where a star sits directly behind a pane.
+    out property <color> surface: preset == "default" ? (dark ? #18191a : #ffffff)
+        : preset == "space" ? #0a0f19f0
+        : themed-surface;
     out property <color> surface-raised: preset == "default" ? (dark ? #131415 : #fafaf8)
-        : preset == "pixel" ? #211b3e : preset == "space" ? #0d1524
+        : preset == "pixel" ? #211b3e : preset == "space" ? #0d1524f2
         : themed-surface.mix(themed-page-bg, 0.72);
     // The sidebars' own tint, also a soft fill on the content.
     out property <color> sidebar-tint: preset == "default" ? (dark ? #151617 : #f0f0ee)
-        : preset == "pixel" ? #15112a : preset == "space" ? #070b13
+        : preset == "pixel" ? #15112a : preset == "space" ? #070b13f0
         : themed-page-bg.mix(themed-surface, 0.72);
     // Under the tab strip, sidebars share the content's surface, so the
     // active tab opens into one color wherever it sits; dividers alone
     // separate the panes there.
     out property <color> sidebar-bg: root.top-bar ? root.surface : root.sidebar-tint;
     out property <color> control-bg: preset == "default" ? (dark ? #232425 : #f1f1ef)
-        : preset == "pixel" ? #2a2348 : preset == "space" ? #111a2b
+        : preset == "pixel" ? #2a2348 : preset == "space" ? #111a2bf5
         : themed-surface.mix(themed-text, dark ? 0.90 : 0.94);
     out property <color> muted-control-bg: preset == "default" ? (dark ? #242526 : #e8e8e5)
-        : preset == "pixel" ? #221d3b : preset == "space" ? #0e1624
+        : preset == "pixel" ? #221d3b : preset == "space" ? #0e1624f2
         : themed-surface.mix(themed-text, dark ? 0.86 : 0.90);
     // Product actions deliberately keep the established Flectar blue in both
     // themes. The lighter dark-theme accent remains available for selection,

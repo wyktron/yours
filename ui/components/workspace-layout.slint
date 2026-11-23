@@ -30,7 +30,9 @@ export component WorkspaceFrame inherits Rectangle {
     y: 0px;
     width: max(0px, root.available-width - root.base-x);
     height: max(0px, root.available-height - (root.compact && root.reserve-compact-navigation ? LayoutMetrics.compact-navigation-height : 0px));
-    background: AppTheme.page-bg;
+    // Space paints no opaque page here: the window's black page and its
+    // starfield show through the gaps between panes.
+    background: AppTheme.preset == "space" ? transparent : AppTheme.page-bg;
     clip: true;
     opacity: 0.72 + root.reveal-progress * 0.28;
 

@@ -1032,7 +1032,9 @@ export component MailListPane inherits FocusScope {
 
                     PullToRefresh {
                         vertical-stretch: 1;
-                        background: root.surface;
+                        // The pane sheet behind this is the Space theme's one
+                        // translucent surface; a second would hide the stars.
+                        background: AppTheme.preset == "space" ? transparent : root.surface;
                         // On phones, pulling the list down from its top checks the
                         // accounts in view, as F5 does on a keyboard.
                         enabled: root.compact && !root.loading && root.search_query == "";
@@ -1146,11 +1148,14 @@ export component MailListPane inherits FocusScope {
                                 border-radius: 6px;
                                 clip: true;
                                 opacity: !entry.is_header && row-drag.dragging ? 0.55 : 1;
-                                background: entry.is_header ? root.surface
+                                // Space's list pane sheet is already translucent;
+                                // painting the surface again per row would hide the
+                                // starfield behind two 94% layers.
+                                background: entry.is_header ? (AppTheme.preset == "space" ? transparent : root.surface)
                                     : mail-data.security != "" ? (mail-data.security == "phishing" ? #ff3b3026 : #ff8a0026)
                                     : mail-data.checked ? root.accent-soft
                                     : mail-data.selected ? root.selected-row
-                                    : root.surface;
+                                    : AppTheme.preset == "space" ? transparent : root.surface;
                                 border-width: !entry.is_header && entry.show_row && list-keyboard.focus-visible && root.keyboard-email-id == mail-data.id ? 2px : 0px;
                                 border-color: root.accent;
                                 animate opacity { duration: 120ms; }
