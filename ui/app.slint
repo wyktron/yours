@@ -3247,11 +3247,17 @@ export component AppWindow inherits Window {
                 }
                 ScrollView {
                     vertical-stretch: 1;
+                    // Wrap against the visible width, not the text's preferred
+                    // width: otherwise the line runs past the card and is cut.
+                    viewport-width: self.width;
                     Text {
+                        width: parent.width;
+                        height: self.preferred-height;
                         text: root.summary-text;
                         color: AppTheme.body;
                         font-size: 13px;
                         wrap: word-wrap;
+                        vertical-alignment: top;
                     }
                 }
             }
