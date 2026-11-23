@@ -826,7 +826,7 @@ export component MailListPane inherits FocusScope {
 
                     Rectangle {
                         height: root.compact ? LayoutMetrics.compact-header-height : LayoutMetrics.desktop-mail-toolbar-height;
-                        // Space's pane already paints its 72%-opaque surface
+                        // Space's pane already paints its translucent surface
                         // here; a second layer would hide the starfield behind
                         // the search chrome.
                         background: AppTheme.preset == "space" ? transparent : root.surface;
@@ -1153,7 +1153,7 @@ export component MailListPane inherits FocusScope {
                                 opacity: !entry.is_header && row-drag.dragging ? 0.55 : 1;
                                 // Space's list pane sheet is already translucent;
                                 // painting the surface again per row would hide the
-                                // starfield behind two 94% layers.
+                                // starfield behind a second pane layer.
                                 background: entry.is_header ? (AppTheme.preset == "space" ? transparent : root.surface)
                                     : mail-data.security != "" ? (mail-data.security == "phishing" ? #ff3b3026 : #ff8a0026)
                                     : mail-data.checked ? root.accent-soft

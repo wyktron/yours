@@ -195,19 +195,20 @@ export global AppTheme {
         : themed-primary;
 
     out property <color> page-bg: preset == "default" ? (dark ? #111213 : #f2f2f0) : themed-page-bg;
-    // Space paints its panes at 68% opacity over the true-black page: the
-    // starfield reads through every surface, and every text token still clears
-    // 4.5:1 even where the brightest star sits directly behind it. The tints
-    // are equal-channel charcoals, so no blue cast reaches the background.
+    // Space paints its panes at 55% opacity (raised surfaces 60%, sidebars
+    // 50%) over the true-black page: the starfield reads through every
+    // surface, and every text token still clears 4.5:1 even where a bright
+    // star sits directly behind it. The tints are equal-channel charcoals, so
+    // no blue cast reaches the background.
     out property <color> surface: preset == "default" ? (dark ? #18191a : #ffffff)
-        : preset == "space" ? #0a0a0aae
+        : preset == "space" ? #0a0a0a8c
         : themed-surface;
     out property <color> surface-raised: preset == "default" ? (dark ? #131415 : #fafaf8)
-        : preset == "pixel" ? #211b3e : preset == "space" ? #0d0d0dae
+        : preset == "pixel" ? #211b3e : preset == "space" ? #0d0d0d99
         : themed-surface.mix(themed-page-bg, 0.72);
     // The sidebars' own tint, also a soft fill on the content.
     out property <color> sidebar-tint: preset == "default" ? (dark ? #151617 : #f0f0ee)
-        : preset == "pixel" ? #15112a : preset == "space" ? #050505ae
+        : preset == "pixel" ? #15112a : preset == "space" ? #05050580
         : themed-page-bg.mix(themed-surface, 0.72);
     // Under the tab strip, sidebars share the content's surface, so the
     // active tab opens into one color wherever it sits; dividers alone
@@ -254,7 +255,7 @@ export global AppTheme {
         : themed-border.mix(themed-text, dark ? 0.80 : 0.86);
     out property <color> title: preset == "default" ? (dark ? #f3f3f2 : #202120) : themed-text;
     // Space's text tokens are lighter than the shared mixes: they must clear
-    // 4.5:1 even over a bright star seen through a 68%-opaque pane.
+    // 4.5:1 even over a bright star seen through a 55%-opaque pane.
     out property <color> heading: preset == "space" ? #f2ece2
         : preset == "default" ? (dark ? #e4e4e2 : #30312f)
         : themed-text.mix(themed-page-bg, 0.94);
@@ -264,10 +265,10 @@ export global AppTheme {
     out property <color> secondary: preset == "space" ? #e6e0d6
         : preset == "default" ? (dark ? #a0a19e : #72736f)
         : themed-text.mix(themed-page-bg, 0.80);
-    out property <color> muted: preset == "space" ? #e0dad0
+    out property <color> muted: preset == "space" ? #e6e0d6
         : preset == "default" ? (dark ? #80817e : #888985)
         : themed-text.mix(themed-page-bg, 0.72);
-    out property <color> faint: preset == "space" ? #dad4ca
+    out property <color> faint: preset == "space" ? #e4ded4
         : preset == "default" ? (dark ? #737471 : #949591)
         : themed-text.mix(themed-page-bg, 0.68);
     out property <color> disabled-bg: preset == "default" ? (dark ? #202122 : #ededeb)
