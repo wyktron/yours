@@ -359,6 +359,7 @@ pub(super) fn register(
         ui.set_busy(false);
         ui.set_account_id(-1);
         ui.set_account_label("".into());
+        ui.set_calendar_only(false);
         ui.set_signatures(ModelRc::default());
         ui.set_signature_names(ModelRc::default());
         ui.set_default_names(ModelRc::default());
@@ -401,6 +402,7 @@ pub(super) fn register(
                         if let Some(config) = configs.iter().find(|c| c.id == i64::from(id)) {
                             ui.set_account_id(id);
                             ui.set_account_label(config.email.clone().into());
+                            ui.set_calendar_only(config.calendar_only);
                             ui.set_status("".into());
                             ui.set_key_inventory("".into());
                             project(&app, &settings, config.id);

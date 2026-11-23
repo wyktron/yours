@@ -631,6 +631,10 @@ pub struct Account {
     /// then. `None` before its first complete check.
     #[serde(default)]
     pub caught_up_at: Option<i64>,
+    /// The account was added for its calendar only: hidden from every mail
+    /// surface and never checked for mail, while its calendars keep syncing.
+    #[serde(default)]
+    pub calendar_only: bool,
 }
 
 /// Mail imported into folders that exist only on this device. It belongs to
@@ -665,6 +669,8 @@ pub struct AccountConfig {
     pub smtp_host: String,
     pub smtp_port: u16,
     pub settings: AccountSettings,
+    /// Added for its calendar only: no mail worker is spawned for it.
+    pub calendar_only: bool,
 }
 
 /// Portable account connection metadata used by backup/restore. Credentials,

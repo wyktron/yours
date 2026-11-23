@@ -720,6 +720,7 @@ mod tests {
             smtp_host: String::new(),
             smtp_port: 465,
             settings: crate::db::testutil::account_settings(),
+            calendar_only: false,
         }
     }
 

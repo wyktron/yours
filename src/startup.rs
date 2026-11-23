@@ -40,8 +40,9 @@ use tokio::io::AsyncReadExt;
 // stores the provider and mail protocol names of the current account model.
 // Version 6 keeps message dates as timestamps instead of English text.
 // Version 7 records whether the rows are conversations or single messages.
-// Version 8 stores mailbox badges as numbers.
-const WARM_START_FORMAT_VERSION: u32 = 8;
+// Version 8 stores mailbox badges as numbers. Version 9 leaves out
+// calendar-only accounts.
+const WARM_START_FORMAT_VERSION: u32 = 9;
 const MAX_WARM_START_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_WARM_START_ACCOUNTS: usize = 64;
 const MAX_WARM_START_MESSAGES: usize = 25;
@@ -350,6 +351,7 @@ impl WarmStartSnapshot {
             accounts: projection
                 .accounts
                 .iter()
+                .filter(|account| !account.calendar_only)
                 .take(MAX_WARM_START_ACCOUNTS)
                 .cloned()
                 .collect(),
@@ -400,6 +402,7 @@ pub(crate) fn apply_warm_start_snapshot(
     let account_rows = snapshot
         .accounts
         .iter()
+        .filter(|account| !account.calendar_only)
         .filter_map(|account| {
             let name = account
                 .display_name
@@ -1722,6 +1725,7 @@ mod warm_start_tests {
             can_create_top_level_mailbox: true,
             server_keeps_mail_days: None,
             caught_up_at: None,
+            calendar_only: false,
         }
     }
 

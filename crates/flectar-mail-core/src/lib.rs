@@ -401,6 +401,7 @@ fn password_account_config(args: &AddPasswordAccountArgs) -> AccountConfig {
         smtp_host: args.smtp_host.clone(),
         smtp_port: args.smtp_port,
         settings: AccountSettings::new(args.connection.clone()),
+        calendar_only: false,
     }
 }
 
@@ -1405,6 +1406,13 @@ impl Core {
     }
 
     async fn spawn_actor(&self, cfg: AccountConfig) {
+        // An account added for its calendar only has no mail worker: starting
+        // one would check a mailbox its provider does not serve. Its calendar
+        // task is spawned separately by spawn_cal_task.
+        if cfg.calendar_only {
+            events::sync_diagnostic("spawn_worker", Some(cfg.id), "calendar_only");
+            return;
+        }
         events::sync_diagnostic("spawn_worker", Some(cfg.id), "starting");
         let handle = spawn_account(self.sync_ctx(), cfg);
         self.handles.write().await.insert(handle.account_id, handle);
@@ -1603,7 +1611,18 @@ impl Core {
         }
     }
 
+    /// The accounts Mail shows. An account added for its calendar only is
+    /// left out; use Self::list_all_accounts where settings must offer every
+    /// account.
     pub async fn list_accounts(&self) -> Result<Vec<Account>> {
+        self.db
+            .read(|conn| repo::accounts::list_mail_visible(conn))
+            .await
+    }
+
+    /// Every account, including one added for its calendar only, for native
+    /// settings surfaces that must show or change its preferences.
+    pub async fn list_all_accounts(&self) -> Result<Vec<Account>> {
         self.db.read(|conn| repo::accounts::list(conn)).await
     }
 
@@ -1827,6 +1846,17 @@ impl Core {
         if let Some(handle) = self.handles.read().await.get(&account_id).cloned() {
             handle.update_settings(settings);
         }
+        Ok(())
+    }
+
+    /// Hide an account from Mail, or show it again, without a restart.
+    /// Turning it on stops its mail worker; turning it off starts one.
+    /// Calendar connections keep syncing either way.
+    pub async fn set_account_calendar_only(&self, account_id: i64, enabled: bool) -> Result<()> {
+        self.db
+            .write(move |conn| repo::accounts::set_calendar_only(conn, account_id, enabled))
+            .await?;
+        self.restart_actor(account_id).await;
         Ok(())
     }
 
@@ -3367,9 +3397,30 @@ impl Core {
             _ => None,
         };
         events::sync_diagnostic("refresh", account_id, "requested");
+        // A calendar-only account has no mail worker, and asking for one is
+        // not an error: it is deliberately kept out of Mail.
+        let requested = match account_ids {
+            Some(ids) => {
+                let hidden = self
+                    .db
+                    .read(|conn| repo::accounts::calendar_only_ids(conn))
+                    .await?;
+                let requested = ids
+                    .iter()
+                    .copied()
+                    .filter(|id| !hidden.contains(id))
+                    .collect::<Vec<_>>();
+                if requested.is_empty() {
+                    events::sync_diagnostic("refresh", account_id, "calendar_only");
+                    return Ok(());
+                }
+                Some(requested)
+            }
+            None => None,
+        };
         let receivers = {
             let handles = self.handles.read().await;
-            match account_ids {
+            match &requested {
                 Some(ids) => {
                     let receivers = ids
                         .iter()

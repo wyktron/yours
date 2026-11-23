@@ -52,6 +52,8 @@ pub fn list(conn: &Connection) -> Result<Vec<Label>> {
     let mut stmt = conn.prepare(
         "SELECT id, name, color, keyword, position, owner_account_id, is_auto
          FROM labels
+         WHERE owner_account_id IS NULL
+            OR owner_account_id IN (SELECT id FROM accounts WHERE calendar_only = 0)
          ORDER BY CASE scope WHEN 'automatic' THEN 0 WHEN 'global' THEN 1 ELSE 2 END,
                   owner_account_id, position, name",
     )?;

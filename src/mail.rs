@@ -415,6 +415,25 @@ fn retain_profile_accounts(
     folders.retain(|folder| profile_shows(profile, folder.account_id));
 }
 
+/// Keep the profile's accounts that Mail actually shows. A calendar-only
+/// account may still be in a saved profile, but it has no mail to list; local
+/// mail is not an account row, so it stays.
+fn visible_profile(
+    profile: Option<Arc<[i64]>>,
+    accounts: &[Account],
+    local_mail: Option<i64>,
+) -> Option<Arc<[i64]>> {
+    profile.map(|ids| {
+        ids.iter()
+            .copied()
+            .filter(|id| {
+                Some(*id) == local_mail || accounts.iter().any(|account| account.id == *id)
+            })
+            .collect::<Vec<_>>()
+            .into()
+    })
+}
+
 /// Keep shared labels and the labels of accounts shown with `profile`.
 fn retain_profile_labels(profile: Option<&[i64]>, labels: &mut Vec<Label>) {
     labels.retain(|label| {
@@ -738,6 +757,7 @@ impl CoreMailSource {
         let profile = with_local_mail(profile, local_mail);
         let account_count = accounts.len();
         retain_profile_accounts(profile.as_deref(), &mut accounts, &mut folders);
+        let profile = visible_profile(profile, &accounts, local_mail);
         self.load_page_with_context(PageLoadContext {
             scope,
             query,
@@ -776,6 +796,7 @@ impl CoreMailSource {
         let local_mail = self.load_local_mail_account().await?;
         let profile = with_local_mail(profile, local_mail);
         retain_profile_accounts(profile.as_deref(), &mut accounts, &mut folders);
+        let profile = visible_profile(profile, &accounts, local_mail);
         let mut labels = self
             .core
             .list_labels()
@@ -816,17 +837,25 @@ impl CoreMailSource {
         limit: i64,
     ) -> Result<(Vec<Account>, Scope, Option<MailPage>), String> {
         let profile = self.profile_accounts();
+        // Settings needs every account, but the sidebar and first page show
+        // only the ones Mail includes.
         let accounts = self
             .core
-            .list_accounts()
+            .list_all_accounts()
             .await
             .map_err(|error| error.to_string())?;
-        let mut shown = accounts.clone();
+        let mut shown = accounts
+            .iter()
+            .filter(|account| !account.calendar_only)
+            .cloned()
+            .collect::<Vec<_>>();
+        let shown_count = shown.len();
         let local_mail = self.load_local_mail_account().await?;
         let profile = with_local_mail(profile, local_mail);
         let (scope, page) = match self.core.list_folders(None).await {
             Ok(mut folders) => {
                 retain_profile_accounts(profile.as_deref(), &mut shown, &mut folders);
+                let profile = visible_profile(profile, &shown, local_mail);
                 let mut labels = self.core.list_labels().await.unwrap_or_default();
                 retain_profile_labels(profile.as_deref(), &mut labels);
                 let scope =
@@ -843,14 +872,16 @@ impl CoreMailSource {
                         folders: &folders,
                         local_mail,
                         profile: profile.as_deref(),
-                        account_count: accounts.len(),
+                        account_count: shown_count,
                     })
                     .await
                     .ok();
                 (scope, page)
             }
             Err(_) => {
-                shown.retain(|account| profile_shows(profile.as_deref(), account.id));
+                shown.retain(|account| {
+                    !account.calendar_only && profile_shows(profile.as_deref(), account.id)
+                });
                 (Scope::UNIFIED_INBOX.visible_for(&shown), None)
             }
         };
@@ -876,6 +907,7 @@ impl CoreMailSource {
         let local_mail = self.load_local_mail_account().await?;
         let profile = with_local_mail(profile, local_mail);
         retain_profile_accounts(profile.as_deref(), &mut accounts, &mut folders);
+        let profile = visible_profile(profile, &accounts, local_mail);
         self.load_mail_metadata_with_context(
             scope,
             &accounts,
@@ -1692,9 +1724,12 @@ impl CoreMailSource {
             .map_err(|error| error.to_string())
     }
 
+    /// Every account, including one added for its calendar only. The mail
+    /// view filters its own lists; Settings must still offer the switch that
+    /// brings the account back.
     pub async fn load_accounts(&self) -> Result<Vec<Account>, String> {
         self.core
-            .list_accounts()
+            .list_all_accounts()
             .await
             .map_err(|error| error.to_string())
     }
@@ -1891,6 +1926,17 @@ impl CoreMailSource {
     ) -> Result<(), String> {
         self.core
             .set_account_subscribed_folders_only(account_id, enabled)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    pub async fn set_account_calendar_only(
+        &self,
+        account_id: i64,
+        enabled: bool,
+    ) -> Result<(), String> {
+        self.core
+            .set_account_calendar_only(account_id, enabled)
             .await
             .map_err(|error| error.to_string())
     }
@@ -4533,6 +4579,7 @@ mod tests {
             can_create_top_level_mailbox: true,
             server_keeps_mail_days: None,
             caught_up_at: None,
+            calendar_only: false,
         }
     }
 

@@ -336,6 +336,7 @@ mod tests {
             can_create_top_level_mailbox: true,
             server_keeps_mail_days: None,
             caught_up_at: None,
+            calendar_only: false,
         }
     }
 
@@ -536,6 +537,7 @@ mod tests {
             can_create_top_level_mailbox: true,
             server_keeps_mail_days: None,
             caught_up_at: None,
+            calendar_only: false,
         };
         let folder = |id, account_id, parent_id, name: &str, role: Option<&str>| FolderInfo {
             id,

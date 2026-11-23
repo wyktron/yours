@@ -299,6 +299,9 @@ export struct AccountRow {
     keep_on_server: string,
     // IMAP: the account lists only the folders the user subscribed to.
     subscribed_folders_only: bool,
+    // Added for its calendar only: hidden from the sidebar, mail lists,
+    // searches and counts, and never checked for mail.
+    calendar_only: bool,
     // Days a POP3 server keeps downloaded mail on its own; -1 when it
     // keeps it or hasn't said.
     server_keeps_mail_days: int,

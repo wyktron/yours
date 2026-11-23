@@ -1361,12 +1361,21 @@ impl InboxState {
     /// Whether the mail view shows this account's mail: every account's
     /// unless a profile is active. Every profile shows local mail.
     fn shows_account(&self, account_id: i64) -> bool {
-        self.local_mail
-            .is_some_and(|local| local.account_id == account_id)
-            || self
-                .profile_accounts
-                .as_ref()
-                .is_none_or(|accounts| accounts.binary_search(&account_id).is_ok())
+        // An account added for its calendar only belongs to no mail surface,
+        // even while Settings still lists it.
+        let mail_account = self
+            .connected_accounts
+            .iter()
+            .find(|account| account.id == account_id)
+            .is_none_or(|account| !account.calendar_only);
+        mail_account
+            && (self
+                .local_mail
+                .is_some_and(|local| local.account_id == account_id)
+                || self
+                    .profile_accounts
+                    .as_ref()
+                    .is_none_or(|accounts| accounts.binary_search(&account_id).is_ok()))
     }
 
     /// The connected accounts the mail view shows.

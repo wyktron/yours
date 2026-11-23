@@ -136,6 +136,7 @@ pub fn list(conn: &Connection, account_id: Option<i64>) -> Result<Vec<Folder>> {
          FROM folders f
          JOIN accounts a ON a.id = f.account_id
          WHERE (?1 IS NULL OR f.account_id = ?1) AND f.missing_on_server = 0
+           AND a.calendar_only = 0
            AND ((a.mail_protocol = 'jmap' AND f.jmap_id IS NOT NULL)
              OR (a.mail_protocol <> 'jmap' AND f.jmap_id IS NULL))
          ORDER BY f.id",

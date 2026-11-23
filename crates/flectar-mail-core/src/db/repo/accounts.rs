@@ -27,6 +27,7 @@ fn account_from_row(row: &Row) -> rusqlite::Result<Account> {
             }
         }),
         caught_up_at: row.get("caught_up_at")?,
+        calendar_only: row.get::<_, i64>("calendar_only")? != 0,
     })
 }
 
@@ -49,18 +50,34 @@ fn config_from_row(row: &Row) -> rusqlite::Result<AccountConfig> {
         smtp_host: row.get("smtp_host")?,
         smtp_port: row.get("smtp_port")?,
         settings,
+        calendar_only: row.get::<_, i64>("calendar_only")? != 0,
     })
 }
 
 pub fn list(conn: &Connection) -> Result<Vec<Account>> {
-    let mut stmt = conn.prepare(
+    list_where(conn, true)
+}
+
+/// The accounts mail surfaces show. An account added for its calendar only
+/// stays out: it has no mail folders, lists, or counts.
+pub fn list_mail_visible(conn: &Connection) -> Result<Vec<Account>> {
+    list_where(conn, false)
+}
+
+fn list_where(conn: &Connection, include_calendar_only: bool) -> Result<Vec<Account>> {
+    let visibility = if include_calendar_only {
+        ""
+    } else {
+        " AND a.calendar_only = 0"
+    };
+    let mut stmt = conn.prepare(&format!(
         "SELECT a.id, a.email, a.display_name, a.avatar_url, a.provider, a.auth_kind,
                 a.mail_protocol, a.sync_state, a.sync_error, a.can_create_top_level_mailbox,
-                a.caught_up_at, s.expire
+                a.caught_up_at, a.calendar_only, s.expire
          FROM accounts a LEFT JOIN pop3_sync_state s ON s.account_id = a.id
-         WHERE a.sync_state <> ?1 AND a.mail_protocol <> 'local'
-         ORDER BY a.sort_order, a.id",
-    )?;
+         WHERE a.sync_state <> ?1 AND a.mail_protocol <> 'local'{visibility}
+         ORDER BY a.sort_order, a.id"
+    ))?;
     let rows = stmt
         .query_map(params![CREDENTIAL_SETUP_STATE], account_from_row)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -71,7 +88,7 @@ pub fn list_configs(conn: &Connection) -> Result<Vec<AccountConfig>> {
     let mut stmt = conn.prepare(
         "SELECT id, email, display_name, avatar_url, provider, auth_kind,
                 mail_protocol, username, jmap_url, jmap_account_id, incoming_host,
-                incoming_port, smtp_host, smtp_port, settings_json
+                incoming_port, smtp_host, smtp_port, settings_json, calendar_only
          FROM accounts
          WHERE sync_state <> ?1 AND mail_protocol <> 'local'
          ORDER BY sort_order, id",
@@ -86,7 +103,7 @@ pub fn get_config(conn: &Connection, id: i64) -> Result<Option<AccountConfig>> {
     let mut stmt = conn.prepare(
         "SELECT id, email, display_name, avatar_url, provider, auth_kind,
                 mail_protocol, username, jmap_url, jmap_account_id, incoming_host,
-                incoming_port, smtp_host, smtp_port, settings_json
+                incoming_port, smtp_host, smtp_port, settings_json, calendar_only
          FROM accounts WHERE id = ?1 AND mail_protocol <> 'local'",
     )?;
     Ok(stmt.query_row(params![id], config_from_row).optional()?)
@@ -96,7 +113,7 @@ pub fn get(conn: &Connection, id: i64) -> Result<Option<Account>> {
     let mut stmt = conn.prepare(
         "SELECT a.id, a.email, a.display_name, a.avatar_url, a.provider, a.auth_kind,
                 a.mail_protocol, a.sync_state, a.sync_error, a.can_create_top_level_mailbox,
-                a.caught_up_at, s.expire
+                a.caught_up_at, a.calendar_only, s.expire
          FROM accounts a LEFT JOIN pop3_sync_state s ON s.account_id = a.id
          WHERE a.id = ?1 AND a.mail_protocol <> 'local'",
     )?;
@@ -245,6 +262,29 @@ pub fn set_settings(conn: &Connection, id: i64, settings: &AccountSettings) -> R
         return Err(crate::error::CoreError::NotFound(format!("account {id}")));
     }
     Ok(())
+}
+
+/// Hide or show an account in Mail without touching its calendar
+/// connections. The stored flag is read by account lists and sync startup.
+pub fn set_calendar_only(conn: &Connection, id: i64, enabled: bool) -> Result<()> {
+    let changed = conn.execute(
+        "UPDATE accounts SET calendar_only = ?2 WHERE id = ?1",
+        params![id, enabled],
+    )?;
+    if changed == 0 {
+        return Err(crate::error::CoreError::NotFound(format!("account {id}")));
+    }
+    Ok(())
+}
+
+/// Every account kept out of Mail, including the ones whose flag was set
+/// after startup.
+pub fn calendar_only_ids(conn: &Connection) -> Result<Vec<i64>> {
+    let mut statement =
+        conn.prepare("SELECT id FROM accounts WHERE calendar_only = 1 ORDER BY id")?;
+    Ok(statement
+        .query_map([], |row| row.get(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
 pub fn update_password(conn: &Connection, id: i64, a: &NewAccount) -> Result<()> {
@@ -1514,6 +1554,43 @@ mod tests {
             )
             .unwrap();
         assert_eq!(missing, 0);
+    }
+
+    #[test]
+    fn calendar_only_round_trips_through_account_reads() {
+        let conn = crate::db::testutil::conn();
+        crate::db::testutil::seed_account(&conn);
+        assert!(!get(&conn, 1).unwrap().unwrap().calendar_only);
+        assert!(!list_configs(&conn).unwrap()[0].calendar_only);
+
+        set_calendar_only(&conn, 1, true).unwrap();
+
+        assert!(get(&conn, 1).unwrap().unwrap().calendar_only);
+        assert!(list(&conn).unwrap()[0].calendar_only);
+        assert!(list_configs(&conn).unwrap()[0].calendar_only);
+        assert_eq!(calendar_only_ids(&conn).unwrap(), vec![1]);
+
+        set_calendar_only(&conn, 1, false).unwrap();
+
+        assert!(!get(&conn, 1).unwrap().unwrap().calendar_only);
+        assert!(calendar_only_ids(&conn).unwrap().is_empty());
+    }
+
+    #[test]
+    fn calendar_only_hides_mail_accounts_and_folders() {
+        let conn = crate::db::testutil::conn();
+        crate::db::testutil::seed_account(&conn);
+
+        set_calendar_only(&conn, 1, true).unwrap();
+
+        assert!(list_mail_visible(&conn).unwrap().is_empty());
+        assert!(super::super::folders::list(&conn, None).unwrap().is_empty());
+        assert_eq!(list(&conn).unwrap().len(), 1);
+
+        set_calendar_only(&conn, 1, false).unwrap();
+
+        assert_eq!(list_mail_visible(&conn).unwrap().len(), 1);
+        assert_eq!(super::super::folders::list(&conn, None).unwrap().len(), 1);
     }
 
     #[test]

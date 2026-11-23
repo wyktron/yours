@@ -27,6 +27,7 @@ fn account(id: i64) -> Account {
         can_create_top_level_mailbox: true,
         server_keeps_mail_days: None,
         caught_up_at: None,
+        calendar_only: false,
     }
 }
 fn config(account: &Account) -> AccountConfig {
@@ -49,6 +50,7 @@ fn config(account: &Account) -> AccountConfig {
             ConnectionSecurity::Tls,
             ConnectionSecurity::Tls,
         )),
+        calendar_only: false,
     }
 }
 

@@ -284,6 +284,7 @@ pub(super) fn apply_connected_accounts(
                 sent_copy_policy: config.settings.sent_copy_policy.as_str().into(),
                 keep_on_server: config.settings.keep_on_server.as_str().into(),
                 subscribed_folders_only: config.settings.subscribed_folders_only,
+                calendar_only: account.calendar_only,
                 server_keeps_mail_days: account
                     .server_keeps_mail_days
                     .and_then(|days| i32::try_from(days).ok())
@@ -549,11 +550,24 @@ pub(super) fn connected_account_rows(app: &AppWindow) -> Vec<AccountRow> {
         .collect()
 }
 
+/// The accounts a message can be written from. An account added for its
+/// calendar only is not a mail account and cannot send.
+pub(super) fn mail_account_rows(app: &AppWindow) -> Vec<AccountRow> {
+    connected_account_rows(app)
+        .into_iter()
+        .filter(|account| !account.calendar_only)
+        .collect()
+}
+
+pub(super) fn mail_account_model(app: &AppWindow) -> ModelRc<AccountRow> {
+    ModelRc::new(VecModel::from(mail_account_rows(app)))
+}
+
 pub(super) fn apply_connected_account_rows(app: &AppWindow, rows: Vec<AccountRow>) {
     let selected = rows
         .iter()
-        .find(|account| account.id == app.get_compose_account_id())
-        .or_else(|| rows.first());
+        .find(|account| account.id == app.get_compose_account_id() && !account.calendar_only)
+        .or_else(|| rows.iter().find(|account| !account.calendar_only));
     set_compose_account(app, selected);
     app.set_connected_accounts(ModelRc::new(VecModel::from(rows)));
     composer::accounts_changed(app);
@@ -787,6 +801,7 @@ mod mail_transport_suggestion_tests {
                 ConnectionSecurity::Tls,
                 ConnectionSecurity::Tls,
             )),
+            calendar_only: false,
         }
     }
 

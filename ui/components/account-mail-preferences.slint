@@ -23,6 +23,8 @@ export struct SenderIdentityRow {
 export global AccountMailPreferences {
     in-out property <int> account-id: -1;
     in-out property <string> account-label;
+    // The selected account was added for its calendar only.
+    in-out property <bool> calendar-only: false;
     in-out property <[SignatureChoice]> signatures;
     in-out property <[string]> signature-names;
     in-out property <[string]> default-names;
@@ -60,6 +62,9 @@ export global AccountMailPreferences {
     in-out property <bool> request-read-receipts: false;
     callback save-read-receipt-requests;
     callback load(int);
+    // Hide the account from Mail, or show it again. Its calendar connections
+    // keep syncing either way.
+    callback set-calendar-only(int, bool);
     callback edit-signature(int);
     // Opens the chosen signature, or a new one, in the composer to write.
     callback open-signature(bool);
@@ -166,6 +171,15 @@ export component AccountMailPreferencesPanel inherits Rectangle {
         if AccountMailPreferences.account-id > 0 : VerticalBox {
             spacing: 12px;
             Text { min-height: self.preferred-height; vertical-stretch: 0; text: AccountMailPreferences.account-label; color: AppTheme.heading; font-weight: 600; overflow: elide; }
+            SettingsSwitchRow {
+                compact: root.compact;
+                title: @tr("Calendar only (hide from Mail)");
+                description: @tr("Keep this account out of Mail: no folders, lists, searches, counts or mail checks. Its calendars keep syncing.");
+                checked: AccountMailPreferences.calendar-only;
+                title-color: AppTheme.heading;
+                description-color: AppTheme.secondary;
+                toggled(checked) => { AccountMailPreferences.set-calendar-only(AccountMailPreferences.account-id, checked); }
+            }
             HorizontalBox {
                 Button { text: @tr("Signatures"); primary: root.tab == "signatures"; clicked => { root.tab = "signatures"; } }
                 Button { text: @tr("OpenPGP"); primary: root.tab == "openpgp"; clicked => { root.tab = "openpgp"; } }

@@ -469,6 +469,13 @@ fn build_filter(
             &mut bind,
         ));
     }
+    // Without an explicit account scope, mail lists still leave out accounts
+    // added for their calendar only.
+    if args.account_id.is_none() && args.account_ids.is_none() {
+        where_clauses.push(format!(
+            "{account_column} IN (SELECT id FROM accounts WHERE calendar_only = 0)"
+        ));
+    }
     match &args.tab {
         Some(TabFilter::Important) => where_clauses.push(format!(
             "(t.routed_tab = 'important'

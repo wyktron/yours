@@ -62,6 +62,12 @@ fn append_account_clauses(
     if let Some(folder_ids) = &q.folder_ids {
         where_clauses.push(folder_set_clause(folder_ids, bind));
     }
+    // An unscoped search leaves out accounts added for their calendar only,
+    // as the mail lists do.
+    if q.account_id.is_none() && q.account_ids.is_none() {
+        where_clauses
+            .push("m.account_id IN (SELECT id FROM accounts WHERE calendar_only = 0)".to_owned());
+    }
 }
 
 /// Whether message `m` is in any of `folder_ids` as mail lists show it: its

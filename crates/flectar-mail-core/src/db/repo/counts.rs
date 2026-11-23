@@ -164,7 +164,7 @@ struct Tally {
 impl Tally {
     fn new(conn: &Connection) -> Result<Self> {
         let counts = conn
-            .prepare("SELECT id FROM accounts ORDER BY sort_order, id")?
+            .prepare("SELECT id FROM accounts WHERE calendar_only = 0 ORDER BY sort_order, id")?
             .query_map([], |row| {
                 Ok(MailboxBadgeCounts {
                     account_id: row.get(0)?,

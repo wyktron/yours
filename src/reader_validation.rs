@@ -791,6 +791,7 @@ fn mailto_links_open_without_losing_the_draft(
         can_create_top_level_mailbox: true,
         server_keeps_mail_days: None,
         caught_up_at: None,
+        calendar_only: false,
     }];
     app.set_compose_account_id(1);
     let frame = || {

@@ -1462,6 +1462,63 @@ pub(super) fn register_settings_preference_callbacks(
             ));
         }
     });
+
+    // Calendar-only accounts stay in Settings so this switch can bring them
+    // back, but leave every mail surface at once.
+    let app_weak = app.as_weak();
+    let state_for_calendar_only = Rc::clone(state);
+    let runtime_for_calendar_only = runtime.clone();
+    app.global::<AccountMailPreferences>()
+        .on_set_calendar_only(move |account_id, enabled| {
+            let Some(app) = app_weak.upgrade() else {
+                return;
+            };
+            let Some(core) = state_for_calendar_only.borrow().core.clone() else {
+                app.set_sync_status(UiMessage::plain("Folder settings require local mail data."));
+                return;
+            };
+            match runtime_for_calendar_only
+                .block_on(core.set_account_calendar_only(i64::from(account_id), enabled))
+            {
+                Ok(()) => {
+                    app.global::<AccountMailPreferences>()
+                        .set_calendar_only(enabled);
+                    let accounts = runtime_for_calendar_only.block_on(core.load_accounts());
+                    let configs = runtime_for_calendar_only.block_on(core.load_account_configs());
+                    match (accounts, configs) {
+                        (Ok(accounts), Ok(configs)) => {
+                            crate::account_controller::update_connected_accounts(
+                                &app,
+                                &state_for_calendar_only,
+                                &runtime_for_calendar_only,
+                                accounts,
+                                configs,
+                            );
+                            if let Err(error) = crate::mail_view_model::refresh_from_source(
+                                &app,
+                                &state_for_calendar_only,
+                                &runtime_for_calendar_only,
+                                false,
+                                &[],
+                            ) {
+                                app.set_render_status(UiMessage::detail(
+                                    "Mail refresh failed: {}",
+                                    error,
+                                ));
+                            }
+                            app.set_sync_status(UiMessage::plain("Folder settings updated."));
+                        }
+                        (Err(error), _) | (_, Err(error)) => app.set_sync_status(
+                            UiMessage::detail("Could not update folder settings: {}", error),
+                        ),
+                    }
+                }
+                Err(error) => app.set_sync_status(UiMessage::detail(
+                    "Could not update folder settings: {}",
+                    error,
+                )),
+            }
+        });
 }
 
 /// Both entry points share one asynchronous persistence path and busy state.

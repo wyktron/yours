@@ -329,6 +329,7 @@ fn the_server_is_the_imap_host_secured_as_its_mail_is() {
         smtp_host: String::new(),
         smtp_port: 465,
         settings: crate::db::testutil::account_settings(),
+        calendar_only: false,
     };
     config.settings.connection =
         MailConnectionSettings::new(ConnectionSecurity::Tls, ConnectionSecurity::Tls);

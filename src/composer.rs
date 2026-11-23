@@ -459,7 +459,7 @@ pub(super) fn accounts_changed(app: &AppWindow) {
                 continue;
             };
             let ui = host.ui();
-            let accounts = app.get_connected_accounts();
+            let accounts = crate::account_controller::mail_account_model(app);
             let kept = (0..accounts.row_count())
                 .filter_map(|index| accounts.row_data(index))
                 .any(|account| account.id == ui.get_account_id());
@@ -968,7 +968,7 @@ impl Composers {
         let host = session.host()?;
         let ui = host.ui();
         ui.set_can_pop_out(self.pop_out && matches!(host, HostRef::Main(_)));
-        ui.set_accounts(app.get_connected_accounts());
+        ui.set_accounts(crate::account_controller::mail_account_model(app));
         ui.set_account_id(app.get_compose_account_id());
         ui.set_from_label(app.get_compose_from_label());
         apply_email_templates(&ui, &self.templates.borrow());
@@ -4788,6 +4788,7 @@ mod tests {
             can_create_top_level_mailbox: true,
             server_keeps_mail_days: None,
             caught_up_at: None,
+            calendar_only: false,
         }];
         let state = Rc::new(RefCell::new(state));
         app.set_compose_account_id(1);
