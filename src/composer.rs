@@ -827,8 +827,16 @@ impl Composers {
             let epoch = self.address_check_epoch.get();
             let address = key.clone();
             let core = core.clone();
+            // The check must run inside the app's Tokio runtime: its HTTP
+            // client and timeouts need a reactor, and Slint's local executor
+            // is not one (spawning there panicked with "no reactor running"
+            // the moment an address was typed).
+            let address_for_check = address.clone();
+            let task = self
+                .runtime
+                .spawn(async move { core.reacher_check(&address_for_check).await });
             let spawned = slint::spawn_local(async move {
-                let verdict = core.reacher_check(&address).await.ok();
+                let verdict = task.await.ok().and_then(|result| result.ok());
                 if let Some(composers) = weak.upgrade() {
                     composers.finish_address_check(&address, epoch, verdict);
                 }
