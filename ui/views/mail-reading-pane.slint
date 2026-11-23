@@ -1244,6 +1244,9 @@ export component MailReadingPane inherits FocusScope {
 
                                 Button {
                                     text: @tr("Dismiss");
+                                    // The label row does not size the button, so
+                                    // give it the width the whole word needs.
+                                    width: max(80px, self.content-width);
                                     clicked => { root.security-dismissed = EmailReader.message-id; }
                                 }
                             }
