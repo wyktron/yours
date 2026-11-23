@@ -1,6 +1,6 @@
 //! Mail attachment metadata and an independent dialog session. Files and Mail
 //! share bounded decoders/PDF workers; opening Mail never changes Files state.
-use crate::document_preview::{Preview, image_thumbnail, preview};
+use crate::document_preview::{Preview, image_thumbnail, inferred_media, preview};
 use crate::{
     AppWindow, EmailReader, InboxState, ListAttachment, MailAttachment, MailAttachments,
     mail::MailMessage,
@@ -182,14 +182,11 @@ fn media_type(attachment: &flectar_mail_core::models::AttachmentMeta) -> String 
 }
 
 fn previewable(name: &str, media: &str) -> bool {
+    let media = inferred_media(name, media);
     media == "application/pdf"
         || media.starts_with("image/")
         || media.starts_with("text/")
-        || matches!(media, "application/json" | "application/xml")
-        || name
-            .as_bytes()
-            .get(name.len().saturating_sub(4)..)
-            .is_some_and(|suffix| suffix.eq_ignore_ascii_case(b".pdf"))
+        || matches!(media.as_str(), "application/json" | "application/xml")
 }
 
 /// A name and its extension, such as "Report" and ".pdf". Only a short
@@ -717,6 +714,7 @@ pub(crate) fn register(
                     }
                     preview(
                         bytes,
+                        file_name(&selected),
                         selected
                             .mime_type
                             .as_deref()
@@ -876,5 +874,15 @@ mod tests {
         assert!(!thumbnail_candidate(&files[0]));
         assert!(thumbnail_candidate(&files[1]));
         assert!(!rows[1].has_thumbnail);
+    }
+
+    #[test]
+    fn previewability_infers_a_type_from_the_name_when_the_stored_type_is_generic() {
+        assert!(previewable("Webcam_2013-10-28_15-50-04.jpg", ""));
+        assert!(previewable("page.html", "application/octet-stream"));
+        assert!(!previewable("letter.docx", "application/octet-stream"));
+        assert!(previewable("scan", "image/png"));
+        assert!(previewable("Report.PDF", "application/zip"));
+        assert!(!previewable("archive.zip", "application/zip"));
     }
 }

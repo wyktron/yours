@@ -415,7 +415,14 @@ pub(crate) fn register(
                     Ok(Output::Preview(Preview::Text(s)))
                 }
                 Ok(ServiceOutput::Preview(ServicePreview::Data(data, media))) => {
-                    preview(data, &media).await.map(Output::Preview)
+                    let name = dir
+                        .selected(selected)
+                        .map(|entry| match entry {
+                            Entry::Attachment(file) => file.filename,
+                            Entry::Remote(node) => node.name,
+                        })
+                        .unwrap_or_default();
+                    preview(data, &name, &media).await.map(Output::Preview)
                 }
                 Err(e) => Err(e),
             }};

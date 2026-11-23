@@ -10,22 +10,55 @@ pub(crate) enum Preview {
     Image(Vec<u8>, u32, u32),
     Pdf(Arc<Vec<u8>>, crate::pdf_preview::Page),
 }
-pub(crate) async fn preview(data: Vec<u8>, media: &str) -> Result<Preview> {
-    let normalized = media
+/// The type a preview should use: the stored type when it is specific, and
+/// otherwise one inferred from the file name. Some senders store an empty or
+/// generic type, so the name is then the only clue to what the bytes are.
+/// Only the application types a preview can render count as specific; other
+/// application types are often generic labels, so the name decides.
+pub(crate) fn inferred_media(name: &str, media: &str) -> String {
+    let media = media
         .split(';')
         .next()
         .unwrap_or("")
         .trim()
         .to_ascii_lowercase();
-    let media = normalized.as_str();
-    if media
-        .split(';')
-        .next()
+    let specific = !media.is_empty()
+        && media != "application/octet-stream"
+        && (!media.starts_with("application/")
+            || matches!(
+                media.as_str(),
+                "application/pdf" | "application/json" | "application/xml"
+            ));
+    if specific {
+        return media;
+    }
+    let extension = std::path::Path::new(name)
+        .extension()
+        .and_then(|extension| extension.to_str())
         .unwrap_or("")
-        .trim()
-        .eq_ignore_ascii_case("application/pdf")
-        || data.starts_with(b"%PDF-")
-    {
+        .to_ascii_lowercase();
+    let inferred = match extension.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "bmp" => "image/bmp",
+        "tif" | "tiff" => "image/tiff",
+        "avif" => "image/avif",
+        "pdf" => "application/pdf",
+        "txt" | "log" | "csv" => "text/plain",
+        "html" | "htm" => "text/html",
+        "json" => "application/json",
+        "xml" => "application/xml",
+        "md" => "text/markdown",
+        _ => return media,
+    };
+    inferred.to_string()
+}
+pub(crate) async fn preview(data: Vec<u8>, name: &str, media: &str) -> Result<Preview> {
+    let media = inferred_media(name, media);
+    let media = media.as_str();
+    if media == "application/pdf" || data.starts_with(b"%PDF-") {
         let data = Arc::new(data);
         return crate::pdf_preview::render(data.clone(), 0, 200)
             .await
@@ -112,6 +145,18 @@ pub(crate) async fn image_thumbnail(data: Vec<u8>) -> Result<(Vec<u8>, u32, u32)
 mod tests {
     use super::*;
 
+    // Previews share one decoder slot, so tests that exercise it must not race.
+    static IMAGE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn preview_with(name: &str, media: &str, bytes: &[u8]) -> Preview {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(preview(bytes.to_vec(), name, media))
+            .unwrap()
+    }
+
     #[test]
     fn attachment_thumbnail_is_bounded_and_preserves_aspect_ratio() {
         let source = image::RgbaImage::from_pixel(200, 100, image::Rgba([24, 120, 176, 255]));
@@ -132,6 +177,7 @@ mod tests {
 
     #[test]
     fn cancelling_a_preview_does_not_admit_another_decoder_until_the_worker_exits() {
+        let _guard = IMAGE_TEST_LOCK.lock().unwrap();
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(1)
             .enable_all()
@@ -168,5 +214,52 @@ mod tests {
                     .is_ok()
             );
         });
+    }
+
+    #[test]
+    fn a_jpeg_name_without_a_media_type_dispatches_to_the_image_decoder() {
+        let _guard = IMAGE_TEST_LOCK.lock().unwrap();
+        let mut encoded = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            8,
+            8,
+            image::Rgb([200, 40, 40]),
+        ))
+        .write_to(&mut encoded, image::ImageFormat::Jpeg)
+        .unwrap();
+        assert!(matches!(
+            preview_with("Webcam_2013-10-28_15-50-04.jpg", "", &encoded.into_inner()),
+            Preview::Image(..)
+        ));
+    }
+
+    #[test]
+    fn html_with_a_generic_media_type_previews_as_plain_text() {
+        let source = b"<html><body><script>alert(1)</script>Hello</body></html>";
+        let Preview::Text(text) = preview_with("page.html", "application/octet-stream", source)
+        else {
+            panic!("HTML must preview as plain text");
+        };
+        assert_eq!(
+            text,
+            "<html><body><script>alert(1)</script>Hello</body></html>"
+        );
+    }
+
+    #[test]
+    fn a_stored_image_type_still_dispatches_to_the_image_decoder() {
+        let _guard = IMAGE_TEST_LOCK.lock().unwrap();
+        let mut encoded = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            8,
+            8,
+            image::Rgba([24, 120, 176, 255]),
+        ))
+        .write_to(&mut encoded, image::ImageFormat::Png)
+        .unwrap();
+        assert!(matches!(
+            preview_with("attachment", "image/png", &encoded.into_inner()),
+            Preview::Image(..)
+        ));
     }
 }
