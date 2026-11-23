@@ -74,8 +74,15 @@ pub(crate) struct WarmStartMessage {
     pub(crate) has_replied: bool,
     #[serde(default)]
     pub(crate) high_importance: bool,
-    /// The AI's phishing judgement, kept so a warm start paints the row.
+    /// The AI's phishing judgement, kept so a warm start paints the row and
+    /// can explain it in the reader before the mail store answers.
     pub(crate) security: String,
+    #[serde(default)]
+    pub(crate) security_reason: String,
+    #[serde(default)]
+    pub(crate) security_model: String,
+    #[serde(default)]
+    pub(crate) security_checked_at: Option<i64>,
     #[serde(default)]
     pub(crate) labels: Vec<i64>,
     pub(crate) sender_verification: String,
@@ -110,6 +117,9 @@ impl From<&mail::MailMessage> for WarmStartMessage {
             has_replied: message.has_replied,
             high_importance: message.high_importance,
             security: message.security.clone(),
+            security_reason: message.security_reason.clone(),
+            security_model: message.security_model.clone(),
+            security_checked_at: message.security_checked_at,
             labels: message.labels.clone(),
             sender_verification: message.sender_verification.clone(),
             account_uses_labels: message.account_uses_labels,
@@ -142,6 +152,9 @@ impl From<WarmStartMessage> for mail::MailMessage {
             has_replied: message.has_replied,
             high_importance: message.high_importance,
             security: message.security,
+            security_reason: message.security_reason,
+            security_model: message.security_model,
+            security_checked_at: message.security_checked_at,
             is_outgoing: false,
             labels: message.labels,
             html: None,
@@ -639,6 +652,343 @@ impl PendingCoreUpdates {
     }
 }
 
+/// The text of the AI summary the model is still writing. The core streams the
+/// structured summary as raw JSON chunks; the reader shows the parts it can
+/// already use, refreshed as each chunk lands instead of once at the end.
+#[derive(Default)]
+pub(crate) struct SummaryStream {
+    /// The conversation named by the request the panel is showing.
+    thread_id: i64,
+    /// Which request owns the buffer; a finished request must not paint over
+    /// the answer of one the user started after it.
+    generation: u64,
+    /// The raw JSON written so far, in arrival order.
+    raw: String,
+    /// A chunk arrived that the panel has not read yet.
+    fresh: bool,
+}
+
+impl SummaryStream {
+    /// Take the buffer for a new request, dropping whatever an earlier one left
+    /// behind, and return the generation that request owns.
+    pub(crate) fn begin(&mut self, thread_id: i64) -> u64 {
+        self.generation = self.generation.wrapping_add(1);
+        self.thread_id = thread_id;
+        self.raw.clear();
+        self.fresh = false;
+        self.generation
+    }
+
+    /// Fold one model chunk in. A chunk for another conversation belongs to a
+    /// request the user replaced, and mixing it in would show the wrong mail.
+    pub(crate) fn append(&mut self, thread_id: i64, delta: &str) -> bool {
+        if thread_id != self.thread_id {
+            return false;
+        }
+        self.raw.push_str(delta);
+        self.fresh = true;
+        true
+    }
+
+    /// Whether `generation` is still the request the panel waits for.
+    pub(crate) fn is_current(&self, generation: u64) -> bool {
+        self.generation == generation
+    }
+
+    /// Read the chunks received since the last call, if any.
+    pub(crate) fn take(&mut self) -> Option<String> {
+        if !self.fresh {
+            return None;
+        }
+        self.fresh = false;
+        Some(summary_display_text(&self.raw))
+    }
+
+    /// Forget unread chunks, so text from a finished request cannot repaint a
+    /// panel that has already shown its answer.
+    pub(crate) fn discard(&mut self) {
+        self.fresh = false;
+    }
+}
+
+/// The readable sections the panel shows, recovered from the JSON written so
+/// far. The model emits the object in field order, so the text fills in from
+/// the top; a string still being written is shown up to its last whole escape.
+pub(crate) fn summary_display_text(raw: &str) -> String {
+    let sections = summary_sections(raw);
+    let points = sections
+        .key_points
+        .iter()
+        .map(|point| point.trim())
+        .filter(|point| !point.is_empty())
+        .collect::<Vec<_>>();
+    let mut text = String::new();
+    if !points.is_empty() {
+        text.push_str("Key points\n");
+        for point in points {
+            text.push_str("• ");
+            text.push_str(point);
+            text.push('\n');
+        }
+        text.push('\n');
+    }
+    if let Some(next) = sections
+        .next_action
+        .as_deref()
+        .map(str::trim)
+        .filter(|next| !next.is_empty())
+    {
+        text.push_str("Next action\n");
+        text.push_str(next);
+        text.push_str("\n\n");
+    }
+    if let Some(reply) = sections
+        .proposed_reply
+        .as_deref()
+        .map(str::trim)
+        .filter(|reply| !reply.is_empty())
+    {
+        text.push_str("Suggested reply\n");
+        text.push_str(reply);
+        text.push('\n');
+    }
+    text
+}
+
+/// The parts of a streamed summary the panel renders.
+#[derive(Default)]
+struct SummarySections {
+    key_points: Vec<String>,
+    next_action: Option<String>,
+    proposed_reply: Option<String>,
+}
+
+fn summary_sections(raw: &str) -> SummarySections {
+    let mut sections = SummarySections::default();
+    let bytes = raw.as_bytes();
+    let Some(brace) = raw.find('{') else {
+        return sections;
+    };
+    let mut index = brace + 1;
+    loop {
+        skip_json_separators(bytes, &mut index);
+        if bytes.get(index) != Some(&b'"') {
+            break;
+        }
+        let Some((key, Some(key_end))) = json_string_prefix(raw, index) else {
+            break;
+        };
+        index = key_end;
+        skip_json_whitespace(bytes, &mut index);
+        if bytes.get(index) != Some(&b':') {
+            break;
+        }
+        index += 1;
+        skip_json_whitespace(bytes, &mut index);
+        match key.as_str() {
+            "keyPoints" => sections.key_points = json_string_array(raw, index),
+            "nextAction" => sections.next_action = json_string_value(raw, index),
+            "proposedReply" => sections.proposed_reply = json_string_value(raw, index),
+            _ => {}
+        }
+        match json_value_end(raw, index) {
+            Some(end) => index = end,
+            None => break,
+        }
+    }
+    sections
+}
+
+fn skip_json_whitespace(bytes: &[u8], index: &mut usize) {
+    while bytes.get(*index).is_some_and(u8::is_ascii_whitespace) {
+        *index += 1;
+    }
+}
+
+fn skip_json_separators(bytes: &[u8], index: &mut usize) {
+    while bytes
+        .get(*index)
+        .is_some_and(|byte| byte.is_ascii_whitespace() || *byte == b',')
+    {
+        *index += 1;
+    }
+}
+
+/// A JSON string starting at `start`: its decoded text and the index past the
+/// closing quote. A string cut off by the end of the input yields the text
+/// written so far and `None` for the index.
+fn json_string_prefix(raw: &str, start: usize) -> Option<(String, Option<usize>)> {
+    let bytes = raw.as_bytes();
+    if bytes.get(start) != Some(&b'"') {
+        return None;
+    }
+    let mut text = String::new();
+    let mut index = start + 1;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'"' => return Some((text, Some(index + 1))),
+            b'\\' => {
+                index += 1;
+                match bytes.get(index).copied() {
+                    None => return Some((text, None)),
+                    Some(b'"') => {
+                        text.push('"');
+                        index += 1;
+                    }
+                    Some(b'\\') => {
+                        text.push('\\');
+                        index += 1;
+                    }
+                    Some(b'/') => {
+                        text.push('/');
+                        index += 1;
+                    }
+                    Some(b'b') => {
+                        text.push('\u{8}');
+                        index += 1;
+                    }
+                    Some(b'f') => {
+                        text.push('\u{c}');
+                        index += 1;
+                    }
+                    Some(b'n') => {
+                        text.push('\n');
+                        index += 1;
+                    }
+                    Some(b'r') => {
+                        text.push('\r');
+                        index += 1;
+                    }
+                    Some(b't') => {
+                        text.push('\t');
+                        index += 1;
+                    }
+                    Some(b'u') => {
+                        index += 1;
+                        let Some(hex) = raw.get(index..index + 4) else {
+                            return Some((text, None));
+                        };
+                        let Ok(code) = u32::from_str_radix(hex, 16) else {
+                            return Some((text, None));
+                        };
+                        index += 4;
+                        if let Some(character) = char::from_u32(code) {
+                            text.push(character);
+                        } else if (0xD800..0xDC00).contains(&code) {
+                            // A surrogate pair spells one character, with the
+                            // low half in the next escape when it is there.
+                            let low = raw
+                                .get(index..index + 2)
+                                .filter(|escaped| *escaped == "\\u")
+                                .and_then(|_| raw.get(index + 2..index + 6))
+                                .and_then(|hex| u32::from_str_radix(hex, 16).ok())
+                                .filter(|low| (0xDC00..0xE000).contains(low));
+                            if let Some(low) = low
+                                && let Some(character) = char::from_u32(
+                                    0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00),
+                                )
+                            {
+                                text.push(character);
+                                index += 6;
+                            }
+                        }
+                    }
+                    // An unknown escape would be malformed JSON. Keep the
+                    // character after it whole, so a multibyte one can never
+                    // leave the scan inside a UTF-8 sequence.
+                    Some(_) => {
+                        let Some(character) = raw[index..].chars().next() else {
+                            return Some((text, None));
+                        };
+                        text.push(character);
+                        index += character.len_utf8();
+                    }
+                }
+            }
+            _ => {
+                let Some(character) = raw[index..].chars().next() else {
+                    return Some((text, None));
+                };
+                text.push(character);
+                index += character.len_utf8();
+            }
+        }
+    }
+    Some((text, None))
+}
+
+/// A string value at `start`; `None` when the value is missing or is not a string.
+fn json_string_value(raw: &str, start: usize) -> Option<String> {
+    json_string_prefix(raw, start).map(|(text, _)| text)
+}
+
+/// The string elements of the array at `start`, including the one still being
+/// written, so a key point appears as soon as its text has arrived.
+fn json_string_array(raw: &str, start: usize) -> Vec<String> {
+    let bytes = raw.as_bytes();
+    let mut values = Vec::new();
+    if bytes.get(start) != Some(&b'[') {
+        return values;
+    }
+    let mut index = start + 1;
+    loop {
+        skip_json_separators(bytes, &mut index);
+        match bytes.get(index).copied() {
+            None | Some(b']') => break,
+            Some(b'"') => {}
+            Some(_) => break,
+        }
+        let Some((text, end)) = json_string_prefix(raw, index) else {
+            break;
+        };
+        values.push(text);
+        match end {
+            Some(end) => index = end,
+            None => break,
+        }
+    }
+    values
+}
+
+/// The index just past the value at `start`, used to walk the object's fields.
+fn json_value_end(raw: &str, start: usize) -> Option<usize> {
+    let bytes = raw.as_bytes();
+    match bytes.get(start).copied()? {
+        b'"' => json_string_prefix(raw, start)?.1,
+        b'[' | b'{' => {
+            let mut depth = 0_usize;
+            let mut index = start;
+            while index < bytes.len() {
+                match bytes[index] {
+                    b'"' => {
+                        index = json_string_prefix(raw, index)?.1?;
+                    }
+                    b'[' | b'{' => {
+                        depth += 1;
+                        index += 1;
+                    }
+                    b']' | b'}' => {
+                        depth = depth.saturating_sub(1);
+                        index += 1;
+                        if depth == 0 {
+                            return Some(index);
+                        }
+                    }
+                    _ => index += 1,
+                }
+            }
+            None
+        }
+        _ => {
+            let mut index = start;
+            while index < bytes.len() && !matches!(bytes[index], b',' | b'}' | b']') {
+                index += 1;
+            }
+            (index > start).then_some(index)
+        }
+    }
+}
+
 pub(crate) async fn load_startup_snapshot(
     paths: Paths,
     credentials: flectar_mail_core::accounts::credentials::CredentialStoreHandle,
@@ -747,6 +1097,8 @@ pub(crate) fn spawn_core_event_listener(
     core: CoreMailSource,
     pending: Arc<Mutex<PendingCoreUpdates>>,
     wake: UiWake,
+    summary: Arc<Mutex<SummaryStream>>,
+    summary_wake: UiWake,
 ) {
     let mut events = core.subscribe_events();
     // New mail is spoken from the core's own arrival event, not from the
@@ -865,6 +1217,20 @@ pub(crate) fn spawn_core_event_listener(
                     pending.calendar_changed = true;
                     pending.contacts_changed = true;
                     true
+                }
+                Ok(CoreEvent::AiSummaryDelta { thread_id, delta }) => {
+                    // The summary panel reads the text this buffer builds on
+                    // the UI thread. Wake it only for the conversation the
+                    // user asked about, so an answer to a replaced request
+                    // cannot bring its panel back.
+                    let fresh = summary
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .append(thread_id, &delta);
+                    if fresh {
+                        summary_wake.wake();
+                    }
+                    false
                 }
                 Ok(_) => false,
                 Err(RecvError::Closed) => break,
@@ -1380,6 +1746,9 @@ mod warm_start_tests {
             has_replied: true,
             high_importance: false,
             security: String::new(),
+            security_reason: String::new(),
+            security_model: String::new(),
+            security_checked_at: None,
             is_outgoing: false,
             labels: Vec::new(),
             html: Some("<p>body must not enter warm cache</p>".into()),
@@ -1546,5 +1915,48 @@ mod warm_start_tests {
         // Caches written before profiles filtered mail show every account.
         assert_eq!(snapshot.profile_accounts, None);
         assert_eq!(snapshot.grouping, MailGrouping::Conversations);
+    }
+}
+
+#[cfg(test)]
+mod summary_stream_tests {
+    use super::{SummaryStream, summary_display_text};
+
+    #[test]
+    fn streamed_summary_shows_fields_before_the_json_is_complete() {
+        assert_eq!(
+            summary_display_text(r#"{"timeline":[],"keyPoints":["Ask for the Q3 numbers","#),
+            "Key points\n• Ask for the Q3 numbers\n\n"
+        );
+        // A field still being written keeps the text received so far.
+        assert_eq!(
+            summary_display_text(r#"{"keyPoints":["sent"],"nextAction":"reply tod"#),
+            "Key points\n• sent\n\nNext action\nreply tod\n\n"
+        );
+    }
+
+    #[test]
+    fn streamed_summary_decodes_escapes_and_explains_sections() {
+        let text = summary_display_text(
+            r#"{"keyPoints":["a } b","quote \" inside"],"nextAction":"do it","proposedReply":"hi \u00e9"}"#,
+        );
+        assert_eq!(
+            text,
+            "Key points\n• a } b\n• quote \" inside\n\nNext action\ndo it\n\nSuggested reply\nhi é\n"
+        );
+    }
+
+    #[test]
+    fn summary_stream_ignores_replaced_requests() {
+        let mut stream = SummaryStream::default();
+        let generation = stream.begin(7);
+        assert!(stream.append(7, r#"{"keyPoints":["first"]"#));
+        assert!(stream.is_current(generation));
+        assert_eq!(stream.take().as_deref(), Some("Key points\n• first\n\n"));
+        assert!(stream.take().is_none());
+        assert!(!stream.append(9, r#"{"keyPoints":["old"]}"#));
+        let newer = stream.begin(9);
+        assert!(!stream.is_current(generation));
+        assert!(stream.is_current(newer));
     }
 }

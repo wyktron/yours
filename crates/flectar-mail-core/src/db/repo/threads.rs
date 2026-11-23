@@ -5,6 +5,20 @@ use rusqlite::{Connection, OptionalExtension, Row, params};
 use super::{parse_addrs, parse_json_column};
 
 fn summary_from_row(row: &Row) -> rusqlite::Result<ThreadSummary> {
+    // The reason, model and time come from the same message whose verdict the
+    // rank names, so the reader's banner explains the judgement the row shows.
+    let (security_reason, security_model, security_checked_at) = row
+        .get::<_, Option<String>>("security_detail")?
+        .map(|json| parse_json_column::<(Option<String>, Option<String>, Option<i64>)>(&json, 17))
+        .transpose()?
+        .map(|(reason, model, checked_at)| {
+            (
+                reason.unwrap_or_default(),
+                model.unwrap_or_default(),
+                checked_at,
+            )
+        })
+        .unwrap_or_default();
     Ok(ThreadSummary {
         id: row.get("id")?,
         account_id: row.get("account_id")?,
@@ -41,6 +55,9 @@ fn summary_from_row(row: &Row) -> rusqlite::Result<ThreadSummary> {
             }),
         attachment_total: row.get("attachment_total")?,
         security: security_from_rank(row.get::<_, Option<i64>>("security_rank")?),
+        security_reason,
+        security_model,
+        security_checked_at,
     })
 }
 
@@ -96,7 +113,18 @@ const SUMMARY_SELECT: &str = "
                          WHEN 'phishing' THEN 2
                          WHEN 'suspicious' THEN 1
                          ELSE 0 END)
-              FROM messages m WHERE m.thread_id = t.id) AS security_rank
+              FROM messages m WHERE m.thread_id = t.id) AS security_rank,
+           -- The strongest judgement's explanation, so the reader can say why
+           -- the conversation it opened is flagged.
+           (SELECT json_array(m.security_reason, m.security_model,
+                              m.security_checked_at)
+              FROM messages m
+             WHERE m.thread_id = t.id
+               AND m.security_verdict IN ('phishing', 'suspicious')
+             ORDER BY CASE m.security_verdict WHEN 'phishing' THEN 2
+                                              ELSE 1 END DESC,
+                      m.date DESC
+             LIMIT 1) AS security_detail
     FROM threads t
     JOIN accounts a ON a.id = t.account_id
     LEFT JOIN snoozes s ON s.thread_id = t.id";
@@ -644,6 +672,13 @@ fn message_summary_from_row(row: &Row) -> rusqlite::Result<MessageSummary> {
         security: row
             .get::<_, Option<String>>("security")?
             .unwrap_or_default(),
+        security_reason: row
+            .get::<_, Option<String>>("security_reason")?
+            .unwrap_or_default(),
+        security_model: row
+            .get::<_, Option<String>>("security_model")?
+            .unwrap_or_default(),
+        security_checked_at: row.get("security_checked_at")?,
     })
 }
 
@@ -677,7 +712,8 @@ const MESSAGE_SUMMARY_SELECT: &str = "
               ORDER BY f.id LIMIT 1) AS first_attachment,
            (SELECT COUNT(*) FROM attachments f
               WHERE f.message_id = m.id AND f.is_inline = 0) AS attachment_total,
-           m.security_verdict AS security
+           m.security_verdict AS security,
+           m.security_reason, m.security_model, m.security_checked_at
     FROM messages m
     JOIN threads t ON t.id = m.thread_id
     JOIN accounts a ON a.id = m.account_id

@@ -564,6 +564,16 @@ export component MailReadingPane inherits FocusScope {
         else { email-focus.focus(); }
     }
 
+    // The AI's phishing judgement on the open conversation. The banner says
+    // why it was flagged, and Dismiss remembers the message it was hidden for,
+    // so another message still shows its own.
+    private property <bool> security-flagged: (EmailReader.security == "phishing" || EmailReader.security == "suspicious")
+        && EmailReader.message-id != root.security-dismissed;
+    private property <int> security-dismissed: -1;
+    // The mail list tints a flagged row with these; the banner follows it.
+    private property <color> security-wash: EmailReader.security == "phishing" ? #ff3b3026 : #ff8a0026;
+    private property <color> security-accent: EmailReader.security == "phishing" ? #ff3b30 : #ff8a00;
+
     // Message shortcuts act on the open conversation, as its toolbar does,
     // but not behind a dialog the reader shows.
     private property <bool> message-keys: root.has_selected && !root.rendering_info_open && !root.label-editor-open;
@@ -1166,6 +1176,80 @@ export component MailReadingPane inherits FocusScope {
                             easing: ease-out;
                             enabled: MotionSettings.enabled && root.content-reveal > 0;
                         }
+
+                        // Why the AI flagged the conversation, above the mail
+                        // it judged. It follows the row's red or amber tint.
+                        if root.security-flagged : Rectangle {
+                            // Measured from the window like the subject: the
+                            // pane's preferred width already depends on this
+                            // column, so parent.width would be a binding loop.
+                            width: root.compact ? max(0px, root.window-width - 24px)
+                                : root.full-width ? max(0px, root.window-width - 48px)
+                                : max(0px, root.window-width - 734px);
+                            // The row layout gives the banner its height, so a
+                            // wrapped reason grows it instead of clipping.
+                            height: security-banner.preferred-height;
+                            background: root.security-wash;
+                            border-radius: 8px;
+                            border-width: 1px;
+                            border-color: root.security-accent.transparentize(0.6);
+                            accessible-role: groupbox;
+
+                            security-banner := HorizontalBox {
+                                padding: 12px;
+                                spacing: 10px;
+                                cross-axis-alignment: start;
+
+                                Image {
+                                    width: LayoutMetrics.icon-size;
+                                    height: LayoutMetrics.icon-size;
+                                    source: @image-url("../icons/lucide/outline/shield.svg");
+                                    colorize: root.security-accent;
+                                    image-fit: contain;
+                                    accessible-role: none;
+                                }
+
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    spacing: 2px;
+
+                                    Text {
+                                        text: EmailReader.security == "phishing"
+                                            ? @tr("Flagged as phishing")
+                                            : @tr("Flagged as suspicious");
+                                        color: root.heading;
+                                        font-size: TypeScale.body;
+                                        font-weight: 700;
+                                        wrap: word-wrap;
+                                    }
+                                    Text {
+                                        text: EmailReader.security-reason == ""
+                                            ? @tr("The model gave no reason.")
+                                            : @tr("Why: {0}", EmailReader.security-reason);
+                                        color: root.secondary-text;
+                                        font-size: TypeScale.secondary;
+                                        wrap: word-wrap;
+                                    }
+                                    if EmailReader.security-model != "" || EmailReader.security-checked != "" : Text {
+                                        text: EmailReader.security-model != "" && EmailReader.security-checked != ""
+                                            ? @tr("Checked by {0} on {1}", EmailReader.security-model, EmailReader.security-checked)
+                                            : EmailReader.security-checked != ""
+                                                ? @tr("Checked on {0}", EmailReader.security-checked)
+                                                : @tr("Checked by {0}", EmailReader.security-model);
+                                        color: root.muted-text;
+                                        font-size: TypeScale.caption;
+                                        wrap: word-wrap;
+                                    }
+                                }
+
+                                Button {
+                                    text: @tr("Dismiss");
+                                    clicked => { root.security-dismissed = EmailReader.message-id; }
+                                }
+                            }
+                        }
+
+                        if root.security-flagged : Rectangle { height: 12px; }
 
                         Text {
                             // The two navigation panes and separators occupy

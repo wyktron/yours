@@ -1065,6 +1065,13 @@ pub struct ThreadSummary {
     /// The strongest phishing judgement on any of its messages: "phishing",
     /// "suspicious", or empty when nothing looked wrong.
     pub security: String,
+    /// Why that strongest judgement was made, in the model's own words. Empty
+    /// when the scanner recorded only a verdict.
+    pub security_reason: String,
+    /// The model that made that judgement.
+    pub security_model: String,
+    /// When it was made (milliseconds since the epoch).
+    pub security_checked_at: Option<i64>,
 }
 
 /// Whether mail lists show conversations or each message on its own, like
@@ -1110,9 +1117,16 @@ pub struct MessageSummary {
     /// The message's first file. Inline images are not files.
     pub first_attachment: Option<AttachmentMeta>,
     pub attachment_total: i64,
-    /// The phishing judgement on this message: "phishing", "suspicious", or
-    /// empty when nothing looked wrong.
+    /// The phishing judgement on this message: "phishing", "suspicious",
+    /// "clean", or empty when nothing looked wrong.
     pub security: String,
+    /// Why the judgement was made, in the model's own words. Empty when the
+    /// scanner recorded only a verdict.
+    pub security_reason: String,
+    /// The model that made the judgement.
+    pub security_model: String,
+    /// When it was made (milliseconds since the epoch).
+    pub security_checked_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

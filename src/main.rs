@@ -172,7 +172,7 @@ use sidebar_model::{SidebarAnimation, SidebarModel, refresh_sidebar, refresh_sid
 use slint::{DataTransfer, Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, Timer, VecModel};
 use sha2::{Digest, Sha256};
 use startup::{
-    PendingCoreUpdates, StartupCalendarSnapshot, StartupSnapshot, StartupUpdate,
+    PendingCoreUpdates, StartupCalendarSnapshot, StartupSnapshot, StartupUpdate, SummaryStream,
     WarmStartCacheWriter, WarmStartCursor, WarmStartProjection, WarmStartSnapshot, apply_settings,
     apply_warm_start_snapshot, load_startup_calendar_snapshot, load_startup_mail_metadata,
     load_startup_snapshot, load_warm_start_snapshot, spawn_core_event_listener,
@@ -2257,10 +2257,41 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     let state = Rc::new(RefCell::new(initial_state));
 
     // The AI summary follows the selected conversation; it opens the panel
-    // straight away so the busy state is visible while the model runs.
+    // straight away so the busy state is visible while the model runs. The
+    // core streams the model's raw JSON through its event bus: the listener
+    // folds each chunk into this buffer and wakes the panel, which shows the
+    // readable sections as they fill in instead of waiting for the last token.
+    let summary_stream = Arc::new(Mutex::new(SummaryStream::default()));
+    let summary_drain_app = app.as_weak();
+    let summary_drain_stream = Arc::clone(&summary_stream);
+    app.on_drain_summary_updates(move || {
+        let Some(app) = summary_drain_app.upgrade() else {
+            return;
+        };
+        let text = {
+            let mut stream = summary_drain_stream
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if app.get_summary_busy() {
+                stream.take()
+            } else {
+                // An answer or an error already ended the busy state; text
+                // arriving afterwards belongs to a request the user replaced.
+                stream.discard();
+                None
+            }
+        };
+        if let Some(text) = text {
+            app.set_summary_text(text.into());
+        }
+    });
     let summary_app = app.as_weak();
     let summary_state = Rc::clone(&state);
     let summary_runtime = runtime.clone();
+    let summary_stream_for_handler = Arc::clone(&summary_stream);
+    // Asking again for the same conversation must stop the first model stream
+    // from writing into the panel the user just restarted.
+    let summary_task = Rc::new(RefCell::new(None::<tokio::task::JoinHandle<()>>));
     app.on_ai_summarize_thread(move || {
         let Some(app) = summary_app.upgrade() else {
             return;
@@ -2286,57 +2317,74 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
         app.set_summary_title(subject.into());
         app.set_summary_text("".into());
         app.set_summary_error("".into());
+        app.set_summary_elapsed(0);
         app.set_summary_busy(true);
         app.set_summary_open(true);
+        if let Some(previous) = summary_task.borrow_mut().take() {
+            previous.abort();
+        }
+        let generation = summary_stream_for_handler
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .begin(thread_id);
         let app = app.as_weak();
-        summary_runtime.spawn(async move {
+        let stream = Arc::clone(&summary_stream_for_handler);
+        let task = summary_runtime.spawn(async move {
             let result = tokio::time::timeout(
                 std::time::Duration::from_secs(150),
                 core.file_core().ai_summarize(thread_id),
             )
             .await;
-            let result = match result {
-                Ok(result) => result,
+            let outcome = match result {
+                Ok(Ok(summary)) => Ok(summary),
+                Ok(Err(error)) => Err(format!("Could not summarize: {error}")),
                 Err(_) => {
                     eprintln!("ai summary: timed out after 150s");
-                    if let Some(app) = app.upgrade() {
-                        app.set_summary_busy(false);
-                        app.set_summary_error("The model did not answer in time.".into());
-                    }
-                    return;
+                    Err("The model did not answer in time.".to_owned())
                 }
             };
             eprintln!("ai summary: model answered");
-            let Some(app) = app.upgrade() else {
-                return;
-            };
-            app.set_summary_busy(false);
-            match result {
-                Ok(summary) => {
-                    let mut text = String::new();
-                    if !summary.key_points.is_empty() {
-                        text.push_str("Key points\n");
-                        for point in &summary.key_points {
-                            text.push_str(&format!("• {point}\n"));
+            // The panel is a UI object: settle the busy state and the answer
+            // on the UI thread, where the streamed chunks already arrive.
+            let _ = slint::invoke_from_event_loop(move || {
+                let Some(app) = app.upgrade() else {
+                    return;
+                };
+                // A newer request owns the panel now; its own answer wins.
+                if !stream
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .is_current(generation)
+                {
+                    return;
+                }
+                app.set_summary_busy(false);
+                match outcome {
+                    Ok(summary) => {
+                        let mut text = String::new();
+                        if !summary.key_points.is_empty() {
+                            text.push_str("Key points\n");
+                            for point in &summary.key_points {
+                                text.push_str(&format!("• {point}\n"));
+                            }
+                            text.push('\n');
                         }
-                        text.push('\n');
+                        if let Some(next) = &summary.next_action {
+                            text.push_str(&format!("Next action\n{next}\n\n"));
+                        }
+                        if let Some(reply) = &summary.proposed_reply {
+                            text.push_str(&format!("Suggested reply\n{reply}\n"));
+                        }
+                        if text.is_empty() {
+                            text.push_str("The model returned no summary.");
+                        }
+                        app.set_summary_text(text.into());
                     }
-                    if let Some(next) = &summary.next_action {
-                        text.push_str(&format!("Next action\n{next}\n\n"));
-                    }
-                    if let Some(reply) = &summary.proposed_reply {
-                        text.push_str(&format!("Suggested reply\n{reply}\n"));
-                    }
-                    if text.is_empty() {
-                        text.push_str("The model returned no summary.");
-                    }
-                    app.set_summary_text(text.into());
+                    Err(error) => app.set_summary_error(error.into()),
                 }
-                Err(error) => {
-                    app.set_summary_error(format!("Could not summarize: {error}").into());
-                }
-            }
+            });
         });
+        *summary_task.borrow_mut() = Some(task);
     });
     mail_work::register(&app, &state, &runtime);
     move_picker::register(&app, &state, &runtime);
@@ -4642,6 +4690,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     let startup_runtime = runtime.clone();
     let startup_pending_core_updates = Arc::clone(&pending_core_updates);
     let startup_core_wake = core_updates_wake.clone();
+    let startup_summary_stream = Arc::clone(&summary_stream);
     let startup_notification_host = platform.notifications.clone();
     let startup_app = app.as_weak();
     let startup_paths_for_ui = platform.paths.clone();
@@ -4842,6 +4891,8 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                         core.clone(),
                         Arc::clone(&startup_pending_core_updates),
                         startup_core_wake.clone(),
+                        Arc::clone(&startup_summary_stream),
+                        UiWake::new(app.as_weak(), |app| app.invoke_drain_summary_updates()),
                     );
                     notifications::spawn_dispatcher(
                         &startup_runtime,

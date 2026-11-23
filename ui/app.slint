@@ -1481,6 +1481,10 @@ export component AppWindow inherits Window {
     in-out property <string> summary-title: "";
     in-out property <string> summary-text: "";
     in-out property <string> summary-error: "";
+    // Seconds the model has been working, so a slow answer can say so.
+    in-out property <int> summary-elapsed: 0;
+    // Rust shows the streamed answer text as the core's listener delivers it.
+    callback drain-summary-updates();
     callback ai_summarize_thread();
     in-out property <bool> account_form_open: false;
     in-out property <bool> oauth_in_progress: false;
@@ -3170,6 +3174,13 @@ export component AppWindow inherits Window {
         height: root.height;
         background: #00000066;
         TouchArea { }
+        // One tick a second while the model works, so the panel can tell a
+        // slow answer from a stuck one and show how long it has waited.
+        Timer {
+            interval: 1s;
+            running: root.summary-busy;
+            triggered => { root.summary-elapsed += 1; }
+        }
         Rectangle {
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
@@ -3197,7 +3208,24 @@ export component AppWindow inherits Window {
                 if root.summary-busy : HorizontalLayout {
                     spacing: 8px;
                     ActivitySpinner { width: 20px; height: 20px; running: true; color: AppTheme.accent; }
-                    Text { text: @tr("Reading the conversation…"); color: AppTheme.secondary; font-size: 13px; vertical-alignment: center; }
+                    Text {
+                        // A local model on a laptop can take a while; say so
+                        // before the user decides the panel has hung.
+                        text: root.summary-elapsed >= 8
+                            ? @tr("Still reading — the model is slow on this machine")
+                            : @tr("Reading the conversation…");
+                        color: AppTheme.secondary;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
+                    }
+                    Text {
+                        text: root.summary-elapsed > 0 ? @tr("{0} s", root.summary-elapsed) : "";
+                        color: AppTheme.muted;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
                 }
                 if root.summary-error != "" : Text {
                     text: root.summary-error;

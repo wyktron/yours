@@ -90,8 +90,15 @@ pub struct MailMessage {
     pub attachments: Vec<flectar_mail_core::models::AttachmentMeta>,
     pub has_replied: bool,
     pub high_importance: bool,
-    /// The AI's phishing judgement: "phishing", "suspicious", or empty.
+    /// The AI's phishing judgement: "phishing", "suspicious", "clean", or
+    /// empty when nothing looked wrong.
     pub security: String,
+    /// Why the judgement was made, as the scanner recorded it.
+    pub security_reason: String,
+    /// The model that made the judgement.
+    pub security_model: String,
+    /// When it was made (milliseconds since the epoch).
+    pub security_checked_at: Option<i64>,
     pub is_outgoing: bool,
     pub labels: Vec<i64>,
     pub html: Option<String>,
@@ -154,6 +161,9 @@ impl MailMessage {
             has_replied: email.has_replied,
             high_importance: email.high_importance,
             security: String::new(),
+            security_reason: String::new(),
+            security_model: String::new(),
+            security_checked_at: None,
             is_outgoing: false,
             labels: Vec::new(),
             html: Some(email.html.to_owned()),
@@ -3973,6 +3983,9 @@ fn summary_to_message(
         has_replied: thread.has_replied,
         high_importance: thread.high_importance,
         security: thread.security.clone(),
+        security_reason: thread.security_reason.clone(),
+        security_model: thread.security_model.clone(),
+        security_checked_at: thread.security_checked_at,
         is_outgoing: false,
         labels: thread.labels,
         html: None,
@@ -4086,6 +4099,9 @@ fn message_summary_to_message(
         has_replied: message.has_replied,
         high_importance: message.high_importance,
         security: message.security.clone(),
+        security_reason: message.security_reason.clone(),
+        security_model: message.security_model.clone(),
+        security_checked_at: message.security_checked_at,
         is_outgoing: message.is_outgoing,
         labels: message.labels,
         html: None,
@@ -4200,6 +4216,12 @@ fn detail_to_message(row: &MailMessage, message: &MessageDetail, body_loaded: bo
         has_replied: row.has_replied,
         high_importance: row.high_importance,
         security: row.security.clone(),
+        // A conversation's messages are not judged one by one: the open
+        // message carries the strongest verdict on the conversation, which is
+        // also the tint the list row shows.
+        security_reason: row.security_reason.clone(),
+        security_model: row.security_model.clone(),
+        security_checked_at: row.security_checked_at,
         is_outgoing: message.is_outgoing,
         labels: row.labels.clone(),
         html,
@@ -4246,6 +4268,20 @@ fn detail_to_conversation_message(
     projected.message_count = 1;
     projected.is_outgoing = message.is_outgoing;
     Some(projected)
+}
+
+/// The day the AI judged a message, in the reader's language, for the
+/// phishing banner. Empty before any judgement.
+pub(crate) fn security_checked_label(checked_at: Option<i64>) -> String {
+    checked_at
+        .and_then(chrono::DateTime::<chrono::Utc>::from_timestamp_millis)
+        .map(|when| {
+            crate::date_format::current().date(
+                crate::date_format::DateStyle::Short,
+                when.with_timezone(&chrono::Local).date_naive(),
+            )
+        })
+        .unwrap_or_default()
 }
 
 fn readable_message_html(html: Option<&str>, text: Option<&str>, snippet: &str) -> String {
@@ -4783,6 +4819,9 @@ mod tests {
             has_replied: false,
             high_importance: false,
             security: String::new(),
+            security_reason: String::new(),
+            security_model: String::new(),
+            security_checked_at: None,
             snoozed_until: None,
             labels: vec![3],
             verification_code: None,
@@ -4866,6 +4905,9 @@ mod tests {
             has_replied: true,
             high_importance: false,
             security: String::new(),
+            security_reason: String::new(),
+            security_model: String::new(),
+            security_checked_at: None,
             snoozed_until: None,
             labels: Vec::new(),
             verification_code: Some("482913".into()),

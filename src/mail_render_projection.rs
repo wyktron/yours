@@ -127,6 +127,10 @@ pub(super) fn clear_reader_projection(app: &AppWindow) {
     crate::read_receipts::clear(app);
     let reader = app.global::<EmailReader>();
     reader.set_available(false);
+    reader.set_security("".into());
+    reader.set_security_reason("".into());
+    reader.set_security_model("".into());
+    reader.set_security_checked("".into());
     reader.set_body_pending(false);
     reader.set_reader_mode(false);
     reader.set_find_open(false);
@@ -171,6 +175,14 @@ pub(super) fn apply_email(
     crate::invitation::project(app, &email);
     crate::read_receipts::project(app, &email);
     let reader = app.global::<EmailReader>();
+    // The reader explains the AI's judgement on this row; the list only tints
+    // it. The date follows the reader's language like every other date.
+    reader.set_security(email.security.clone().into());
+    reader.set_security_reason(email.security_reason.clone().into());
+    reader.set_security_model(email.security_model.clone().into());
+    reader.set_security_checked(
+        crate::mail::security_checked_label(email.security_checked_at).into(),
+    );
     reader.set_body_pending(email.body_pending);
     reader.set_authored_text(email.text.clone().unwrap_or_default().into());
     let same_message = reader.get_message_id() == email.id;

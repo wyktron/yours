@@ -561,6 +561,15 @@ export global EmailReader {
     in-out property <[ReaderItem]> items;
     in-out property <string> authored-text;
     in-out property <bool> use-authored-text: false;
+    // The AI's phishing judgement on the open conversation: "phishing",
+    // "suspicious", "clean", or empty. The reader explains it in a banner.
+    in-out property <string> security: "";
+    /// Why the judgement was made, in the model's own words.
+    in-out property <string> security-reason: "";
+    /// The model that judged the mail.
+    in-out property <string> security-model: "";
+    /// The day it judged it, in the reader's language.
+    in-out property <string> security-checked: "";
 }
 
 export struct MailAttachment {
