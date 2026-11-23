@@ -29,7 +29,7 @@ import "../resources/fonts/google-sans-flex/GoogleSansFlex-VariableFont_GRAD,RON
 
 import { Palette, ScrollView, TextEdit } from "std-widgets.slint";
 import { ActivitySpinner } from "components/activity-spinner.slint";
-import { Starfield } from "components/starfield.slint";
+import { Starfield, StarfieldState } from "components/starfield.slint";
 import { InterfaceText, TypeScale } from "typography.slint";
 export { AppTheme, MotionSettings, ThemeUtilities } from "design-system.slint";
 export { InterfaceText } from "typography.slint";
@@ -1854,14 +1854,29 @@ export component AppWindow inherits Window {
     }
 
     // The Space theme's starfield sits on the window's true-black page, behind
-    // every pane. Other presets instantiate nothing here at all. The timer
-    // stops while motion is reduced or the window is hidden to the tray.
+    // every pane, and shows through the 72%-opaque charcoal surfaces. Other
+    // presets instantiate nothing here at all. The timer stops while motion is
+    // reduced or the window is hidden to the tray.
     if AppTheme.preset == "space" : Starfield {
         x: 0px;
         y: 0px;
         width: parent.width;
         height: parent.height;
-        active: MotionSettings.movement && !root.render-suspended && !root.minimized;
+    }
+
+    // The Space shimmer. This timer lives outside the conditional Starfield:
+    // four times a second it advances to the next pre-rendered field, so the
+    // visible stars only change brightness and never move.
+    Timer {
+        interval: 70ms;
+        running: AppTheme.preset == "space" && MotionSettings.movement
+            && !root.render-suspended && !root.minimized;
+        triggered => {
+            StarfieldState.frame += 1;
+            if StarfieldState.frame >= 12 {
+                StarfieldState.frame = 0;
+            }
+        }
     }
 
     // Toolbar rows sit above this band; wherever they have no interactive
@@ -2364,7 +2379,9 @@ export component AppWindow inherits Window {
             faint-text: root.faint-text;
             heading: root.heading;
             muted-text: root.muted-text;
-            page-bg: root.page-bg;
+            // Space lets the shared starfield keep showing through Settings
+            // instead of painting a second black page over it.
+            page-bg: AppTheme.preset == "space" ? transparent : root.page-bg;
             secondary-text: root.secondary-text;
             // Under the tab strip, the sidebar shares the pages' raised
             // surface, so the Settings tab opens into one color.

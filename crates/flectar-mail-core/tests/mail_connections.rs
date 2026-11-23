@@ -1261,6 +1261,7 @@ fn smtp_config(port: u16, mode: ConnectionSecurity, certificate: &str) -> Accoun
         smtp_host: "127.0.0.1".into(),
         smtp_port: port,
         settings: AccountSettings::new(settings_with_certificate(mode, certificate)),
+        calendar_only: false,
     }
 }
 /// A relay that takes the message and then never answers must not hold the

@@ -737,7 +737,11 @@ export component MailReadingPane inherits FocusScope {
                         height: root.compact ? LayoutMetrics.compact-header-height : LayoutMetrics.desktop-mail-toolbar-height;
                         // Under the tab strip the toolbar shares the list's
                         // surface, so the band below the tabs is one color.
-                        background: WindowChrome.top-bar ? root.surface : root.surface-raised;
+                        // Space leaves it transparent: the pane's 72%-opaque
+                        // backdrop already paints here, and a second layer
+                        // would make the chrome effectively opaque again.
+                        background: AppTheme.preset == "space" ? transparent
+                            : WindowChrome.top-bar ? root.surface : root.surface-raised;
                         private property <length> inset: root.compact ? 8px : 14px;
                         // Width left for buttons once integrated window
                         // controls are accounted for. Copied on change so the

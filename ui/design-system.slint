@@ -132,10 +132,11 @@ export global AppTheme {
 
     // Pixel and Space are colour-only translations of their references: Pixel
     // HQ's night office becomes a midnight-violet canvas with neon mint
-    // actions, a hot-pink focus accent and near-black borders; Dark Space's
-    // flat black chrome becomes a true #000000 page with a moving starfield,
-    // translucent blue-black surfaces, soft slate borders and cream text
-    // around a deep aurora blue.
+    // actions, a hot-pink focus accent and near-black borders; Space is a
+    // neutral OLED black page with a moving starfield, translucent charcoal
+    // panes, warm-grey borders and cream text. Space keeps colour out of every
+    // background: its surfaces are equal-channel greys, and only controls
+    // (primary actions, focus and small accents) carry the blue accent.
     // Each non-default preset starts from five user-facing foundation colors.
     // The rest of the semantic tokens are derived consistently, so adding a
     // component never expands the persisted theme schema.
@@ -166,23 +167,23 @@ export global AppTheme {
         : custom-light-surface;
     out property <color> dark-surface: preset == "default" ? #18191a
         : preset == "oled" ? #0a0a0a
-        : preset == "pixel" ? #1b1734 : preset == "space" ? #0a0f19
+        : preset == "pixel" ? #1b1734 : preset == "space" ? #0a0a0a
         : preset == "teal" ? #122026 : preset == "green" ? #182019
         : preset == "purple" ? #201722 : custom-dark-surface;
     out property <color> light-text: preset == "default" ? #202120
         : preset == "teal" ? #173039 : preset == "green" ? #213026
         : preset == "purple" ? #332537
-        : preset == "pixel" ? #241d3f : preset == "space" ? #1a2333
+        : preset == "pixel" ? #241d3f : preset == "space" ? #1a1a1a
         : custom-light-text;
     out property <color> dark-text: preset == "default" ? #f3f3f2
         : preset == "oled" ? #f5f5f5
-        : preset == "pixel" ? #f2eeff : preset == "space" ? #f3ecdd
+        : preset == "pixel" ? #f2eeff : preset == "space" ? #f7f1e7
         : preset == "teal" ? #e5f0f2 : preset == "green" ? #e9f0e6
         : preset == "purple" ? #f1e8f3 : custom-dark-text;
     private property <color> themed-surface: dark ? dark-surface : light-surface;
     private property <color> themed-text: dark ? dark-text : light-text;
     private property <color> themed-border: preset == "oled" ? #262626
-        : preset == "pixel" ? #06040e : preset == "space" ? #202c40
+        : preset == "pixel" ? #06040e : preset == "space" ? #2a2a2a
         : preset == "teal" ? (dark ? #294047 : #c8dadd)
         : preset == "green" ? (dark ? #344039 : #ccd8c8)
         : preset == "purple" ? (dark ? #46354a : #dfd0e2)
@@ -194,29 +195,29 @@ export global AppTheme {
         : themed-primary;
 
     out property <color> page-bg: preset == "default" ? (dark ? #111213 : #f2f2f0) : themed-page-bg;
-    // Space paints its panes just short of opaque: the starfield underneath
-    // reads as a faint glimmer through the chrome, never as noise behind text.
-    // 0.94 alpha keeps every text token far above 4.5:1 over the effective
-    // background, even where a star sits directly behind a pane.
+    // Space paints its panes at 68% opacity over the true-black page: the
+    // starfield reads through every surface, and every text token still clears
+    // 4.5:1 even where the brightest star sits directly behind it. The tints
+    // are equal-channel charcoals, so no blue cast reaches the background.
     out property <color> surface: preset == "default" ? (dark ? #18191a : #ffffff)
-        : preset == "space" ? #0a0f19f0
+        : preset == "space" ? #0a0a0aae
         : themed-surface;
     out property <color> surface-raised: preset == "default" ? (dark ? #131415 : #fafaf8)
-        : preset == "pixel" ? #211b3e : preset == "space" ? #0d1524f2
+        : preset == "pixel" ? #211b3e : preset == "space" ? #0d0d0dae
         : themed-surface.mix(themed-page-bg, 0.72);
     // The sidebars' own tint, also a soft fill on the content.
     out property <color> sidebar-tint: preset == "default" ? (dark ? #151617 : #f0f0ee)
-        : preset == "pixel" ? #15112a : preset == "space" ? #070b13f0
+        : preset == "pixel" ? #15112a : preset == "space" ? #050505ae
         : themed-page-bg.mix(themed-surface, 0.72);
     // Under the tab strip, sidebars share the content's surface, so the
     // active tab opens into one color wherever it sits; dividers alone
     // separate the panes there.
     out property <color> sidebar-bg: root.top-bar ? root.surface : root.sidebar-tint;
     out property <color> control-bg: preset == "default" ? (dark ? #232425 : #f1f1ef)
-        : preset == "pixel" ? #2a2348 : preset == "space" ? #111a2bf5
+        : preset == "pixel" ? #2a2348 : preset == "space" ? #191919f2
         : themed-surface.mix(themed-text, dark ? 0.90 : 0.94);
     out property <color> muted-control-bg: preset == "default" ? (dark ? #242526 : #e8e8e5)
-        : preset == "pixel" ? #221d3b : preset == "space" ? #0e1624f2
+        : preset == "pixel" ? #221d3b : preset == "space" ? #141414eb
         : themed-surface.mix(themed-text, dark ? 0.86 : 0.90);
     // Product actions deliberately keep the established Flectar blue in both
     // themes. The lighter dark-theme accent remains available for selection,
@@ -227,20 +228,22 @@ export global AppTheme {
     out property <color> accent: preset == "default" ? (dark ? #5ca3ff : #0969da) : themed-accent;
     out property <color> accent-hover: preset == "default" ? (dark ? #74b1ff : #1675df) : themed-accent.mix(white, 0.88);
     out property <color> accent-pressed: preset == "default" ? (dark ? #428de8 : #0757b5) : themed-accent.mix(black, 0.84);
+    // Hover and selection fills stay neutral in Space: the accent is for
+    // controls and focus rings, never for a background wash.
     out property <color> accent-soft: preset == "default" ? (dark ? #26364a : #dcecff)
-        : preset == "pixel" ? #3a1f45 : preset == "space" ? #17263c
+        : preset == "pixel" ? #3a1f45 : preset == "space" ? #1a1a1a
         : themed-accent.mix(themed-surface, dark ? 0.20 : 0.14);
     out property <color> accent-pale: preset == "default" ? (dark ? #1c2a3a : #edf6ff)
-        : preset == "pixel" ? #271630 : preset == "space" ? #0e1726
+        : preset == "pixel" ? #271630 : preset == "space" ? #111111
         : themed-accent.mix(themed-surface, dark ? 0.11 : 0.07);
     out property <color> selected-row: preset == "default" ? (dark ? #252627 : #e9e9e6)
-        : preset == "pixel" ? #241d3f : preset == "space" ? #131b2a
+        : preset == "pixel" ? #241d3f : preset == "space" ? #1c1c1c
         : themed-surface.mix(themed-text, dark ? 0.90 : 0.93);
     out property <color> avatar-bg: preset == "default" ? (dark ? #303132 : #e6e6e2)
-        : preset == "pixel" ? #2c2450 : preset == "space" ? #182130
+        : preset == "pixel" ? #2c2450 : preset == "space" ? #202020
         : themed-surface.mix(themed-text, dark ? 0.84 : 0.89);
     out property <color> avatar-selected-bg: preset == "default" ? (dark ? #354860 : #d5e8ff)
-        : preset == "pixel" ? #4a2856 : preset == "space" ? #22354f
+        : preset == "pixel" ? #4a2856 : preset == "space" ? #303030
         : themed-accent.mix(themed-surface, dark ? 0.28 : 0.18);
     out property <color> border: preset == "default" ? (dark ? #292a2b : #d9d9d6) : themed-border;
     out property <color> border-subtle: preset == "default" ? (dark ? #232425 : #e6e6e2)
@@ -250,20 +253,31 @@ export global AppTheme {
     out property <color> input-border: preset == "default" ? (dark ? #383a3b : #cccdca)
         : themed-border.mix(themed-text, dark ? 0.80 : 0.86);
     out property <color> title: preset == "default" ? (dark ? #f3f3f2 : #202120) : themed-text;
-    out property <color> heading: preset == "default" ? (dark ? #e4e4e2 : #30312f)
+    // Space's text tokens are lighter than the shared mixes: they must clear
+    // 4.5:1 even over a bright star seen through a 68%-opaque pane.
+    out property <color> heading: preset == "space" ? #f2ece2
+        : preset == "default" ? (dark ? #e4e4e2 : #30312f)
         : themed-text.mix(themed-page-bg, 0.94);
-    out property <color> body: preset == "default" ? (dark ? #c5c6c3 : #4b4c49)
+    out property <color> body: preset == "space" ? #ece6dc
+        : preset == "default" ? (dark ? #c5c6c3 : #4b4c49)
         : themed-text.mix(themed-page-bg, 0.88);
-    out property <color> secondary: preset == "default" ? (dark ? #a0a19e : #72736f)
+    out property <color> secondary: preset == "space" ? #e6e0d6
+        : preset == "default" ? (dark ? #a0a19e : #72736f)
         : themed-text.mix(themed-page-bg, 0.80);
-    out property <color> muted: preset == "default" ? (dark ? #80817e : #888985)
+    out property <color> muted: preset == "space" ? #e0dad0
+        : preset == "default" ? (dark ? #80817e : #888985)
         : themed-text.mix(themed-page-bg, 0.72);
-    out property <color> faint: preset == "default" ? (dark ? #737471 : #949591)
+    out property <color> faint: preset == "space" ? #dad4ca
+        : preset == "default" ? (dark ? #737471 : #949591)
         : themed-text.mix(themed-page-bg, 0.68);
     out property <color> disabled-bg: preset == "default" ? (dark ? #202122 : #ededeb)
+        : preset == "space" ? #121212
         : themed-surface.mix(themed-text, dark ? 0.92 : 0.94);
-    out property <color> input-bg: preset == "default" ? (dark ? #1c1d1e : #ffffff) : themed-surface;
-    out property <color> placeholder: preset == "default" ? (dark ? #747572 : #90918d)
+    out property <color> input-bg: preset == "default" ? (dark ? #1c1d1e : #ffffff)
+        : preset == "space" ? #0a0a0a
+        : themed-surface;
+    out property <color> placeholder: preset == "space" ? #dad4ca
+        : preset == "default" ? (dark ? #747572 : #90918d)
         : themed-text.mix(themed-surface, 0.68);
     out property <color> destructive: #b73731;
     out property <color> destructive-hover: #c8443d;

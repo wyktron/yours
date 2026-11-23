@@ -116,6 +116,7 @@ async fn probe_smtp_starttls_auth() {
                 flectar_mail_core::models::ConnectionSecurity::Starttls,
             ),
         ),
+        calendar_only: false,
     };
     let auth = flectar_mail_core::smtp::SmtpAuth::Password("pass".into());
     match flectar_mail_core::smtp::test_connection(&cfg, &auth).await {

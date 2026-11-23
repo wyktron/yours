@@ -1,88 +1,136 @@
-// The Space preset's starfield: a transparent layer of small stars that
-// drift diagonally and twinkle over the window's OLED black page.
+// The Space preset's starfield: a calm, dense field of fixed-position stars
+// that only changes brightness.
 //
-// The field is entirely procedural. Each star's position, size, tint, speed
-// and twinkle phase comes from golden-ratio hashing of its index, so there is
-// no model to rebuild and no randomness to seed: the same 90 stars appear on
-// every launch. One 25 fps timer advances an integer clock and every property
-// below is a pure binding of that clock, so a frame costs 90 tiny rectangles
-// and no layout work.
+// The owner's Firefox reference has no drift, no parallax and no zoom: stars
+// stay put and step between dark and bright every 70 ms. The field is therefore
+// pre-rendered as twelve fixed-position images. AppWindow owns the single 70 ms
+// timer (outside this conditional component, where a timer would not run) and
+// advances StarfieldState.frame; each step shows the next image, toggling about
+// a quarter of the stars between 0.1 and 1.0 opacity. Ten percent of the stars
+// hold a steady mid brightness; nothing moves.
 //
-// The reference (Dark Space Theme) is a dense field of one-pixel stars on
-// pure #000000, with a few brighter, warm-tinted stars and a soft shimmer.
-// This component keeps that palette, size hierarchy and in-place twinkle at
-// the app's sparser vector scale: 46 faint slow stars, 30 medium stars and
-// 14 bright hero stars, drifting together like a slow parallax sky.
-import { MotionSettings } from "../design-system.slint";
+// Stars are one pixel dominant with a faint 3x3 falloff (a few 2-3 px cores),
+// 13,000 per 1485x900 field, and the brightest core is #8a8a8a rather than
+// white. Consecutive fields differ in ~2.2% of all pixels (about 30,000), so
+// the shimmer is visible; every field shares the same star positions.
+export global StarfieldState {
+    in-out property <int> frame: 0;
+}
 
 export component Starfield inherits Rectangle {
-    // The animation clock in 25 fps steps. A deterministic renderer can set
-    // it directly and keep `active` false to capture a chosen frame.
-    in-out property <int> tick: 0;
-    // False pauses the clock: reduced motion, a hidden window, or a still
-    // screenshot. The host also keeps the component out of other themes.
-    in property <bool> active: true;
+    // Follows the AppWindow timer by default; an offscreen renderer can
+    // override it to freeze a chosen step.
+    in-out property <int> frame: StarfieldState.frame;
 
     clip: true;
     accessible-role: none;
 
-    private property <float> seconds: root.tick * 0.04;
-    // The field is 12px wider than the window on each axis, so stars wrap
-    // just outside the visible edge instead of popping back into view.
-    private property <float> span-x: root.width / 1px + 24;
-    private property <float> span-y: root.height / 1px + 24;
-
-    // Slint's mod() keeps the sign of the dividend; this makes negative drift
-    // wrap into 0..span.
-    pure function wrap(value: float, span: float) -> float {
-        return mod(mod(value, span) + span, span);
+    Image {
+        visible: root.frame == 0;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        source: @image-url("../assets/space-stars-field-00.png");
+        image-fit: fill;
     }
-
-    Timer {
-        interval: 40ms; // 25 fps, inside the 25-30 fps budget.
-        running: root.active && MotionSettings.movement;
-        triggered => { root.tick += 1; }
+    Image {
+        visible: root.frame == 1;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        source: @image-url("../assets/space-stars-field-01.png");
+        image-fit: fill;
     }
-
-    // 90 stars: indices 0..45 small, 46..75 medium, 76..89 large.
-    for i in 90 : Rectangle {
-        private property <int> layer: i < 46 ? 0 : i < 76 ? 1 : 2;
-        // The golden ratio and the plastic number are low-discrepancy and
-        // independent enough to scatter 90 points without a table.
-        private property <float> u: mod((i + 1) * 0.618033988749895, 1.0);
-        private property <float> v: mod((i + 1) * 0.7548776662466927 + 0.137, 1.0);
-        private property <float> wobble: mod((i + 1) * 0.4142135623730951, 1.0);
-        // Small stars drift slowest and far ones fastest, in screen pixels per
-        // second: 1.0..1.4, 2.0..2.8 and 3.4..4.9 px/s.
-        private property <float> speed: (self.layer == 0 ? 1.2 : self.layer == 1 ? 2.4 : 4.2) * (0.82 + 0.36 * self.wobble);
-        private property <float> twinkle-rate: 0.24 + 0.08 * self.layer + 0.12 * self.wobble;
-        private property <float> phase: mod((i + 1) * 0.4142135623730951, 2.0);
-        // In-place twinkle, a triangle wave as in the reference. The wave is
-        // 0.5..1.5 and maps to the required 0.25..1.0 opacity.
-        private property <float> wave: 0.5 + abs(mod(root.seconds * self.twinkle-rate + self.phase, 2.0) - 1.0);
-        private property <float> twinkle: 0.25 + 0.75 * (self.wave - 0.5);
-        // Layer brightness gives the depth; the twinkle modulates it within
-        // the 0.25..1.0 band. The brightest hero stars reach full opacity so
-        // they still glimmer through a 94% pane, as the reference's white-hot
-        // stars do.
-        private property <float> brightness: (self.layer == 0 ? 0.45 : self.layer == 1 ? 0.75 : 1.0) * (0.85 + 0.15 * self.wobble);
-        private property <length> star-size: self.layer == 0
-            ? 1.1px + self.wobble * 0.25px
-            : self.layer == 1 ? 1.7px + self.wobble * 0.4px
-            : 2.6px + self.wobble * 0.6px;
-        // Mostly warm cream like the reference, with a few amber and ice-blue
-        // stars that echo the preset's cream text and blue accent.
-        private property <color> star-color: mod(i, 7) == 0 ? #ffd6a2
-            : mod(i, 7) == 1 ? #c9dcff
-            : #fff3df;
-
-        width: self.star-size;
-        height: self.star-size;
-        // Drift up and to the right; the vertical component is slower, so the
-        // field reads as a diagonal rather than a scroll.
-        x: (root.wrap(self.u * root.span-x + self.speed * root.seconds, root.span-x) - 12) * 1px;
-        y: (root.wrap(self.v * root.span-y - self.speed * 0.4 * root.seconds, root.span-y) - 12) * 1px;
-        border-radius: self.star-size / 2;
-        background: self.star-color.with-alpha(self.twinkle * self.brightness);
+    Image {
+        visible: root.frame == 2;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        source: @image-url("../assets/space-stars-field-02.png");
+        image-fit: fill;
+    }
+    Image {
+        visible: root.frame == 3;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        source: @image-url("../assets/space-stars-field-03.png");
+        image-fit: fill;
+    }
+    Image {
+        visible: root.frame == 4;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        source: @image-url("../assets/space-stars-field-04.png");
+        image-fit: fill;
+    }
+    Image {
+        visible: root.frame == 5;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        source: @image-url("../assets/space-stars-field-05.png");
+        image-fit: fill;
+    }
+    Image {
+        visible: root.frame == 6;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        source: @image-url("../assets/space-stars-field-06.png");
+        image-fit: fill;
+    }
+    Image {
+        visible: root.frame == 7;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        source: @image-url("../assets/space-stars-field-07.png");
+        image-fit: fill;
+    }
+    Image {
+        visible: root.frame == 8;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        source: @image-url("../assets/space-stars-field-08.png");
+        image-fit: fill;
+    }
+    Image {
+        visible: root.frame == 9;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        source: @image-url("../assets/space-stars-field-09.png");
+        image-fit: fill;
+    }
+    Image {
+        visible: root.frame == 10;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        source: @image-url("../assets/space-stars-field-10.png");
+        image-fit: fill;
+    }
+    Image {
+        visible: root.frame == 11;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        source: @image-url("../assets/space-stars-field-11.png");
+        image-fit: fill;
     }
 }
