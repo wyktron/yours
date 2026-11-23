@@ -804,6 +804,101 @@ export component ComposerPhotos inherits Rectangle {
     }
 }
 
+// A checkbox with its label, for the composer footer. SelectionCheckBox is for
+// list rows and the standard CheckBox cannot take the composer's palette, so
+// this keeps the footer's colors and its accessibility contract.
+component FooterCheckBox inherits FocusVisibleScope {
+    in-out property <bool> checked: false;
+    in property <string> label-text: "";
+    in property <color> text-color;
+    in property <color> accent-color;
+    in property <color> box-border-color;
+    callback toggled(bool);
+
+    height: 24px;
+    focus-on-click: true;
+    focus-on-tab-navigation: true;
+    accessible-role: checkbox;
+    accessible-label: root.label-text;
+    accessible-checked: root.checked;
+    accessible-action-default => {
+        root.checked = !root.checked;
+        root.toggled(root.checked);
+    }
+    key-pressed(event) => {
+        if (event.text == Key.Return || event.text == Key.Space) {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+            return accept;
+        }
+        reject
+    }
+
+    // Drawn around the box rather than on it, so the focus ring stays
+    // visible when the box is filled with the accent color.
+    Rectangle {
+        visible: root.focus-visible;
+        x: -3px;
+        y: (parent.height - 22px) / 2;
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        border-width: 2px;
+        border-color: root.accent-color;
+        background: transparent;
+    }
+
+    Rectangle {
+        x: 0px;
+        y: (parent.height - self.height) / 2;
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        border-width: root.checked ? 0px : 1px;
+        border-color: root.box-border-color;
+        background: root.checked ? root.accent-color : transparent;
+
+        Image {
+            visible: root.checked;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 12px;
+            height: 12px;
+            source: @image-url("../icons/lucide/outline/check.svg");
+            colorize: white;
+            image-fit: contain;
+            accessible-role: none;
+        }
+    }
+
+    label := Text {
+        x: 23px;
+        y: 0px;
+        width: max(0px, parent.width - self.x - 8px);
+        height: parent.height;
+        text: root.label-text;
+        color: root.text-color;
+        font-size: TypeScale.caption;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    TouchArea {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        accessible-role: none;
+        clicked => {
+            root.focus();
+            root.pointer-activated();
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+        mouse-cursor: pointer;
+    }
+}
+
 export component ComposerFooter inherits Rectangle {
     in property <bool> compact: false;
     in property <bool> attachment-picker-supported: true;
@@ -836,9 +931,20 @@ export component ComposerFooter inherits Rectangle {
     in-out property <bool> request-receipt: false;
     // How important the message says it is: 1 high, -1 low, 0 normal.
     in-out property <int> importance: 0;
+    // Deliver to each To recipient as a message of its own. The choice only
+    // shows while the To field names two or more addresses.
+    in-out property <bool> deliver-individually: false;
+    in property <bool> deliver-individually-visible: false;
+    in property <color> accent-color;
+    callback deliver-individually-toggled(bool);
     callback request-close();
 
-            height: 54px;
+            // The choice gets a row below the actions, where a phone's narrow
+            // footer still has room for its label.
+            private property <length> checkbox-row-height: root.deliver-individually-visible && !root.signature
+                ? (root.compact ? 44px : 30px)
+                : 0px;
+            height: 54px + root.checkbox-row-height;
             background: root.raised-color;
 
             Rectangle {
@@ -941,7 +1047,8 @@ export component ComposerFooter inherits Rectangle {
                 visible: !root.compact && root.attachment-picker-supported && !root.signature;
                 x: schedule-button.x + schedule-button.width + 8px;
                 width: max(0px, save-draft.x - self.x - 42px);
-                height: parent.height;
+                y: 0px;
+                height: 54px;
                 text: root.attachment-summary == "" ? @tr("Attach files") : root.attachment-summary;
                 color: root.muted-color;
                 font-size: TypeScale.caption;
@@ -1021,6 +1128,36 @@ export component ComposerFooter inherits Rectangle {
                 hover-background: root.control-hover-color;
                 tooltip-text: @tr("Discard");
                 clicked => { root.request-close(); }
+            }
+
+            if root.checkbox-row-height > 0px : Rectangle {
+                x: 0px;
+                y: 54px;
+                width: parent.width;
+                height: root.checkbox-row-height;
+                background: root.raised-color;
+
+                Rectangle {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: 1px;
+                    background: root.subtle-border-color;
+                }
+
+                FooterCheckBox {
+                    x: root.compact ? 10px : 14px;
+                    y: 0px;
+                    width: max(0px, parent.width - self.x - 14px);
+                    height: parent.height;
+                    checked <=> root.deliver-individually;
+                    label-text: @tr("Deliver individually");
+                    text-color: root.secondary-color;
+                    accent-color: root.accent-color;
+                    box-border-color: root.muted-color;
+                    accessible-id: "composer-deliver-individually";
+                    toggled(on) => { root.deliver-individually-toggled(on); }
+                }
             }
 
 }

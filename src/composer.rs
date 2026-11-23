@@ -5,8 +5,10 @@
 
 use super::*;
 use crate::rich_compose::{EditMark, EditState};
+use chrono::TimeZone;
 use flectar_mail_core::models::{
-    Address, AttachmentMeta, Importance, SaveDraftArgs, SenderIdentity, Settings, Signature,
+    Address, AttachmentMeta, Importance, QueueSendArgs, SaveDraftArgs, SenderIdentity, Settings,
+    Signature,
 };
 use slint::SharedString;
 #[cfg(desktop)]
@@ -553,6 +555,8 @@ fn copy_composer(from: &ComposerUi<'_>, to: &ComposerUi<'_>) {
     to.set_plain_text(from.get_plain_text());
     to.set_request_receipt(from.get_request_receipt());
     to.set_importance(from.get_importance());
+    to.set_deliver_individually(from.get_deliver_individually());
+    to.set_deliver_individually_visible(from.get_deliver_individually_visible());
     to.set_templates(from.get_templates());
     to.set_message(from.get_message());
     to.set_notice_is_error(from.get_notice_is_error());
@@ -590,6 +594,44 @@ fn copy_preferences(from: &AccountMailPreferences<'_>, to: &AccountMailPreferenc
     to.set_composer_signature_index(from.get_composer_signature_index());
     to.set_composer_security(from.get_composer_security());
     to.set_composer_preferences_ready(from.get_composer_preferences_ready());
+}
+
+/// Offer "Deliver individually" while the To field names more than one
+/// complete address. The choice is cleared when it no longer applies, so a
+/// later second recipient does not inherit it.
+fn update_recipient_options(ui: &ComposerUi<'_>, recipients: &str) {
+    let several = compose_recipient_count(recipients) > 1;
+    ui.set_deliver_individually_visible(several);
+    if !several {
+        ui.set_deliver_individually(false);
+    }
+}
+
+/// The To field's addresses, split as saving and sending split them.
+fn compose_recipients(recipients: &str) -> Result<Vec<Address>, String> {
+    recipients
+        .split([',', ';', '\n'])
+        .map(str::trim)
+        .filter(|recipient| !recipient.is_empty())
+        .map(crate::mail::parse_address)
+        .collect()
+}
+
+/// How many complete addresses the To field names, for the choice above.
+fn compose_recipient_count(recipients: &str) -> usize {
+    recipients
+        .split([',', ';', '\n'])
+        .map(str::trim)
+        .filter(|recipient| !recipient.is_empty())
+        .filter(|recipient| crate::mail::parse_address(recipient).is_ok())
+        .count()
+}
+
+/// The local date and time a "YYYY-MM-DD" and "HH:MM" pair names.
+fn parse_local_schedule(date: &str, time: &str) -> Option<(chrono::NaiveDate, chrono::NaiveTime)> {
+    let date = chrono::NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d").ok()?;
+    let time = chrono::NaiveTime::parse_from_str(time.trim(), "%H:%M").ok()?;
+    Some((date, time))
 }
 
 #[cfg(desktop)]
@@ -1808,6 +1850,20 @@ impl ComposeSession {
             }
         });
         let weak = self.reference();
+        ui.on_schedule_send_custom(move || {
+            if let Some(session) = weak.upgrade() {
+                session.schedule_send_custom();
+            }
+        });
+        let weak = self.reference();
+        ui.on_recipients_changed(move |recipients| {
+            if let Some(session) = weak.upgrade()
+                && let Some(host) = session.host()
+            {
+                update_recipient_options(&host.ui(), &recipients);
+            }
+        });
+        let weak = self.reference();
         ui.on_insert_images(move || {
             if let Some(session) = weak.upgrade() {
                 session.pick_images();
@@ -2038,6 +2094,9 @@ impl ComposeSession {
                 session.choose_signature(index);
             }
         });
+        // A message that moves into its own window copied its To field before
+        // this host's callbacks existed, so set the choice from it here.
+        update_recipient_options(&ui, &ui.get_to());
     }
 
     fn close(self: &Rc<Self>) {
@@ -3191,6 +3250,8 @@ impl ComposeSession {
             );
             return;
         }
+        let scheduled = ui.get_send_at();
+        let send_at = (scheduled > 0).then(|| i64::from(scheduled) * 1000);
         let message = ComposeMessage {
             draft_id: intent.draft_id,
             account_id: i64::from(account_id),
@@ -3207,9 +3268,35 @@ impl ComposeSession {
             in_reply_to_header: intent.in_reply_to_header.as_deref(),
             request_read_receipt: ui.get_request_receipt(),
             importance: Importance::from_i64(i64::from(ui.get_importance())),
-            send_at: (ui.get_send_at() > 0).then(|| i64::from(ui.get_send_at()) * 1000),
+            send_at,
         };
-        if ui.get_send_at() > 0 {
+        // Deliver individually replaces the one message with a copy for each
+        // To recipient. The addresses are parsed before the scheduled instant
+        // is cleared, so a typo can be fixed and the same time tried again.
+        if send && ui.get_deliver_individually() {
+            match compose_recipients(to) {
+                Ok(recipients) if recipients.len() > 1 => {
+                    ui.set_send_at(0);
+                    self.send_individually(
+                        &app,
+                        &composers,
+                        &core,
+                        &ui,
+                        &message,
+                        &recipients,
+                        send_at,
+                    );
+                    return;
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    ui.set_schedule_open(false);
+                    ui.set_notice(UiMessage::detail("Compose failed: {}", error), true);
+                    return;
+                }
+            }
+        }
+        if scheduled > 0 {
             ui.set_send_at(0);
         }
         if send {
@@ -3274,6 +3361,165 @@ impl ComposeSession {
                 app.set_sync_status(message);
             }
         }
+    }
+
+    /// Send one copy of the message to each To recipient. Each copy is saved
+    /// as its own draft and queued as its own send, so recipients do not see
+    /// one another's addresses and each arrives as a separate message.
+    #[allow(clippy::too_many_arguments)]
+    fn send_individually(
+        self: &Rc<Self>,
+        app: &AppWindow,
+        composers: &Rc<Composers>,
+        core: &CoreMailSource,
+        ui: &ComposerUi<'_>,
+        message: &ComposeMessage<'_>,
+        recipients: &[Address],
+        send_at: Option<i64>,
+    ) {
+        let mut queued = Vec::with_capacity(recipients.len());
+        let mut failure = None;
+        let mut leftovers = 0usize;
+        for recipient in recipients {
+            let to = compose_addresses(std::slice::from_ref(recipient));
+            let single = ComposeMessage {
+                draft_id: None,
+                account_id: message.account_id,
+                sender_email: message.sender_email,
+                to: &to,
+                cc: "",
+                bcc: "",
+                subject: message.subject,
+                body: message.body,
+                body_html: message.body_html,
+                attachments: message.attachments,
+                mode: message.mode,
+                in_reply_to_message_id: message.in_reply_to_message_id,
+                in_reply_to_header: message.in_reply_to_header,
+                request_read_receipt: message.request_read_receipt,
+                importance: message.importance,
+                send_at,
+            };
+            let draft_id = match composers.runtime.block_on(core.save_new_draft(single)) {
+                Ok(draft_id) => draft_id,
+                Err(error) => {
+                    failure = Some((recipient.email.clone(), error));
+                    break;
+                }
+            };
+            match composers
+                .runtime
+                .block_on(core.queue_send(QueueSendArgs { draft_id, send_at }))
+            {
+                Ok(result) => queued.push(result),
+                Err(error) => {
+                    // This copy's draft was saved but never queued. Remove it
+                    // so a failed attempt does not leave a stray draft behind.
+                    if composers
+                        .runtime
+                        .block_on(core.file_core().delete_draft(draft_id))
+                        .is_err()
+                    {
+                        leftovers += 1;
+                    }
+                    failure = Some((recipient.email.clone(), error));
+                    break;
+                }
+            }
+        }
+
+        if let Some((recipient, error)) = failure {
+            // Take back the copies queued before the failure, unless one has
+            // already left, so the message is not half delivered in silence.
+            let mut still_queued = 0usize;
+            for result in &queued {
+                match composers
+                    .runtime
+                    .block_on(core.cancel_send(result.action_id))
+                {
+                    Ok(true) => {
+                        if composers
+                            .runtime
+                            .block_on(core.file_core().delete_draft(result.draft_id))
+                            .is_err()
+                        {
+                            leftovers += 1;
+                        }
+                    }
+                    Ok(false) | Err(_) => still_queued += 1,
+                }
+            }
+            let mut detail = if still_queued == 0 {
+                format!("{error} No message was sent individually.")
+            } else {
+                format!(
+                    "{error} {still_queued} of {} messages may still be sent.",
+                    recipients.len()
+                )
+            };
+            if leftovers > 0 {
+                detail.push_str(&format!(" {leftovers} separate drafts may remain."));
+            }
+            let message = UiMessage::detail("Compose failed: {}", format!("{recipient}: {detail}"));
+            ui.set_notice(message.clone(), true);
+            app.set_sync_status(message);
+            return;
+        }
+
+        self.dispose();
+        let mut status = UiMessage::plain("Sending message…");
+        let mut cleanup_failed = false;
+        // The message now lives in one draft per recipient; the draft this
+        // composer edited would otherwise stay behind as a duplicate.
+        if let Some(draft_id) = message.draft_id
+            && let Err(error) = composers
+                .runtime
+                .block_on(core.file_core().delete_draft(draft_id))
+        {
+            status = UiMessage::detail(
+                "Compose failed: {}",
+                format!(
+                    "the messages were queued, but the original draft could not be removed: {error}"
+                ),
+            );
+            cleanup_failed = true;
+        }
+        app.set_sync_status(status);
+
+        // Each copy reports its own end in the main window, as the composer of
+        // a normal single message does. A later success must not hide an
+        // earlier failure, so the tasks share whether one was reported.
+        let failed = Arc::new(std::sync::atomic::AtomicBool::new(cleanup_failed));
+        for result in queued {
+            let monitor = core.clone();
+            let action_id = result.action_id;
+            let app_weak = app.as_weak();
+            let failed = Arc::clone(&failed);
+            composers.runtime.spawn(async move {
+                let message = match monitor.wait_for_send(action_id).await {
+                    Ok(()) if !failed.load(std::sync::atomic::Ordering::Acquire) => {
+                        Some(UiMessage::plain("Message sent."))
+                    }
+                    Ok(()) => None,
+                    Err(error) => {
+                        failed.store(true, std::sync::atomic::Ordering::Release);
+                        Some(UiMessage::detail(
+                            "Message was not sent: {} Your draft is preserved.",
+                            error,
+                        ))
+                    }
+                };
+                let Some(message) = message else {
+                    return;
+                };
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(app) = app_weak.upgrade() {
+                        app.set_sync_status(message);
+                    }
+                });
+            });
+        }
+        mailto_links::open_pending_soon(app);
     }
 
     fn refresh_templates(&self) {
@@ -3421,6 +3667,73 @@ impl ComposeSession {
             .unwrap_or_default();
         ui.set_send_at(i32::try_from(now + hours * 3_600).unwrap_or(0));
         ui.set_schedule_open(false);
+        self.submit_current(&ui);
+    }
+
+    /// Queue the message for the local date and time typed into the send-later
+    /// popup. The text is checked here, and a past or malformed time keeps the
+    /// composer open with the notice the UI already shows errors in.
+    fn schedule_send_custom(self: &Rc<Self>) {
+        let Some(host) = self.host() else {
+            return;
+        };
+        let ui = host.ui();
+        let Some((date, time)) = parse_local_schedule(
+            ui.get_schedule_date().as_str(),
+            ui.get_schedule_time().as_str(),
+        ) else {
+            ui.set_schedule_open(false);
+            ui.set_notice(
+                UiMessage::detail(
+                    "Use YYYY-MM-DD for the date and a time such as {}.",
+                    "09:30",
+                ),
+                true,
+            );
+            return;
+        };
+        let Some(local) = chrono::Local
+            .from_local_datetime(&date.and_time(time))
+            .earliest()
+        else {
+            ui.set_schedule_open(false);
+            ui.set_notice(
+                UiMessage::plain("That local time does not exist in the current time zone."),
+                true,
+            );
+            return;
+        };
+        let timestamp = local.timestamp();
+        if timestamp <= chrono::Local::now().timestamp() {
+            ui.set_schedule_open(false);
+            ui.set_notice(
+                UiMessage::detail(
+                    "Message was not sent: {} Your draft is preserved.",
+                    "choose a date and time in the future.",
+                ),
+                true,
+            );
+            return;
+        }
+        let Ok(send_at) = i32::try_from(timestamp) else {
+            ui.set_schedule_open(false);
+            ui.set_notice(
+                UiMessage::detail(
+                    "Message was not sent: {} Your draft is preserved.",
+                    "choose an earlier date.",
+                ),
+                true,
+            );
+            return;
+        };
+        ui.set_send_at(send_at);
+        ui.set_schedule_open(false);
+        self.submit_current(&ui);
+    }
+
+    /// Send what the composer shows, after the caller set the instant or
+    /// choice the send reads from the UI.
+    fn submit_current(self: &Rc<Self>, ui: &ComposerUi<'_>) {
         let (account_id, to, cc, bcc, subject) = (
             ui.get_account_id(),
             ui.get_to(),

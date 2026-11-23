@@ -1,5 +1,6 @@
 import { AccountRow, ComposeAttachment, ComposeLink, ComposeContact, ComposeEditorTile, EmailTemplateRow, LocalizedMessage, SpellingLanguage } from "../models.slint";
 import { AppTheme } from "../design-system.slint";
+import { TypeScale } from "../typography.slint";
 import { Button } from "button.slint";
 import { EmailComposer } from "email-composer.slint";
 
@@ -141,10 +142,21 @@ export global ComposerUi {
     callback pick-attachments();
     callback ai-draft();
     // Send-later choices: the popup is open, and the chosen instant is kept
-    // on the UI so the save that follows queues it.
+    // on the UI so the save that follows queues it. The custom choice reads
+    // the date and time typed into the popup, as local time.
     in-out property <bool> schedule-open: false;
     in-out property <int> send-at: 0;
+    in-out property <string> schedule-date: "";
+    in-out property <string> schedule-time: "";
     callback schedule-send(int);
+    callback schedule-send-custom();
+    // Deliver to each To recipient as its own message. The choice only shows
+    // while the To field names two or more addresses.
+    in-out property <bool> deliver-individually: false;
+    in property <bool> deliver-individually-visible: false;
+    callback deliver-individually-toggled(bool);
+    // Every change of the To field, for the choice above.
+    callback recipients-changed(string);
     // Opens a picker for images to put in the text at the caret.
     callback insert-images();
     callback remove-attachment(int);
@@ -188,6 +200,48 @@ export global ComposerUi {
     callback spelling-learn();
     callback spelling-toggle();
     callback spelling-toggle-language(int);
+}
+
+// A send-later field. LineEdit's input cannot carry an accessible id from the
+// outside, so this small field puts one on its own TextInput.
+component ScheduleField inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder-text;
+    in property <string> field-label;
+    in property <string> field-id: "";
+
+    height: 36px;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: input.has-focus ? AppTheme.accent : AppTheme.input-border;
+    background: AppTheme.input-bg;
+
+    Text {
+        x: 11px;
+        width: parent.width - 22px;
+        height: parent.height;
+        visible: root.text == "";
+        text: root.placeholder-text;
+        color: AppTheme.placeholder;
+        font-size: TypeScale.body;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    input := TextInput {
+        x: 11px;
+        width: parent.width - 22px;
+        height: parent.height;
+        text <=> root.text;
+        color: AppTheme.heading;
+        selection-background-color: AppTheme.accent;
+        selection-foreground-color: white;
+        font-size: TypeScale.body;
+        single-line: true;
+        vertical-alignment: center;
+        accessible-label: root.field-label;
+        accessible-id: root.field-id;
+    }
 }
 
 // The composer bound to its window's ComposerUi and the application theme.
@@ -300,6 +354,10 @@ export component BoundComposer inherits EmailComposer {
     pick-attachments => { ComposerUi.pick-attachments(); }
     ai-draft => { ComposerUi.ai-draft(); }
     schedule => { ComposerUi.schedule-open = true; }
+    deliver-individually <=> ComposerUi.deliver-individually;
+    deliver-individually-visible: ComposerUi.deliver-individually-visible;
+    deliver-individually-toggled(on) => { ComposerUi.deliver-individually-toggled(on); }
+    recipients-changed(recipients) => { ComposerUi.recipients-changed(recipients); }
     insert-images => { ComposerUi.insert-images(); }
     remove-attachment(index) => { ComposerUi.remove-attachment(index); }
     remove-link(index) => { ComposerUi.remove-link(index); }
@@ -359,7 +417,8 @@ export component BoundComposer inherits EmailComposer {
         }
     }
 
-    // Send later: three concrete choices, so no date picker is needed.
+    // Send later: three short choices, or a date and time typed in as local
+    // time, which Rust checks before the message is queued.
     if ComposerUi.schedule-open : Rectangle {
         x: 0px;
         y: 0px;
@@ -370,7 +429,7 @@ export component BoundComposer inherits EmailComposer {
         Rectangle {
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
-            width: min(300px, parent.width - 40px);
+            width: min(320px, parent.width - 40px);
             height: schedule-card.preferred-height;
             background: AppTheme.surface-raised;
             border-radius: 12px;
@@ -385,10 +444,55 @@ export component BoundComposer inherits EmailComposer {
                     font-size: 16px;
                     horizontal-alignment: center;
                 }
-                Button { text: @tr("In 1 hour"); clicked => { ComposerUi.schedule-send(1); } }
-                Button { text: @tr("In 4 hours"); clicked => { ComposerUi.schedule-send(2); } }
-                Button { text: @tr("Tomorrow"); clicked => { ComposerUi.schedule-send(3); } }
-                Button { text: @tr("Cancel"); clicked => { ComposerUi.schedule-open = false; } }
+                Button {
+                    text: @tr("In 1 hour");
+                    accessible-id: "composer-send-later-in-1-hour";
+                    clicked => { ComposerUi.schedule-send(1); }
+                }
+                Button {
+                    text: @tr("In 4 hours");
+                    accessible-id: "composer-send-later-in-4-hours";
+                    clicked => { ComposerUi.schedule-send(2); }
+                }
+                Button {
+                    text: @tr("Tomorrow");
+                    accessible-id: "composer-send-later-tomorrow";
+                    clicked => { ComposerUi.schedule-send(3); }
+                }
+                Text {
+                    text: @tr("Or choose a date and time");
+                    color: AppTheme.muted;
+                    font-size: TypeScale.caption;
+                    horizontal-alignment: center;
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    ScheduleField {
+                        text <=> ComposerUi.schedule-date;
+                        placeholder-text: @tr("YYYY-MM-DD");
+                        field-label: @tr("Date");
+                        field-id: "composer-send-later-date";
+                        horizontal-stretch: 3;
+                    }
+                    ScheduleField {
+                        text <=> ComposerUi.schedule-time;
+                        placeholder-text: @tr("HH:MM");
+                        field-label: @tr("Time");
+                        field-id: "composer-send-later-time";
+                        horizontal-stretch: 2;
+                    }
+                }
+                Button {
+                    text: @tr("Schedule");
+                    primary: true;
+                    accessible-id: "composer-send-later-confirm";
+                    clicked => { ComposerUi.schedule-send-custom(); }
+                }
+                Button {
+                    text: @tr("Cancel");
+                    accessible-id: "composer-send-later-cancel";
+                    clicked => { ComposerUi.schedule-open = false; }
+                }
             }
         }
     }
