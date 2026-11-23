@@ -2936,6 +2936,15 @@ pub struct Settings {
     /// account. Never names a deleted or empty profile.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_mail_profile: Option<String>,
+    /// Local Reacher email-verification endpoint. Empty means the loopback
+    /// service installed for Flectar Mail.
+    #[serde(default = "default_reacher_url")]
+    pub reacher_url: String,
+    /// Ask the local Reacher service whether an address is deliverable before
+    /// using it in compose. Verification is only a hint, so turning it off
+    /// never blocks writing or sending.
+    #[serde(default = "default_true")]
+    pub reacher_enabled: bool,
     /// What AI agents on this computer may do with mail through the local
     /// MCP server. Off until the user turns it on.
     #[serde(default)]
@@ -3041,6 +3050,9 @@ fn default_ai_base_url() -> String {
 }
 fn default_ai_model() -> String {
     crate::ai::DEFAULT_MODEL.into()
+}
+fn default_reacher_url() -> String {
+    crate::reacher::DEFAULT_URL.into()
 }
 fn default_tier_intelligent() -> String {
     "intelligent".into()
@@ -3205,6 +3217,8 @@ impl Default for Settings {
             mail_profiles: Vec::new(),
             saved_searches: Vec::new(),
             active_mail_profile: None,
+            reacher_url: default_reacher_url(),
+            reacher_enabled: true,
             agent_access: AgentAccess::default(),
         }
     }
