@@ -29,7 +29,7 @@ import "../resources/fonts/google-sans-flex/GoogleSansFlex-VariableFont_GRAD,RON
 
 import { Palette, ScrollView, TextEdit } from "std-widgets.slint";
 import { ActivitySpinner } from "components/activity-spinner.slint";
-import { Starfield } from "components/starfield.slint";
+import { SpaceTile, Starfield } from "components/starfield.slint";
 import { InterfaceText, TypeScale } from "typography.slint";
 export { AppTheme, MotionSettings, ThemeUtilities } from "design-system.slint";
 export { InterfaceText } from "typography.slint";
@@ -971,10 +971,16 @@ export component AppWindow inherits Window {
     // and standard widget scales with.
     in-out property <length> interface-text-size: 0px;
     default-font-size: root.interface-text-size;
-    // The Space preset's current reference frame. Rust decodes the 24 GIF
+    // The Space preset's current reference frame. Rust decodes all 119 GIF
     // frames embedded at startup and the timer below asks for the next one.
     in-out property <image> space-frame;
+    // Device pixels per logical pixel, so the native-size frame tiles keep
+    // every 1-px star at 1 px. Rust sets it when the window maps or its scale
+    // changes and rebuilds `space-tiles` for the current window size.
+    in-out property <float> space-pixel-ratio: 1.0;
+    in-out property <[SpaceTile]> space-tiles;
     callback advance-space-frame();
+    callback arrange-space-tiles(length, length);
     // The text size that rem sizes resolve to, the system's at zero.
     out property <length> base-text-size: 1rem;
     preferred-width: 1320px;
@@ -1867,6 +1873,9 @@ export component AppWindow inherits Window {
         width: parent.width;
         height: parent.height;
         frame-image: root.space-frame;
+        pixel-ratio: root.space-pixel-ratio;
+        tiles: root.space-tiles;
+        arrange(width, height) => { root.arrange-space-tiles(width, height); }
     }
 
     // The Space shimmer. This timer lives outside the conditional Starfield:

@@ -1931,8 +1931,9 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     window_chrome::prepare(window_frame);
     let app = renderer_preferences::initialize_step(use_wgpu, AppWindow::new)?;
     // Space renders the installed Firefox theme's own background: decode the
-    // 24 embedded reference frames once, show the first, and let the window's
-    // 70 ms timer step through the rest while the preset is active.
+    // whole 119-frame loop once, show the first, and let the window's 70 ms
+    // timer step through the rest while the preset is active. The frame is
+    // tiled at its native 640x360 size, one image pixel per device pixel.
     let space_frames = Rc::new(space_frames::load());
     app.set_space_frame(space_frames[0].clone());
     let space_frame_index = Rc::new(Cell::new(0usize));
@@ -1941,9 +1942,26 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
         let Some(app) = space_frame_window.upgrade() else {
             return;
         };
+        // A monitor move can change the device pixel ratio without resizing
+        // the window in logical units, so re-check the tile size here too.
+        let scale = app.window().scale_factor();
+        if scale > 0.0 && (app.get_space_pixel_ratio() - scale).abs() > 0.001 {
+            let size = app.window().size();
+            space_frames::arrange_tiles(
+                &app,
+                size.width as f32 / scale,
+                size.height as f32 / scale,
+            );
+        }
         let next = (space_frame_index.get() + 1) % space_frames.len();
         space_frame_index.set(next);
         app.set_space_frame(space_frames[next].clone());
+    });
+    let space_tiles_window = app.as_weak();
+    app.on_arrange_space_tiles(move |width, height| {
+        if let Some(app) = space_tiles_window.upgrade() {
+            space_frames::arrange_tiles(&app, width, height);
+        }
     });
     app.global::<MailListNavigation>()
         .on_target(mail_navigation::target);
@@ -2000,6 +2018,15 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
         startup_metrics.emit("started_in_tray", serde_json::Value::Null);
     } else {
         renderer_preferences::initialize_step(use_wgpu, || app.show())?;
+        // The winit window reports its real device pixel ratio once it maps,
+        // so lay the native-size frame tiles out again with the settled size.
+        let space_scale = app.window().scale_factor().max(1.0);
+        let space_size = app.window().size();
+        space_frames::arrange_tiles(
+            &app,
+            space_size.width as f32 / space_scale,
+            space_size.height as f32 / space_scale,
+        );
         startup_metrics.emit(
             "window_shown",
             serde_json::json!({

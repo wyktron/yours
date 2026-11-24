@@ -1,23 +1,43 @@
 // The Space preset's background is the owner's Firefox reference itself, not
 // an imitation. The installed theme ships a 119-frame GIF (60-70 ms a frame)
-// of a field that twinkles quickly; Rust embeds 24 lossless frames sampled
-// evenly across that loop and the window's 70 ms timer asks for the next one.
-// This component only paints the frame it is handed: no procedural stars, no
-// drift, no parallax.
+// of a field that twinkles quickly; Rust embeds the whole loop losslessly and
+// the window's 70 ms timer asks for the next one.
+//
+// The reference is 640x360 image pixels. Drawing it once across the window
+// stretches every 1-px star into a blob, so this component tiles it at native
+// size instead: one image pixel is one device pixel, and the tiles sit at exact
+// multiples of their size so the field stays seamless. Rust picks the tile
+// count for the window's size and the device pixel ratio; this component only
+// paints the grid it is handed. No procedural stars, no drift, no parallax.
+
+export struct SpaceTile {
+    x: length,
+    y: length,
+}
+
 export component Starfield inherits Rectangle {
     // The current reference frame, supplied by AppWindow.space-frame.
     in property <image> frame-image;
+    // The window's device pixel ratio, supplied by Rust after the window maps.
+    in property <float> pixel-ratio: 1.0;
+    // The tiles covering the window, rebuilt by Rust on resize.
+    in property <[SpaceTile]> tiles;
+    callback arrange(length, length);
 
     clip: true;
     accessible-role: none;
 
-    Image {
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: parent.height;
+    // Rust knows the device pixel ratio, so it owns the tile layout. Width and
+    // height change together on a resize; either one rebuilds the grid.
+    changed width => { root.arrange(root.width, root.height); }
+    changed height => { root.arrange(root.width, root.height); }
+
+    for tile in root.tiles : Image {
+        x: tile.x;
+        y: tile.y;
+        width: 640px / root.pixel-ratio;
+        height: 360px / root.pixel-ratio;
         source: root.frame-image;
-        // The reference is 640x360 (16:9); fill scales it to the window.
         image-fit: fill;
     }
 }
