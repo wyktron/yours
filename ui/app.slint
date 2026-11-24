@@ -971,21 +971,14 @@ export component AppWindow inherits Window {
     // and standard widget scales with.
     in-out property <length> interface-text-size: 0px;
     default-font-size: root.interface-text-size;
-    // The Space preset's pre-tiled reference frames. Rust decodes all 119 GIF
-    // frames embedded at startup, expands each to its 1400x840 mirrored mosaic
-    // and keeps them here; the timer below asks for a cross-fade step.
+    // The Space preset's literal reference frames. Rust embeds the installed
+    // theme's 119 GIF frames, caches them as path-backed 640x360 images and
+    // builds a native-size tile grid; Starfield owns the one animation clock
+    // that cross-fades them. No mirrors, flips, rotations or per-tile crops.
     in-out property <[image]> space-frames;
-    // Device pixels per logical pixel, so the native-size frame tiles keep
-    // every 1-px star at 1 px. Rust sets it when the window maps or its scale
-    // changes and rebuilds `space-tiles` for the current window size.
-    in-out property <float> space-pixel-ratio: 1.0;
-    // The frame every tile's phase is measured from.
-    in-out property <int> space-base-frame: 0;
-    // Weight of the next frame in the cross-fade, 0 at the GIF's step.
-    in-out property <float> space-blend: 0.0;
     in-out property <int> space-frame-count: 119;
+    in-out property <float> space-pixel-ratio: 1.0;
     in-out property <[SpaceTile]> space-tiles;
-    callback tick-space-field();
     callback arrange-space-tiles(length, length);
     // The text size that rem sizes resolve to, the system's at zero.
     out property <length> base-text-size: 1rem;
@@ -1869,38 +1862,27 @@ export component AppWindow inherits Window {
         init => { root.sync-window-chrome(); }
     }
 
-    // The Space theme's reference frames sit on the window's true-black page,
-    // behind every pane, and show through the transparent panes. Other presets
-    // instantiate nothing here at all. The timer stops while motion is reduced
-    // or the window is hidden to the tray.
+    // The literal reference frames sit on the window's true-black page, behind
+    // every pane, and show through the transparent panes. Other presets
+    // instantiate nothing here at all. Starfield's animation clock stops while
+    // motion is reduced, the window is suspended, or it is hidden to the tray.
     if AppTheme.preset == "space" : Starfield {
         x: 0px;
         y: 0px;
         width: parent.width;
         height: parent.height;
         frames: root.space-frames;
-        base-frame: root.space-base-frame;
         frame-count: root.space-frame-count;
-        blend: root.space-blend;
+        active: MotionSettings.movement
+            && !root.render-suspended && !root.minimized;
         pixel-ratio: root.space-pixel-ratio;
         tiles: root.space-tiles;
         arrange(width, height) => { root.arrange-space-tiles(width, height); }
     }
 
-    // The Space shimmer. This timer lives outside the conditional Starfield:
-    // every 15 ms it asks Rust for a cross-fade step, so the 70 ms reference
-    // frames blend continuously instead of stepping. The interval is a little
-    // shorter than one 60 Hz frame so scheduler jitter cannot make a tick miss
-    // a vsync and halve the paint rate; Rust keeps the blend time-based, so the
-    // field still advances at the GIF's 70 ms step.
-    Timer {
-        interval: 15ms;
-        running: AppTheme.preset == "space" && MotionSettings.movement
-            && !root.render-suspended && !root.minimized;
-        triggered => {
-            root.tick-space-field();
-        }
-    }
+    // No periodic timer is left: the only clock is Starfield's animation-tick().
+    // The post-show arrange in main.rs and the tile grid's changed width/height
+    // handlers keep the native-size layout current.
 
     // Toolbar rows sit above this band; wherever they have no interactive
     // content, input falls through to it and moves the window.
