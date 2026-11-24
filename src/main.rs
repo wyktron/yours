@@ -2015,6 +2015,28 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
             space_size.width as f32 / space_scale,
             space_size.height as f32 / space_scale,
         );
+        // Wayland may not have configured the real surface size at this point,
+        // which left the tiles covering only a small square until a resize.
+        // Re-lay them out once the surface has settled.
+        let settle_window = app.as_weak();
+        let settle_runtime = runtime.clone();
+        settle_runtime.spawn(async move {
+            for delay in [120u64, 400, 900] {
+                tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                let window = settle_window.clone();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(app) = window.upgrade() {
+                        let scale = app.window().scale_factor().max(1.0);
+                        let size = app.window().size();
+                        space_frames::arrange_tiles(
+                            &app,
+                            size.width as f32 / scale,
+                            size.height as f32 / scale,
+                        );
+                    }
+                });
+            }
+        });
         startup_metrics.emit(
             "window_shown",
             serde_json::json!({
