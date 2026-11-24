@@ -40,9 +40,18 @@ export component Starfield inherits Rectangle {
     changed width => { root.arrange(root.width, root.height); }
     changed height => { root.arrange(root.width, root.height); }
 
-    // One clock for the whole field. 70ms is the reference GIF's frame step;
-    // the blend is the same clock's position inside the step.
-    private property <duration> clock: root.active ? animation-tick() : 0ms;
+    // One clock for the whole field, driven by a timer rather than
+    // animation-tick(): Slint only advances animation-tick() while some
+    // animation is running, and this window has none, which froze the field.
+    private property <int> tick: 0;
+    Timer {
+        interval: 16ms;
+        running: root.active;
+        triggered => { root.tick += 1; }
+    }
+    // 70ms is the reference GIF's frame step; the blend is the clock's
+    // position inside the step.
+    private property <duration> clock: root.tick * 16ms;
     private property <int> frame:
         floor(mod(root.clock, 70ms * root.frame-count) / 70ms);
     private property <float> blend: mod(root.clock, 70ms) / 70ms;
