@@ -1803,6 +1803,15 @@ pub fn run_desktop(platform: PlatformContext) -> Result<(), Box<dyn std::error::
     result
 }
 
+/// The requested percentile of an ascending sorted sample slice.
+fn percentile(samples: &[f32], percentile: f32) -> f32 {
+    if samples.is_empty() {
+        return 0.0;
+    }
+    let rank = ((percentile / 100.0) * (samples.len() - 1) as f32).round() as usize;
+    samples[rank.min(samples.len() - 1)]
+}
+
 pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> {
     let startup_metrics = StartupMetrics::from_environment();
     let benchmark_tray = startup_metrics.enabled()
@@ -1930,21 +1939,32 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     // happens during normal background startup.
     window_chrome::prepare(window_frame);
     let app = renderer_preferences::initialize_step(use_wgpu, AppWindow::new)?;
-    // Space renders the installed Firefox theme's own background: decode the
-    // whole 119-frame loop once, show the first, and let the window's 70 ms
-    // timer step through the rest while the preset is active. The frame is
-    // tiled at its native 640x360 size, one image pixel per device pixel.
-    let space_frames = Rc::new(space_frames::load());
-    app.set_space_frame(space_frames[0].clone());
-    let space_frame_index = Rc::new(Cell::new(0usize));
+    // Space renders the installed Firefox theme's own background: decode and
+    // pre-tile the whole 119-frame loop once, then let the window's 16 ms
+    // timer cross-fade consecutive frames. A tile is 1280x720 device pixels
+    // (2x2 of the 640x360 reference) and always one image pixel per device
+    // pixel; every tile takes its own crop, mirror flags and frame phase.
+    let space_frames = Rc::new(space_frames::load(&platform.paths.cache_dir));
+    app.set_space_frames(ModelRc::new(VecModel::from((*space_frames).clone())));
+    let space_models = Rc::new(space_frames::SpaceModels::new());
+    space_models.install(&app);
+    app.set_space_frame_count(space_frames.len() as i32);
+    app.set_space_base_frame(0);
+    let space_base_frame = Rc::new(Cell::new(0usize));
+    // Wall-clock start of the displayed frame, not the last tick: a late tick
+    // then advances by elapsed time instead of slowing the field down. Until
+    // the timer's first tick the field stays on the frame it was shown with.
+    let space_frame_started = Rc::new(Cell::new(None::<Instant>));
+    let space_models_for_tick = space_models.clone();
     let space_frame_window = app.as_weak();
     let profile_space = std::env::var_os("FLECTAR_SPACE_PROFILE").is_some();
+    let mut tick_count = 0u32;
     let mut advance_count = 0u32;
     let mut advance_window = Instant::now();
     let mut advance_total = Duration::ZERO;
     let mut advance_max = Duration::ZERO;
-    app.on_advance_space_frame(move || {
-        let advance_started = Instant::now();
+    app.on_tick_space_field(move || {
+        let tick_started = Instant::now();
         let Some(app) = space_frame_window.upgrade() else {
             return;
         };
@@ -1957,26 +1977,57 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                 &app,
                 size.width as f32 / scale,
                 size.height as f32 / scale,
+                &space_models_for_tick,
             );
         }
-        let next = (space_frame_index.get() + 1) % space_frames.len();
-        space_frame_index.set(next);
-        app.set_space_frame(space_frames[next].clone());
+        let now = Instant::now();
+        let mut started = match space_frame_started.get() {
+            Some(started) => started,
+            None => {
+                space_frame_started.set(Some(now));
+                now
+            }
+        };
+        let mut elapsed = now.saturating_duration_since(started);
+        if elapsed > Duration::from_secs(1) {
+            // The timer was stopped (reduce motion, tray, another preset).
+            // Resume from the current frame instead of racing through the loop.
+            started = now;
+            space_frame_started.set(Some(now));
+            elapsed = Duration::ZERO;
+        }
+        if elapsed >= space_frames::FRAME_PERIOD {
+            let steps =
+                (elapsed.as_nanos() / space_frames::FRAME_PERIOD.as_nanos()) as usize;
+            let base = (space_base_frame.get() + steps) % space_frames.len();
+            space_base_frame.set(base);
+            app.set_space_base_frame(base as i32);
+            started += space_frames::FRAME_PERIOD * steps as u32;
+            space_frame_started.set(Some(started));
+            elapsed = now.saturating_duration_since(started);
+            advance_count += steps as u32;
+        }
+        let blend = (elapsed.as_secs_f64() / space_frames::FRAME_PERIOD.as_secs_f64())
+            .clamp(0.0, 1.0) as f32;
+        app.set_space_blend(blend);
         if profile_space {
-            let elapsed = advance_started.elapsed();
-            advance_count += 1;
-            advance_total += elapsed;
-            advance_max = advance_max.max(elapsed);
+            let tick_elapsed = tick_started.elapsed();
+            tick_count += 1;
+            advance_total += tick_elapsed;
+            advance_max = advance_max.max(tick_elapsed);
             let window = advance_window.elapsed();
-            if window >= Duration::from_secs(2) {
+            if window >= Duration::from_secs(3) {
                 eprintln!(
-                    "SPACE_PROFILE advance count={} fps={:.2} avg_us={:.0} max_us={:.0} tiles={}",
-                    advance_count,
-                    advance_count as f64 / window.as_secs_f64(),
-                    advance_total.as_secs_f64() * 1e6 / advance_count as f64,
+                    "SPACE_PROFILE tick count={} fps={:.2} avg_us={:.0} max_us={:.0} frames={} blend={:.3} tiles={}",
+                    tick_count,
+                    tick_count as f64 / window.as_secs_f64(),
+                    advance_total.as_secs_f64() * 1e6 / tick_count as f64,
                     advance_max.as_secs_f64() * 1e6,
-                    app.get_space_tiles().row_count(),
+                    advance_count,
+                    blend,
+                    space_models_for_tick.tiles.row_count(),
                 );
+                tick_count = 0;
                 advance_count = 0;
                 advance_window = Instant::now();
                 advance_total = Duration::ZERO;
@@ -1985,9 +2036,10 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
         }
     });
     let space_tiles_window = app.as_weak();
+    let space_models_for_arrange = space_models.clone();
     app.on_arrange_space_tiles(move |width, height| {
         if let Some(app) = space_tiles_window.upgrade() {
-            space_frames::arrange_tiles(&app, width, height);
+            space_frames::arrange_tiles(&app, width, height, &space_models_for_arrange);
         }
     });
     app.global::<MailListNavigation>()
@@ -2053,6 +2105,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
             &app,
             space_size.width as f32 / space_scale,
             space_size.height as f32 / space_scale,
+            &space_models,
         );
         startup_metrics.emit(
             "window_shown",
@@ -2173,8 +2226,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
         let profile_space_render = std::env::var_os("FLECTAR_SPACE_PROFILE").is_some();
         let mut render_count = 0u32;
         let mut render_window = Instant::now();
-        let mut render_total = Duration::ZERO;
-        let mut render_max = Duration::ZERO;
+        let mut render_samples = Vec::<f32>::with_capacity(256);
         let mut render_gap_max = Duration::ZERO;
         let mut render_started = None::<Instant>;
         let mut last_render_at = None::<Instant>;
@@ -2194,22 +2246,26 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                             if let Some(started) = render_started.take() {
                                 let elapsed = started.elapsed();
                                 render_count += 1;
-                                render_total += elapsed;
-                                render_max = render_max.max(elapsed);
+                                render_samples.push(elapsed.as_secs_f32() * 1e3);
                                 let window = render_window.elapsed();
-                                if window >= Duration::from_secs(2) {
+                                if window >= Duration::from_secs(3) {
+                                    render_samples.sort_by(f32::total_cmp);
+                                    let median = percentile(&render_samples, 50.0);
+                                    let p95 = percentile(&render_samples, 95.0);
+                                    let max =
+                                        render_samples.last().copied().unwrap_or_default();
                                     eprintln!(
-                                        "SPACE_PROFILE render count={} fps={:.2} avg_ms={:.2} max_ms={:.2} max_gap_ms={:.2}",
+                                        "SPACE_PROFILE render count={} fps={:.2} median_ms={:.2} p95_ms={:.2} max_ms={:.2} max_gap_ms={:.2}",
                                         render_count,
                                         render_count as f64 / window.as_secs_f64(),
-                                        render_total.as_secs_f64() * 1e3 / render_count as f64,
-                                        render_max.as_secs_f64() * 1e3,
+                                        median,
+                                        p95,
+                                        max,
                                         render_gap_max.as_secs_f64() * 1e3,
                                     );
                                     render_count = 0;
                                     render_window = Instant::now();
-                                    render_total = Duration::ZERO;
-                                    render_max = Duration::ZERO;
+                                    render_samples.clear();
                                     render_gap_max = Duration::ZERO;
                                 }
                             }

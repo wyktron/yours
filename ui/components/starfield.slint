@@ -1,23 +1,39 @@
 // The Space preset's background is the owner's Firefox reference itself, not
 // an imitation. The installed theme ships a 119-frame GIF (60-70 ms a frame)
 // of a field that twinkles quickly; Rust embeds the whole loop losslessly and
-// the window's 70 ms timer asks for the next one.
+// the window's 16 ms timer asks for a cross-fade step.
 //
 // The reference is 640x360 image pixels. Drawing it once across the window
-// stretches every 1-px star into a blob, so this component tiles it at native
-// size instead: one image pixel is one device pixel, and the tiles sit at exact
-// multiples of their size so the field stays seamless. Rust picks the tile
-// count for the window's size and the device pixel ratio; this component only
-// paints the grid it is handed. No procedural stars, no drift, no parallax.
+// stretches every 1-px star into a blob, so Rust pre-tiles it into 1280x720
+// blocks (a 2x2 native copy inside a 1400x840 mirrored mosaic) and this
+// component paints them at native size: one image pixel is one device pixel.
+// Every tile takes its own crop, mirror flags and frame phase, and each row is
+// shifted, so the tiled field never reads as a grid. Two layers cross-fade the
+// current frame into the next one; the blend is time-based and supplied by
+// Rust, so playback stays at the GIF's 70 ms step even on a 60 Hz tick.
+// No procedural stars, no drift, no parallax, no tint.
 
 export struct SpaceTile {
     x: length,
     y: length,
+    // Frame offset for this tile, so the shimmer is decorrelated.
+    phase: int,
+    // Native crop origin inside the 1400x840 mirrored mosaic.
+    clip-x: int,
+    clip-y: int,
+    // Exact pixel reorderings: identity, horizontal, vertical or both.
+    mirror-x: bool,
+    mirror-y: bool,
 }
 
 export component Starfield inherits Rectangle {
-    // The current reference frame, supplied by AppWindow.space-frame.
-    in property <image> frame-image;
+    // The pre-tiled reference frames, supplied by AppWindow.space-frames.
+    in property <[image]> frames;
+    // The frame every tile's phase is measured from, and the loop length.
+    in property <int> base-frame: 0;
+    in property <int> frame-count: 119;
+    // Weight of the next frame, 0 at the GIF's step, approaching 1 before it.
+    in property <float> blend: 0.0;
     // The window's device pixel ratio, supplied by Rust after the window maps.
     in property <float> pixel-ratio: 1.0;
     // The tiles covering the window, rebuilt by Rust on resize.
@@ -35,9 +51,35 @@ export component Starfield inherits Rectangle {
     for tile in root.tiles : Image {
         x: tile.x;
         y: tile.y;
-        width: 640px / root.pixel-ratio;
-        height: 360px / root.pixel-ratio;
-        source: root.frame-image;
+        width: 1280px / root.pixel-ratio;
+        height: 720px / root.pixel-ratio;
+        source: root.frames[Math.mod(root.base-frame + tile.phase, root.frame-count)];
+        source-clip-x: tile.clip-x;
+        source-clip-y: tile.clip-y;
+        source-clip-width: 1280;
+        source-clip-height: 720;
         image-fit: fill;
+        image-rendering: pixelated;
+        transform-scale-x: tile.mirror-x ? -100% : 100%;
+        transform-scale-y: tile.mirror-y ? -100% : 100%;
+    }
+
+    // The next frame fades in over the current one. Per-tile opacity keeps the
+    // renderer from allocating an offscreen layer for the whole grid.
+    for tile in root.tiles : Image {
+        x: tile.x;
+        y: tile.y;
+        width: 1280px / root.pixel-ratio;
+        height: 720px / root.pixel-ratio;
+        source: root.frames[Math.mod(root.base-frame + tile.phase + 1, root.frame-count)];
+        source-clip-x: tile.clip-x;
+        source-clip-y: tile.clip-y;
+        source-clip-width: 1280;
+        source-clip-height: 720;
+        image-fit: fill;
+        image-rendering: pixelated;
+        opacity: root.blend;
+        transform-scale-x: tile.mirror-x ? -100% : 100%;
+        transform-scale-y: tile.mirror-y ? -100% : 100%;
     }
 }
