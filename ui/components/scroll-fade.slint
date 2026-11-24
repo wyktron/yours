@@ -10,6 +10,10 @@ export component ScrollFade inherits Rectangle {
     private property <bool> show-top: root.content-y < -1px;
     private property <bool> show-bottom: root.content-height + root.content-y
         > root.visible-height + 1px;
+    // A clear surface means the pane deliberately shows the field with no
+    // scrim; `with-alpha` on a transparent color would otherwise paint an
+    // opaque black fade and hide it.
+    private property <bool> paints: root.surface-color.alpha > 0;
 
     background: transparent;
 
@@ -24,7 +28,7 @@ export component ScrollFade inherits Rectangle {
             root.surface-color.with-alpha(0.82) 38%,
             root.surface-color.with-alpha(0) 100%
         );
-        opacity: root.show-top ? 1 : 0;
+        opacity: root.show-top && root.paints ? 1 : 0;
         animate opacity { duration: 140ms; easing: ease-out; }
     }
 
@@ -39,7 +43,7 @@ export component ScrollFade inherits Rectangle {
             root.surface-color.with-alpha(0.82) 62%,
             root.surface-color 100%
         );
-        opacity: root.show-bottom ? 1 : 0;
+        opacity: root.show-bottom && root.paints ? 1 : 0;
         animate opacity { duration: 140ms; easing: ease-out; }
     }
 }

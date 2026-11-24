@@ -723,7 +723,9 @@ export component MailReadingPane inherits FocusScope {
 
                 horizontal-stretch: 1;
                 vertical-stretch: 1;
-                Rectangle { background: root.surface-raised; }
+                // Space's reader opens onto the field. The message card
+                // below keeps an opaque fill for the body's text.
+                Rectangle { background: AppTheme.preset == "space" ? transparent : root.surface-raised; }
 
                 VerticalBox {
                     visible: root.has_selected;
@@ -2159,8 +2161,10 @@ export component MailReadingPane inherits FocusScope {
                     width: parent.width;
                     height: parent.height;
                     // The raised canvas frames a message; under the tab strip
-                    // an empty reader shares the list's surface instead.
-                    background: WindowChrome.top-bar ? root.surface : root.surface-raised;
+                    // an empty reader shares the list's surface instead. In
+                    // Space the empty reader is part of the field.
+                    background: AppTheme.preset == "space" ? transparent
+                        : WindowChrome.top-bar ? root.surface : root.surface-raised;
                     DetailEmptyState {
                         width: parent.width;
                         height: parent.height;

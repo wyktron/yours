@@ -195,30 +195,32 @@ export global AppTheme {
         : themed-primary;
 
     out property <color> page-bg: preset == "default" ? (dark ? #111213 : #f2f2f0) : themed-page-bg;
-    // Space paints its panes at 55% opacity (raised surfaces 60%, sidebars
-    // 50%) over the true-black page: the starfield reads through every
-    // surface, and every text token still clears 4.5:1 even where a bright
-    // star sits directly behind it. The tints are equal-channel charcoals, so
-    // no blue cast reaches the background.
+    // Space paints no veil over the field. The mail list, reader and
+    // sidebars let the starfield through at the reference's own brightness;
+    // cards, rows and controls that carry text are opaque charcoals, so the
+    // field is never dimmed by a translucent pane and 8-bit alpha compositing
+    // cannot band its faint haze. Every text token still clears 4.5:1 against
+    // those opaque fills.
     out property <color> surface: preset == "default" ? (dark ? #18191a : #ffffff)
-        : preset == "space" ? #0a0a0a8c
+        : preset == "space" ? #0a0a0a
         : themed-surface;
     out property <color> surface-raised: preset == "default" ? (dark ? #131415 : #fafaf8)
-        : preset == "pixel" ? #211b3e : preset == "space" ? #0d0d0d99
+        : preset == "pixel" ? #211b3e : preset == "space" ? #0d0d0d
         : themed-surface.mix(themed-page-bg, 0.72);
-    // The sidebars' own tint, also a soft fill on the content.
+    // Space's sidebars are part of the field, not a tint over it.
     out property <color> sidebar-tint: preset == "default" ? (dark ? #151617 : #f0f0ee)
-        : preset == "pixel" ? #15112a : preset == "space" ? #05050580
+        : preset == "pixel" ? #15112a : preset == "space" ? transparent
         : themed-page-bg.mix(themed-surface, 0.72);
     // Under the tab strip, sidebars share the content's surface, so the
     // active tab opens into one color wherever it sits; dividers alone
-    // separate the panes there.
-    out property <color> sidebar-bg: root.top-bar ? root.surface : root.sidebar-tint;
+    // separate the panes there. Space keeps its sidebar clear either way.
+    out property <color> sidebar-bg: preset == "space" ? transparent
+        : root.top-bar ? root.surface : root.sidebar-tint;
     out property <color> control-bg: preset == "default" ? (dark ? #232425 : #f1f1ef)
-        : preset == "pixel" ? #2a2348 : preset == "space" ? #191919f2
+        : preset == "pixel" ? #2a2348 : preset == "space" ? #191919
         : themed-surface.mix(themed-text, dark ? 0.90 : 0.94);
     out property <color> muted-control-bg: preset == "default" ? (dark ? #242526 : #e8e8e5)
-        : preset == "pixel" ? #221d3b : preset == "space" ? #141414eb
+        : preset == "pixel" ? #221d3b : preset == "space" ? #141414
         : themed-surface.mix(themed-text, dark ? 0.86 : 0.90);
     // Product actions deliberately keep the established Flectar blue in both
     // themes. The lighter dark-theme accent remains available for selection,

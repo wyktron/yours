@@ -1938,7 +1938,13 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     app.set_space_frame(space_frames[0].clone());
     let space_frame_index = Rc::new(Cell::new(0usize));
     let space_frame_window = app.as_weak();
+    let profile_space = std::env::var_os("FLECTAR_SPACE_PROFILE").is_some();
+    let mut advance_count = 0u32;
+    let mut advance_window = Instant::now();
+    let mut advance_total = Duration::ZERO;
+    let mut advance_max = Duration::ZERO;
     app.on_advance_space_frame(move || {
+        let advance_started = Instant::now();
         let Some(app) = space_frame_window.upgrade() else {
             return;
         };
@@ -1956,6 +1962,27 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
         let next = (space_frame_index.get() + 1) % space_frames.len();
         space_frame_index.set(next);
         app.set_space_frame(space_frames[next].clone());
+        if profile_space {
+            let elapsed = advance_started.elapsed();
+            advance_count += 1;
+            advance_total += elapsed;
+            advance_max = advance_max.max(elapsed);
+            let window = advance_window.elapsed();
+            if window >= Duration::from_secs(2) {
+                eprintln!(
+                    "SPACE_PROFILE advance count={} fps={:.2} avg_us={:.0} max_us={:.0} tiles={}",
+                    advance_count,
+                    advance_count as f64 / window.as_secs_f64(),
+                    advance_total.as_secs_f64() * 1e6 / advance_count as f64,
+                    advance_max.as_secs_f64() * 1e6,
+                    app.get_space_tiles().row_count(),
+                );
+                advance_count = 0;
+                advance_window = Instant::now();
+                advance_total = Duration::ZERO;
+                advance_max = Duration::ZERO;
+            }
+        }
     });
     let space_tiles_window = app.as_weak();
     app.on_arrange_space_tiles(move |width, height| {
@@ -2143,8 +2170,53 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
         let startup_completed = gpu_startup_completed.clone();
         let mut reported_device = false;
         let mut email_gpu_unavailable = None::<String>;
+        let profile_space_render = std::env::var_os("FLECTAR_SPACE_PROFILE").is_some();
+        let mut render_count = 0u32;
+        let mut render_window = Instant::now();
+        let mut render_total = Duration::ZERO;
+        let mut render_max = Duration::ZERO;
+        let mut render_gap_max = Duration::ZERO;
+        let mut render_started = None::<Instant>;
+        let mut last_render_at = None::<Instant>;
         app.window()
             .set_rendering_notifier(move |state, graphics_api| {
+                if profile_space_render {
+                    match &state {
+                        slint::RenderingState::BeforeRendering => {
+                            let now = Instant::now();
+                            if let Some(previous) = last_render_at {
+                                render_gap_max = render_gap_max.max(now - previous);
+                            }
+                            last_render_at = Some(now);
+                            render_started = Some(now);
+                        }
+                        slint::RenderingState::AfterRendering => {
+                            if let Some(started) = render_started.take() {
+                                let elapsed = started.elapsed();
+                                render_count += 1;
+                                render_total += elapsed;
+                                render_max = render_max.max(elapsed);
+                                let window = render_window.elapsed();
+                                if window >= Duration::from_secs(2) {
+                                    eprintln!(
+                                        "SPACE_PROFILE render count={} fps={:.2} avg_ms={:.2} max_ms={:.2} max_gap_ms={:.2}",
+                                        render_count,
+                                        render_count as f64 / window.as_secs_f64(),
+                                        render_total.as_secs_f64() * 1e3 / render_count as f64,
+                                        render_max.as_secs_f64() * 1e3,
+                                        render_gap_max.as_secs_f64() * 1e3,
+                                    );
+                                    render_count = 0;
+                                    render_window = Instant::now();
+                                    render_total = Duration::ZERO;
+                                    render_max = Duration::ZERO;
+                                    render_gap_max = Duration::ZERO;
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 if matches!(&state, slint::RenderingState::RenderingTeardown) {
                     email_renderer_for_notifier.borrow_mut().teardown_gpu();
                     reported_device = false;

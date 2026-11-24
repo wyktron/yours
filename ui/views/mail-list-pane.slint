@@ -811,7 +811,9 @@ export component MailListPane inherits FocusScope {
 
                 width: LayoutMetrics.list-pane-width;
                 vertical-stretch: 1;
-                Rectangle { background: root.surface; }
+                // Space's list is part of the field: no pane fill over the
+                // starfield. Rows and cards that need a fill paint their own.
+                Rectangle { background: AppTheme.preset == "space" ? transparent : root.surface; }
 
                 VerticalBox {
                     x: 0px;
@@ -1792,7 +1794,9 @@ export component MailListPane inherits FocusScope {
                             y: mail-list-scroll.y;
                             width: mail-list-scroll.visible-width;
                             height: mail-list-scroll.visible-height;
-                            surface-color: root.surface;
+                            // A tinted gradient over the field would band;
+                            // Space scrolls without an edge scrim.
+                            surface-color: AppTheme.preset == "space" ? transparent : root.surface;
                             content-y: mail-list-scroll.content-y;
                             content-height: mail-list-scroll.content-height;
                             visible-height: mail-list-scroll.visible-height;

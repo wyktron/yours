@@ -1,6 +1,6 @@
 import { HorizontalBox } from "std-widgets.slint";
 import { EmailLink, EmailRow, EmailTile, EmailReader, MailProfileRow, SidebarRow, MailLabelRow, MailListEntry, ThreadMessageRow } from "../models.slint";
-import { LayoutMetrics, MotionSettings } from "../design-system.slint";
+import { AppTheme, LayoutMetrics, MotionSettings } from "../design-system.slint";
 import { MailSidebar } from "../components/sidebar.slint";
 import { WorkspacePaneResizeHandle } from "../components/workspace-layout.slint";
 import { MailListPane } from "mail-list-pane.slint";
@@ -560,7 +560,7 @@ export component MailView inherits FocusScope {
             y: 0px;
             width: parent.width;
             height: parent.height;
-            background: root.surface;
+            background: AppTheme.preset == "space" ? transparent : root.surface;
             clip: true;
 
             // Minimal changes the mail content presentation, not desktop
