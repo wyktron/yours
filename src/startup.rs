@@ -1302,6 +1302,11 @@ pub(crate) fn publish_tts_voices(
 pub(crate) fn apply_settings(app: &AppWindow, settings: &Settings) {
     app.global::<MessageColors>()
         .set_preference(settings.message_appearance.as_str().into());
+    // Without this the UI keeps the default System preference, so a desktop
+    // that asks for reduced motion silences every animation even when the
+    // user chose Off. The Space field's timer reads the same setting.
+    app.global::<crate::MotionSettings>()
+        .set_preference(settings.reduce_motion.as_str().into());
     crate::mail_rules::apply_cleanup(
         app,
         settings.empty_trash_after_days,

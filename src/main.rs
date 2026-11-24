@@ -104,6 +104,7 @@ pub use spelling::{SpellingHost, SpellingSession};
 mod sidebar_model;
 #[cfg(desktop)]
 mod single_instance;
+mod space_frames;
 mod startup;
 mod startup_metrics;
 mod tabs;
@@ -1929,6 +1930,21 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     // happens during normal background startup.
     window_chrome::prepare(window_frame);
     let app = renderer_preferences::initialize_step(use_wgpu, AppWindow::new)?;
+    // Space renders the installed Firefox theme's own background: decode the
+    // 24 embedded reference frames once, show the first, and let the window's
+    // 70 ms timer step through the rest while the preset is active.
+    let space_frames = Rc::new(space_frames::load());
+    app.set_space_frame(space_frames[0].clone());
+    let space_frame_index = Rc::new(Cell::new(0usize));
+    let space_frame_window = app.as_weak();
+    app.on_advance_space_frame(move || {
+        let Some(app) = space_frame_window.upgrade() else {
+            return;
+        };
+        let next = (space_frame_index.get() + 1) % space_frames.len();
+        space_frame_index.set(next);
+        app.set_space_frame(space_frames[next].clone());
+    });
     app.global::<MailListNavigation>()
         .on_target(mail_navigation::target);
     app.global::<KeyboardKeys>().on_chord(keyboard_keys::chord);

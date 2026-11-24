@@ -1,138 +1,23 @@
-// The Space preset's starfield: a calm, dense field of fixed-position stars
-// that only changes brightness.
-//
-// The owner's Firefox reference has no drift, no parallax and no zoom: stars
-// stay put and step between dark and bright every 70 ms. The field is therefore
-// pre-rendered as twelve fixed-position images. AppWindow owns the single 70 ms
-// timer (outside this conditional component, where a timer would not run) and
-// advances StarfieldState.frame; each step shows the next image, toggling about
-// a quarter of the stars between 0.1 and 1.0 opacity. Ten percent of the stars
-// hold a steady mid brightness; sixteen hero stars, with 2-4 px cores up to
-// #c0c0c0, stay lit in every frame so the field has depth. Nothing moves.
-//
-// Stars are one pixel dominant with a faint 3x3 falloff (a few 2-3 px cores),
-// 13,000 per 1485x900 field, and the brightest ordinary core is #b8b8b8 rather
-// than white, so the dim majority stays dim. Every star is neutral white
-// (B-R=0). Consecutive fields differ in ~2.2% of all pixels (about 30,000), so
-// the shimmer is visible; every field shares the same star positions.
-export global StarfieldState {
-    in-out property <int> frame: 0;
-}
-
+// The Space preset's background is the owner's Firefox reference itself, not
+// an imitation. The installed theme ships a 119-frame GIF (60-70 ms a frame)
+// of a field that twinkles quickly; Rust embeds 24 lossless frames sampled
+// evenly across that loop and the window's 70 ms timer asks for the next one.
+// This component only paints the frame it is handed: no procedural stars, no
+// drift, no parallax.
 export component Starfield inherits Rectangle {
-    // Follows the AppWindow timer by default; an offscreen renderer can
-    // override it to freeze a chosen step.
-    in-out property <int> frame: StarfieldState.frame;
+    // The current reference frame, supplied by AppWindow.space-frame.
+    in property <image> frame-image;
 
     clip: true;
     accessible-role: none;
 
     Image {
-        visible: root.frame == 0;
         x: 0px;
         y: 0px;
         width: parent.width;
         height: parent.height;
-        source: @image-url("../assets/space-stars-field-00.png");
-        image-fit: fill;
-    }
-    Image {
-        visible: root.frame == 1;
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: parent.height;
-        source: @image-url("../assets/space-stars-field-01.png");
-        image-fit: fill;
-    }
-    Image {
-        visible: root.frame == 2;
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: parent.height;
-        source: @image-url("../assets/space-stars-field-02.png");
-        image-fit: fill;
-    }
-    Image {
-        visible: root.frame == 3;
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: parent.height;
-        source: @image-url("../assets/space-stars-field-03.png");
-        image-fit: fill;
-    }
-    Image {
-        visible: root.frame == 4;
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: parent.height;
-        source: @image-url("../assets/space-stars-field-04.png");
-        image-fit: fill;
-    }
-    Image {
-        visible: root.frame == 5;
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: parent.height;
-        source: @image-url("../assets/space-stars-field-05.png");
-        image-fit: fill;
-    }
-    Image {
-        visible: root.frame == 6;
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: parent.height;
-        source: @image-url("../assets/space-stars-field-06.png");
-        image-fit: fill;
-    }
-    Image {
-        visible: root.frame == 7;
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: parent.height;
-        source: @image-url("../assets/space-stars-field-07.png");
-        image-fit: fill;
-    }
-    Image {
-        visible: root.frame == 8;
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: parent.height;
-        source: @image-url("../assets/space-stars-field-08.png");
-        image-fit: fill;
-    }
-    Image {
-        visible: root.frame == 9;
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: parent.height;
-        source: @image-url("../assets/space-stars-field-09.png");
-        image-fit: fill;
-    }
-    Image {
-        visible: root.frame == 10;
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: parent.height;
-        source: @image-url("../assets/space-stars-field-10.png");
-        image-fit: fill;
-    }
-    Image {
-        visible: root.frame == 11;
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: parent.height;
-        source: @image-url("../assets/space-stars-field-11.png");
+        source: root.frame-image;
+        // The reference is 640x360 (16:9); fill scales it to the window.
         image-fit: fill;
     }
 }
