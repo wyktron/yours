@@ -7,20 +7,46 @@ sdk-extensions:
 command: yours
 separate-locales: false
 
-# The app already uses portals for browser and file-picker requests. Credential
-# storage uses the freedesktop Secret Service. The Flatpak feature disables the
-# legacy StatusNotifier tray backend so the sandbox needs no unsafe D-Bus name.
-# Docks that show the unread count on the icon own com.canonical.Unity; the
-# count is a broadcast that needs no permission, and the name only tells the app
-# when a dock (re)starts, to send it again.
+# One bundle for every Flatpak-capable distribution. Crates come from the
+# vendored sources generated from the committed lockfile:
+#
+#   flatpak-cargo-generator -d Cargo.lock \
+#       -o packaging/flatpak/cargo-sources.json
+#
+# Refresh that file whenever Cargo.lock changes; scripts/test-release.py checks
+# that it still matches the lockfile.
+#
+# The app uses portals for browser, file-picker, background and notification
+# requests. The `flatpak` feature sends new-mail notifications through
+# org.freedesktop.portal.Notification, so the sandbox needs no notification
+# D-Bus name. Credential storage uses the freedesktop Secret Service on the
+# session bus; the feature also disables the legacy StatusNotifier tray backend
+# so the sandbox needs no unsafe D-Bus name. Docks that show the unread count on
+# the icon own com.canonical.Unity; the count is a broadcast that needs no
+# permission, and the name only tells the app when a dock (re)starts, to send it
+# again.
 finish-args:
   - --share=ipc
+  # Mail sync, OAuth, and the local Reacher service on 127.0.0.1:8084 use the
+  # host network namespace. With an isolated network, 127.0.0.1 would name the
+  # sandbox itself and Reacher checks would fail.
   - --share=network
   - --device=dri
   - --socket=wayland
   - --socket=fallback-x11
+  # GNOME Keyring, KWallet and KeePassXC all answer org.freedesktop.secrets.
+  # Reaching the host collection is what keeps credentials across native and
+  # Flatpak installs.
   - --talk-name=org.freedesktop.secrets
   - --talk-name=com.canonical.Unity
+
+# No --filesystem is needed for the profile. The app keeps durable state in
+# $XDG_DATA_HOME/yours-mail, which inside the sandbox is
+# ~/.var/app/org.yours.mail/data/yours-mail and is writable by default. Files
+# the user picks, including PDF attachments, arrive through the document portal.
+# To import a native install's profile, copy it into that directory (or grant
+# --filesystem=xdg-data/yours-mail with flatpak override); see
+# docs/packaging.md.
 
 cleanup:
   - /include
@@ -47,7 +73,7 @@ modules:
       - install -Dm0755 target/release/yours /app/bin/yours
       - install -Dm0755 pdfium-runtime/lib/libpdfium.so /app/lib/flectar-mail/libpdfium.so
       - python3 scripts/test-pdf-preview.py /app/bin/yours
-      - python3 scripts/linux-elf.py verify /app/bin/flectar-mail /app/lib/flectar-mail
+      - python3 scripts/linux-elf.py verify /app/bin/yours /app/lib/flectar-mail
       - python3 scripts/stage-linux-metadata.py --flatpak _flatpak-stage
       - install -Dm0644 _flatpak-stage/usr/share/applications/org.yours.mail.desktop /app/share/applications/org.yours.mail.desktop
       - install -Dm0644 _flatpak-stage/usr/share/metainfo/org.yours.mail.metainfo.xml /app/share/metainfo/org.yours.mail.metainfo.xml

@@ -1,0 +1,37 @@
+#!/usr/bin/make -f
+# Native source build. In a checkout, `dpkg-buildpackage -b -us -uc` is enough.
+# A source upload needs an orig tarball because debian/source/format is quilt.
+export DH_VERBOSE = 1
+export CARGO_HOME = $(CURDIR)/debian/cargo
+
+%:
+	dh $@
+
+# This is a Cargo workspace, not an Autotools or Meson project.
+override_dh_auto_configure:
+
+override_dh_auto_build:
+	cargo build --release --locked --bin yours
+
+override_dh_auto_test:
+	desktop-file-validate resources/org.yours.mail.desktop
+	appstreamcli validate --no-net resources/org.yours.mail.metainfo.xml
+
+override_dh_auto_install:
+	install -Dm755 target/release/yours debian/tmp/usr/bin/yours
+	install -Dm644 resources/org.yours.mail.desktop \
+		debian/tmp/usr/share/applications/org.yours.mail.desktop
+	install -Dm644 resources/org.yours.mail.metainfo.xml \
+		debian/tmp/usr/share/metainfo/org.yours.mail.metainfo.xml
+	install -Dm644 resources/app-icon/icon-seal-512.png \
+		debian/tmp/usr/share/icons/hicolor/512x512/apps/org.yours.mail.png
+	install -Dm644 resources/app-icon/icon-seal.svg \
+		debian/tmp/usr/share/icons/hicolor/scalable/apps/org.yours.mail.svg
+	install -Dm644 LICENSE debian/tmp/usr/share/doc/yours/LICENSE
+	install -Dm644 THIRD_PARTY_NOTICES.md \
+		debian/tmp/usr/share/doc/yours/THIRD_PARTY_NOTICES.md
+	cp -a LICENSES debian/tmp/usr/share/doc/yours/LICENSES
+	install -Dm644 resources/fonts/google-sans-flex/OFL.txt \
+		debian/tmp/usr/share/doc/yours/google-sans-flex/OFL.txt
+	install -Dm644 resources/fonts/google-sans-flex/README.md \
+		debian/tmp/usr/share/doc/yours/google-sans-flex/README.md

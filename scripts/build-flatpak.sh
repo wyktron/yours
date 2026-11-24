@@ -2,7 +2,7 @@
 set -euo pipefail
 
 project_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-manifest="$project_dir/packaging/flatpak/org.yours.mail.yml"
+manifest="$project_dir/packaging/flatpak/org.yours.mail.yaml"
 build_root="$project_dir/target/flatpak"
 build_dir="$build_root/build"
 repo_dir="$build_root/repo"

@@ -172,7 +172,7 @@ class ReleaseTests(unittest.TestCase):
 
     def test_flatpak_pdfium_archive_keeps_expected_layout(self):
         manifest = (
-            SCRIPTS.parent / "packaging/flatpak/org.yours.mail.yml"
+            SCRIPTS.parent / "packaging/flatpak/org.yours.mail.yaml"
         ).read_text()
         self.assertIn(
             "install -Dm0755 pdfium-runtime/lib/libpdfium.so "

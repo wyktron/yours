@@ -1,0 +1,55 @@
+Source: yours
+Section: mail
+Priority: optional
+Maintainer: Flectar <flectar@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13),
+               appstream,
+               cargo,
+               desktop-file-utils,
+               libdbus-1-dev,
+               libfontconfig1-dev,
+               libx11-dev,
+               libx11-xcb-dev,
+               libxcb-shape0-dev,
+               libxcb-xfixes0-dev,
+               libxcursor-dev,
+               libxkbcommon-dev,
+               libxkbcommon-x11-dev,
+               pkg-config,
+               rustc (>= 1.95)
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Homepage: https://flectar.com
+Vcs-Browser: https://github.com/flectar/mail
+Vcs-Git: https://github.com/flectar/mail.git
+
+Package: yours
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         fontconfig,
+         hicolor-icon-theme,
+         libfreetype6,
+         libwayland-client0,
+         libx11-6,
+         libx11-xcb1,
+         libxcb1,
+         libxcursor1,
+         libxi6,
+         libxkbcommon0,
+         libxkbcommon-x11-0,
+         xdg-utils
+Recommends: gnome-keyring,
+            gnupg,
+            libgl1,
+            pinentry-gnome3,
+            xdg-desktop-portal
+Description: native, offline-first email client
+ Yours is a native Rust and Slint desktop mail client with offline-first
+ storage, Gmail and Microsoft account support, contacts, and calendars.
+ .
+ Mail sync, OAuth and the optional local Reacher address check use the
+ network. Passwords, OAuth tokens and API keys are stored in the freedesktop
+ Secret Service (GNOME Keyring, KWallet or KeePassXC), never in the message
+ database. PDF preview needs a separately packaged libpdfium; without it PDF
+ attachments open in the external viewer.

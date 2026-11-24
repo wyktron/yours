@@ -1,0 +1,8 @@
+yours (0.1.0~alpha.7-1) unstable; urgency=medium
+
+  * Initial distribution packaging: native Cargo release build, desktop
+    entry, AppStream metadata, hicolor icons and third-party notices.
+  * Credentials use the freedesktop Secret Service; no secrets are stored in
+    the message database.
+
+ -- Flectar <flectar@users.noreply.github.com>  Wed, 25 Nov 2026 00:30:00 +0200
