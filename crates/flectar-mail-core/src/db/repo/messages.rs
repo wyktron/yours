@@ -1580,6 +1580,52 @@ pub fn list_outline_for_thread(conn: &Connection, thread_id: i64) -> Result<Vec<
     Ok(out)
 }
 
+/// The newest received messages of these conversations that ask for a
+/// one-time code, newest first. Sent mail never counts, even when it quotes a
+/// code, and neither does another account's mail.
+pub fn verification_code_arrivals(
+    conn: &Connection,
+    thread_ids: &[i64],
+) -> Result<Vec<VerificationCodeMail>> {
+    if thread_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = vec!["?"; thread_ids.len()].join(",");
+    let mut stmt = conn.prepare(&format!(
+        "SELECT m.id, m.thread_id, m.account_id,
+                TRIM(COALESCE(m.from_name, '')) AS from_name,
+                COALESCE(m.from_addr, '') AS from_addr,
+                COALESCE(m.local_subject_prefix, '') || COALESCE(m.subject, '') AS subject,
+                TRIM(m.verification_code) AS code,
+                COALESCE(m.internal_date, m.date) AS received_at
+         FROM messages m
+         WHERE m.thread_id IN ({placeholders})
+           AND TRIM(COALESCE(m.verification_code, '')) <> ''
+           AND m.is_draft = 0 AND m.is_outgoing = 0
+         ORDER BY received_at DESC, m.id DESC"
+    ))?;
+    let rows = stmt.query_map(rusqlite::params_from_iter(thread_ids), |row| {
+        let address: String = row.get(4)?;
+        let name: String = row.get(3)?;
+        let sender = if name.trim().is_empty() {
+            address.clone()
+        } else {
+            name.trim().to_owned()
+        };
+        Ok(VerificationCodeMail {
+            message_id: row.get(0)?,
+            thread_id: row.get(1)?,
+            account_id: row.get(2)?,
+            sender,
+            address,
+            subject: row.get(5)?,
+            code: row.get(6)?,
+            received_at: row.get(7)?,
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
 /// All (id, uid) pairs currently mapped in a folder - used for expunge reconciliation.
 pub fn uids_in_folder(conn: &Connection, folder_id: i64) -> Result<Vec<(i64, i64)>> {
     let mut stmt =
@@ -1909,6 +1955,51 @@ mod tests {
             receipt_handled: false,
             importance: Importance::Normal,
         }
+    }
+
+    #[test]
+    fn verification_code_arrivals_name_the_sender_and_skip_sent_mail() {
+        let conn = testutil::conn();
+        testutil::seed_account(&conn);
+        conn.execute(
+            "INSERT INTO threads (id, account_id, subject_norm) VALUES (10, 1, 'code'), (11, 1, 'other')",
+            [],
+        )
+        .unwrap();
+        let mut coded = received("Your Acme code", "Your verification code is 482913", false);
+        coded.from = Some(Address {
+            name: Some("Acme Security".into()),
+            email: "security@acme.example".into(),
+        });
+        let coded_id = insert(&conn, &coded, 10).unwrap();
+        // A reply that quotes the code must not offer it, and another
+        // conversation's mail is not this one's news.
+        let _sent = insert(
+            &conn,
+            &received(
+                "Re: Your Acme code",
+                "Your verification code is 482913",
+                true,
+            ),
+            10,
+        )
+        .unwrap();
+        let _elsewhere = insert(
+            &conn,
+            &received("Another code", "Your verification code is 111111", false),
+            11,
+        )
+        .unwrap();
+
+        let found = verification_code_arrivals(&conn, &[10]).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].message_id, coded_id);
+        assert_eq!(found[0].thread_id, 10);
+        assert_eq!(found[0].sender, "Acme Security");
+        assert_eq!(found[0].address, "security@acme.example");
+        assert_eq!(found[0].subject, "Your Acme code");
+        assert_eq!(found[0].code, "482913");
+        assert!(verification_code_arrivals(&conn, &[]).unwrap().is_empty());
     }
 
     #[test]

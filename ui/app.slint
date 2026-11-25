@@ -52,6 +52,8 @@ import { WorkspaceFrame } from "components/workspace-layout.slint";
 import { CalendarEventDialog } from "dialogs/calendar-event-dialog.slint";
 import { ComposeDialog } from "dialogs/compose-dialog.slint";
 import { NoticeToast } from "components/notice-toast.slint";
+import { CodeToast, CodeToastCard } from "components/code-toast.slint";
+export { CodeToast } from "components/code-toast.slint";
 import { Notice } from "notice.slint";
 import { UnsubscribeDialog } from "dialogs/unsubscribe-dialog.slint";
 import { Unsubscribe } from "unsubscribe.slint";
@@ -2689,6 +2691,17 @@ export component AppWindow inherits Window {
                 - (root.compact-primary-nav-visible ? root.compact-primary-nav-height : 0px)
                 - (root.active_view == "mail" && (root.compact-layout || root.mail_sidebar_collapsed)
                     ? LayoutMetrics.touch-target + 12px : 0px);
+            z: 9000;
+        }
+
+        // A new message's one-time code, at a corner so it covers little of
+        // the mail under it. It never takes the keyboard when it appears.
+        if CodeToast.shown : CodeToastCard {
+            width: min(360px, max(0px, root.content-width - 32px));
+            x: root.compact-layout
+                ? root.content-x + (root.content-width - self.width) / 2
+                : root.content-x + root.content-width - self.width - 16px;
+            y: root.content-y + 16px;
             z: 9000;
         }
 

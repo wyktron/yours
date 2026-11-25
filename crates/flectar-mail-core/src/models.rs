@@ -1409,6 +1409,25 @@ pub struct TrustedImageSender {
     pub created_at: i64,
 }
 
+/// A received message that asks for a one-time code, as the in-app copy-code
+/// toast shows it: no body, no images, just what the toast needs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerificationCodeMail {
+    pub message_id: i64,
+    pub thread_id: i64,
+    pub account_id: i64,
+    /// The sender's display name, or their address when there is none.
+    pub sender: String,
+    /// The sender's address, lowercase as stored.
+    pub address: String,
+    pub subject: String,
+    /// The one-time code, trimmed.
+    pub code: String,
+    /// When the server received the message, else its own date.
+    pub received_at: i64,
+}
+
 /// A sender, for the confirmation shown before blocking them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

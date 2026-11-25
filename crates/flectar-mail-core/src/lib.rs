@@ -3788,6 +3788,21 @@ impl Core {
             .await
     }
 
+    /// The newest received message of each of these conversations that asks
+    /// for a one-time code, newest first: what the in-app copy-code toast
+    /// shows. Sent mail never counts, even when it quotes a code.
+    pub async fn verification_code_arrivals(
+        &self,
+        thread_ids: Vec<i64>,
+    ) -> Result<Vec<VerificationCodeMail>> {
+        if thread_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.db
+            .read(move |conn| repo::messages::verification_code_arrivals(conn, &thread_ids))
+            .await
+    }
+
     async fn request_body(&self, account_id: i64, message_id: i64) {
         let claimed = self
             .db

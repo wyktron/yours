@@ -1105,6 +1105,7 @@ pub(crate) fn spawn_core_event_listener(
     wake: UiWake,
     summary: Arc<Mutex<SummaryStream>>,
     summary_wake: UiWake,
+    code_toasts: crate::verification_toast::CodeToasts,
 ) {
     let mut events = core.subscribe_events();
     // New mail is spoken from the core's own arrival event, not from the
@@ -1149,9 +1150,11 @@ pub(crate) fn spawn_core_event_listener(
                     true
                 }
                 Ok(CoreEvent::MailNew { thread_ids, .. }) => {
-                    // The mail list wakes from MailUpdated; only the voice
-                    // needs this event, so it does not wake the UI by itself.
-                    announcements.mail_arrived(thread_ids);
+                    // The mail list wakes from MailUpdated; only the voice and
+                    // the copy-code toast need this event, so it does not wake
+                    // the UI by itself.
+                    announcements.mail_arrived(thread_ids.clone());
+                    code_toasts.arrived(thread_ids);
                     false
                 }
                 Ok(CoreEvent::AccountState {

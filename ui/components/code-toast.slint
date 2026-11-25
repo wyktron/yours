@@ -1,0 +1,140 @@
+import { Button } from "button.slint";
+import { IconButton } from "controls.slint";
+import { AppTheme } from "../design-system.slint";
+import { TypeScale } from "../typography.slint";
+
+// A new message's one-time code, offered for copying at a corner of the
+// window without taking the keyboard. Rust shows it for new arrivals only
+// (src/verification_toast.rs) and takes it away after twenty seconds.
+export global CodeToast {
+    in property <bool> shown;
+    // The message it is about, so Open can show it and a later arrival can
+    // replace the toast.
+    in property <int> message-id: -1;
+    in property <int> thread-id: -1;
+    in property <int> account-id: -1;
+    in property <string> sender;
+    in property <string> address;
+    in property <string> subject;
+    in property <string> code;
+    callback open();
+    callback dismiss();
+}
+
+export component CodeToastCard inherits Rectangle {
+    private property <color> text-color: AppTheme.dark ? #1f1f1f : #f2f2f2;
+    private property <color> muted-color: AppTheme.dark ? #5f5f5f : #b3b3b3;
+    private property <color> hover: AppTheme.dark ? #00000014 : #ffffff1f;
+    // The copy bridge has no state of its own; say the code was copied once.
+    private property <bool> copied: false;
+
+    height: layout.preferred-height;
+    border-radius: 10px;
+    background: AppTheme.dark ? #e6e6e3 : #303133;
+    drop-shadow-blur: 20px;
+    drop-shadow-offset-y: 6px;
+    drop-shadow-color: #00000040;
+    accessible-role: groupbox;
+    accessible-label: @tr("Verification code from {0}", CodeToast.sender);
+
+    layout := VerticalLayout {
+        padding: 14px;
+        spacing: 5px;
+
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: @tr("Verification code");
+                color: root.muted-color;
+                font-size: TypeScale.caption;
+                font-weight: 600;
+                letter-spacing: 0.6px;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+            IconButton {
+                width: 28px;
+                height: 28px;
+                icon: @image-url("../icons/lucide/outline/x.svg");
+                icon-size: 14px;
+                icon-color: root.text-color;
+                hover-background: root.hover;
+                tooltip-text: @tr("Dismiss");
+                clicked => { CodeToast.dismiss(); }
+            }
+        }
+
+        Text {
+            text: CodeToast.sender;
+            color: root.text-color;
+            font-size: TypeScale.body;
+            font-weight: 700;
+            overflow: elide;
+            accessible-role: none;
+        }
+        if CodeToast.address != "" && CodeToast.address != CodeToast.sender : Text {
+            text: CodeToast.address;
+            color: root.muted-color;
+            font-size: TypeScale.caption;
+            overflow: elide;
+            accessible-role: none;
+        }
+        Text {
+            text: CodeToast.subject == "" ? @tr("(No subject)") : CodeToast.subject;
+            color: root.muted-color;
+            font-size: TypeScale.secondary;
+            overflow: elide;
+            accessible-role: none;
+        }
+
+        Rectangle { height: 4px; }
+
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: CodeToast.code;
+                color: root.text-color;
+                font-family: "monospace";
+                font-size: 28px;
+                font-weight: 700;
+                letter-spacing: 2px;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+                accessible-role: text;
+                accessible-label: @tr("Code {0}", CodeToast.code);
+            }
+            Button {
+                height: 32px;
+                text: root.copied ? @tr("Copied") : @tr("Copy");
+                clicked => {
+                    copy-code.text = CodeToast.code;
+                    copy-code.select-all();
+                    copy-code.copy();
+                    root.copied = true;
+                }
+            }
+            Button {
+                height: 32px;
+                primary: true;
+                text: @tr("Open");
+                clicked => { CodeToast.open(); }
+            }
+        }
+    }
+
+    // Slint's native text input is the app's clipboard bridge: the code is
+    // copied without running a helper process.
+    copy-code := TextInput {
+        x: -10000px;
+        y: -10000px;
+        width: 1px;
+        height: 1px;
+        visible: false;
+        enabled: false;
+        read-only: true;
+        accessible-role: none;
+        text: "";
+    }
+}

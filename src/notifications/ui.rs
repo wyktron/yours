@@ -327,6 +327,26 @@ pub(crate) fn core_ready() {
     });
 }
 
+/// Open the message a copy-code toast is about, as a notification click
+/// does: the same selection, scope and tab as its own Open.
+pub(crate) fn open_mail(
+    app: &AppWindow,
+    state: &Rc<RefCell<InboxState>>,
+    account_id: i64,
+    thread_id: i64,
+    message_id: i64,
+) {
+    reveal(
+        app,
+        state,
+        Route {
+            account_id,
+            thread_id: Some(thread_id),
+            message_id: Some(message_id),
+        },
+    );
+}
+
 /// Show the conversation a notification is about, in the list that has
 /// it: the one showing, when that is the unified Inbox or the account's,
 /// and otherwise the account's Inbox, leaving a mail profile that leaves the

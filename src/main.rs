@@ -117,6 +117,7 @@ mod ui_message;
 mod undo;
 mod unsubscribe;
 mod updates;
+mod verification_toast;
 mod window_chrome;
 mod window_controller;
 
@@ -5079,6 +5080,11 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                         &startup_state,
                         &startup_runtime,
                     );
+                    let code_toasts = verification_toast::spawn(
+                        &startup_runtime,
+                        core.file_core(),
+                        app.as_weak(),
+                    );
                     spawn_core_event_listener(
                         &startup_runtime,
                         core.clone(),
@@ -5086,6 +5092,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                         startup_core_wake.clone(),
                         Arc::clone(&startup_summary_stream),
                         UiWake::new(app.as_weak(), |app| app.invoke_drain_summary_updates()),
+                        code_toasts,
                     );
                     notifications::spawn_dispatcher(
                         &startup_runtime,
@@ -6828,6 +6835,37 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     #[cfg(target_os = "macos")]
     mailto_links::receive_from_macos(&app);
     notifications::ui::attach(&app, &state, &runtime, platform.notifications.clone());
+
+    // The copy-code toast: only the code it shows is copied, through Slint's
+    // clipboard bridge; Open goes where a notification for that mail would.
+    let code_dismiss_app = app.as_weak();
+    app.global::<CodeToast>().on_dismiss(move || {
+        if let Some(app) = code_dismiss_app.upgrade() {
+            app.global::<CodeToast>().set_shown(false);
+        }
+    });
+    let code_open_app = app.as_weak();
+    let code_open_state = Rc::clone(&state);
+    app.global::<CodeToast>().on_open(move || {
+        let Some(app) = code_open_app.upgrade() else {
+            return;
+        };
+        let toast = app.global::<CodeToast>();
+        let account_id = i64::from(toast.get_account_id());
+        let thread_id = i64::from(toast.get_thread_id());
+        let message_id = i64::from(toast.get_message_id());
+        toast.set_shown(false);
+        if account_id < 0 || thread_id < 0 || message_id < 0 {
+            return;
+        }
+        notifications::ui::open_mail(
+            &app,
+            &code_open_state,
+            account_id,
+            thread_id,
+            message_id,
+        );
+    });
 
     let app_weak = app.as_weak();
     let state_for_account = Rc::clone(&state);
