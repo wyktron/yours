@@ -154,6 +154,24 @@ Renderer regression tests also use two fonts derived from it under SIL OFL
 1.1, with bitmap strikes added. Their license and reproduction instructions
 are retained in [`resources/test-fonts`](resources/test-fonts).
 
+## Inter
+
+The bundled Inter font is distributed under the SIL Open Font License 1.1. Its
+license, provenance, and checksums are retained in
+[`resources/fonts/inter`](resources/fonts/inter).
+
+## Instrument Serif
+
+The bundled Instrument Serif font is distributed under the SIL Open Font
+License 1.1. Its license, provenance, and checksum are retained in
+[`resources/fonts/instrument-serif`](resources/fonts/instrument-serif).
+
+## Literata
+
+The bundled Literata font is distributed under the SIL Open Font License 1.1.
+Its license, provenance, and checksums are retained in
+[`resources/fonts/literata`](resources/fonts/literata).
+
 ## Noto Emoji
 
 The bundled Noto Emoji font is distributed under the SIL Open Font License

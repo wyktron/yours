@@ -84,10 +84,17 @@ pub(crate) fn render_timings_enabled() -> bool {
     *ENABLED.get_or_init(|| std::env::var_os("FLECTAR_RENDER_TIMINGS").is_some())
 }
 
+// The reading pane's own body face. Bundled, so a message that names no
+// family reads the same on a machine without Literata installed; authored
+// families still win because this sheet is inserted before the sender's CSS.
+const LITERATA_REGULAR: &[u8] = include_bytes!("../resources/fonts/literata/Literata-Regular.ttf");
+const LITERATA_SEMIBOLD: &[u8] =
+    include_bytes!("../resources/fonts/literata/Literata-SemiBold.ttf");
+
 const EMAIL_FONT_FALLBACK_STYLE: &str = r#"
 <style data-flectar-mail="font-fallback">
   html, body {
-    font-family: Arial, "Liberation Sans", "Noto Sans", sans-serif;
+    font-family: Literata, Arial, "Liberation Sans", "Noto Sans", sans-serif;
   }
   pre, code, kbd, samp {
     font-family: "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", monospace;
@@ -1874,6 +1881,13 @@ fn create_email_font_ctx_with_han_fallback(system_fonts: bool) -> EmailFontCtx {
     font_ctx
         .collection
         .register_fonts(Blob::new(Arc::new(blitz_dom::BULLET_FONT) as _), None);
+    // Literata is the reader's body face. Register both shipped weights so
+    // the fallback sheet above can name it without a system install.
+    for face in [LITERATA_REGULAR, LITERATA_SEMIBOLD] {
+        font_ctx
+            .collection
+            .register_fonts(Blob::new(Arc::new(face) as _), None);
+    }
 
     // Platforms without Fontconfig hand their system fonts over through the
     // platform layer; the system collection above cannot find a font there.

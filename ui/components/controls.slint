@@ -11,6 +11,7 @@ export component TextEdit inherits Rectangle {
     in property <bool> read-only: false;
     in property <color> text-color: AppTheme.heading;
     in property <color> background-color: AppTheme.input-bg;
+    in property <string> font-family;
     in property <length> font-size: TypeScale.body;
     // The selection's ends, as byte offsets into the text.
     out property <int> anchor-offset: editor.anchor-position-byte-offset;
@@ -35,6 +36,7 @@ export component TextEdit inherits Rectangle {
         visible: root.text == "";
         text: root.placeholder-text;
         color: AppTheme.placeholder;
+        font-family: root.font-family;
         font-size: root.font-size;
         wrap: word-wrap;
     }
@@ -55,6 +57,7 @@ export component TextEdit inherits Rectangle {
             color: root.text-color;
             selection-background-color: AppTheme.accent;
             selection-foreground-color: white;
+            font-family: root.font-family;
             font-size: root.font-size;
             single-line: false;
             wrap: word-wrap;

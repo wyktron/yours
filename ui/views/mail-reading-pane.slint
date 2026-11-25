@@ -1767,6 +1767,7 @@ export component MailReadingPane inherits FocusScope {
                                         read-only: true;
                                         text-color: MessageColors.foreground;
                                         background-color: MessageColors.background;
+                                        font-family: "Literata";
                                         font-size: TypeScale.body-large;
                                     }
 
@@ -2064,6 +2065,7 @@ export component MailReadingPane inherits FocusScope {
                                             }
                                             if item.url == "" : Text {
                                                 text: item.name; wrap: word-wrap;
+                                                font-family: "Literata";
                                                 font-size: item.kind == "heading" ? 22px * EmailReader.zoom : 16px * EmailReader.zoom;
                                                 font-weight: item.kind == "heading" ? 700 : 400;
                                                 color: MessageColors.foreground;

@@ -4462,7 +4462,7 @@ fn initials(name: &str) -> String {
 }
 
 fn text_to_html(text: &str) -> String {
-    const PREFIX: &str = "<html><body style=\"font-family:Arial,sans-serif;padding:32px;line-height:1.6;color:#303348\"><pre style=\"margin:0;font:inherit;white-space:pre-wrap;overflow-wrap:anywhere\">";
+    const PREFIX: &str = "<html><body style=\"font-family:Literata,Arial,sans-serif;padding:32px;line-height:1.6;color:#303348\"><pre style=\"margin:0;font:inherit;white-space:pre-wrap;overflow-wrap:anywhere\">";
     const SUFFIX: &str = "</pre></body></html>";
     let mut html = String::with_capacity(PREFIX.len() + text.len() + SUFFIX.len());
     html.push_str(PREFIX);

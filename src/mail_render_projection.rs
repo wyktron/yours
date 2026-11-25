@@ -215,7 +215,7 @@ pub(super) fn apply_email(
 
     let preview = display_preview(&email.preview);
     let fallback_html = format!(
-        "<html><body style=\"font-family:Arial,sans-serif;padding:32px;line-height:1.6;color:#303348\"><p>{}</p></body></html>",
+        "<html><body style=\"font-family:Literata,Arial,sans-serif;padding:32px;line-height:1.6;color:#303348\"><p>{}</p></body></html>",
         preview
     );
     let html = email.html.as_deref().unwrap_or(&fallback_html);

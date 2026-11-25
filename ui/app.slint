@@ -23,9 +23,17 @@ export { InvitationSettings } from "invitation-settings.slint";
 import { AppIcon, AppIconVariant } from "app-icon.slint";
 import { AgentAccess } from "agent-access.slint";
 import { WindowChrome, WindowControls, WindowDragArea } from "window-chrome.slint";
-// Bundled once at compile time and used throughout the application chrome.
-// Rust registers the separate Noto Emoji face before constructing this window.
+// Brand faces bundled at compile time: Inter for the interface, Instrument
+// Serif for the wordmark and About, Literata for message bodies. Google Sans
+// Flex stays available to the compose canvas. Rust registers the separate
+// Noto Emoji face before constructing this window.
 import "../resources/fonts/google-sans-flex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf";
+import "../resources/fonts/inter/Inter-Regular.ttf";
+import "../resources/fonts/inter/Inter-Medium.ttf";
+import "../resources/fonts/inter/Inter-SemiBold.ttf";
+import "../resources/fonts/instrument-serif/InstrumentSerif-Regular.ttf";
+import "../resources/fonts/literata/Literata-Regular.ttf";
+import "../resources/fonts/literata/Literata-SemiBold.ttf";
 
 import { Palette, ScrollView, TextEdit } from "std-widgets.slint";
 import { ActivitySpinner } from "components/activity-spinner.slint";
@@ -943,7 +951,7 @@ export component ComposerWindow inherits Window {
 
     title: ComposerUi.subject != "" ? ComposerUi.subject : ComposerText.mode-title(ComposerUi.mode);
     icon: AppIcon.window-image(AppIcon.variant);
-    default-font-family: "Google Sans Flex";
+    default-font-family: "Inter";
     preferred-width: 760px;
     preferred-height: 720px;
     min-width: 420px;
@@ -976,7 +984,7 @@ export component AppWindow inherits Window {
     // integrated frame; only Linux removes the window manager's decorations.
     no-frame: WindowChrome.integrated && WindowChrome.platform == "linux";
     resize-border-width: root.client-frame ? 6px : 0px;
-    default-font-family: "Google Sans Flex";
+    default-font-family: "Inter";
     // The interface text size (src/text_size.rs). At zero the window uses the
     // system's text size and follows it as it changes, which every rem size
     // and standard widget scales with.
