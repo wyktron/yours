@@ -72,6 +72,12 @@ async fn watch(
             continue;
         };
         shown.insert(mail.message_id);
+        // A line in the log when the toast is raised, so a report can tell a
+        // code that never arrived from one the window did not show.
+        eprintln!(
+            "code toast: showing {} from {} for message {}",
+            mail.code, mail.sender, mail.message_id
+        );
         show(&runtime, &app, mail);
     }
 }

@@ -652,6 +652,7 @@ mod tests {
             title: "Ann & Bo".into(),
             body: "<Plans>".into(),
             preview: Some("See you \u{1}there".into()),
+            code: None,
             account: account.map(str::to_owned),
             received_at: 1_762_590_900_000,
             sound,

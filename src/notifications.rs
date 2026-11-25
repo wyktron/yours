@@ -175,6 +175,9 @@ pub struct Alert {
     pub body: String,
     /// The start of the message, when its body is already here.
     pub preview: Option<String>,
+    /// The one-time code the message asks for, when it asks for one: the
+    /// notification names it and offers to copy it.
+    pub code: Option<String>,
     /// The account's address, when there are several accounts.
     pub account: Option<String>,
     /// When the server received the message, or the newest one summed up,
@@ -233,6 +236,8 @@ pub enum Act {
     MarkRead,
     Archive,
     Delete,
+    /// Copy the one-time code the message carries.
+    CopyCode,
 }
 
 impl Act {
@@ -242,6 +247,7 @@ impl Act {
             Self::MarkRead => "read",
             Self::Archive => "archive",
             Self::Delete => "delete",
+            Self::CopyCode => "copy",
         }
     }
 
@@ -251,6 +257,7 @@ impl Act {
             "read" => Self::MarkRead,
             "archive" => Self::Archive,
             "delete" => Self::Delete,
+            "copy" => Self::CopyCode,
             _ => return None,
         })
     }
@@ -381,6 +388,7 @@ fn request(request: Request) {
 pub fn respond(response: Response) {
     match response.act {
         Act::Open => request(Request::Respond(response)),
+        Act::CopyCode => copy_code(response.route),
         act => {
             if let Some(message_id) = response.route.message_id {
                 with_core(move |runtime, core| {
@@ -392,6 +400,44 @@ pub fn respond(response: Response) {
             }
         }
     }
+}
+
+/// Put the one-time code of the message a notification's Copy button is about
+/// on the clipboard. The code is read from the store rather than carried back
+/// through the notification, so nothing new rides in a platform's payloads.
+fn copy_code(route: Route) {
+    let (Some(thread_id), Some(message_id)) = (route.thread_id, route.message_id) else {
+        return;
+    };
+    with_core(move |runtime, core| {
+        let core = Arc::clone(core);
+        runtime.spawn(async move {
+            let code = match core.verification_code_arrivals(vec![thread_id]).await {
+                Ok(mails) => mails
+                    .into_iter()
+                    .find(|mail| mail.message_id == message_id)
+                    .map(|mail| mail.code),
+                Err(error) => {
+                    tracing::warn!(%error, "notifications: could not read the code to copy");
+                    None
+                }
+            };
+            let Some(code) = code else {
+                tracing::warn!(
+                    message_id,
+                    "notifications: the code to copy is no longer in the store"
+                );
+                return;
+            };
+            // The clipboard belongs to the window's thread, which also keeps
+            // serving what it holds while the app runs.
+            let _ = slint::invoke_from_event_loop(move || {
+                if !crate::reader_clipboard::set_text(&code) {
+                    tracing::warn!("notifications: could not put the code on the clipboard");
+                }
+            });
+        });
+    });
 }
 
 /// How long the app stays awake in the background for a button's action to
@@ -408,7 +454,7 @@ const ACT_LIMIT: Duration = Duration::from_secs(25);
 #[cfg(background_checks)]
 pub fn respond_then(response: Response, done: impl FnOnce() + Send + 'static) {
     match (response.act, response.route.message_id) {
-        (Act::Open, _) | (_, None) => {
+        (Act::Open | Act::CopyCode, _) | (_, None) => {
             respond(response);
             done();
         }
@@ -441,7 +487,7 @@ pub fn respond_then(response: Response, done: impl FnOnce() + Send + 'static) {
 /// Carry out a button's action on the message; the actions it queued.
 async fn act_on(core: &Core, act: Act, message_id: i64) -> Option<Vec<i64>> {
     let kind = match act {
-        Act::Open => return None,
+        Act::Open | Act::CopyCode => return None,
         Act::MarkRead => ActionKind::MarkRead,
         Act::Archive => ActionKind::Archive,
         Act::Delete => ActionKind::Trash,
@@ -1029,16 +1075,22 @@ async fn present(
     };
     let mut outcomes = vec![None; count];
     let mut by_account: BTreeMap<i64, Vec<usize>> = BTreeMap::new();
+    // A code the user is waiting for is never folded into a summary: it has
+    // to be readable on its own.
+    let mut coded = Vec::new();
     for (index, mail) in batch.mail.iter().enumerate() {
         if on_screen.contains(&mail.account_id) {
             outcomes[index] = Some(NotificationOutcome::OnScreen);
+        } else if mail.verification_code.is_some() {
+            coded.push(index);
         } else {
             by_account.entry(mail.account_id).or_default().push(index);
         }
     }
-    let plans = by_account
+    let plans = coded
         .into_iter()
-        .map(|(account_id, indices)| {
+        .map(|index| Plan::Messages(vec![index]))
+        .chain(by_account.into_iter().map(|(account_id, indices)| {
             let summarized = batch.summarized.get(&account_id).copied().unwrap_or(0);
             if indices.len() > SUMMARY_AFTER || summarized > 0 {
                 Plan::Summary {
@@ -1051,7 +1103,7 @@ async fn present(
             } else {
                 Plan::Messages(indices)
             }
-        })
+        }))
         .collect::<Vec<_>>();
     let summaries = plans
         .iter()
@@ -1092,6 +1144,7 @@ async fn present(
                     body,
                     preview: None,
                     account: newest.and_then(|mail| mail.account.clone()),
+                    code: None,
                     received_at: newest.map_or_else(now_ms, |mail| mail.received_at),
                     sound: indices.iter().any(|&index| batch.mail[index].sound),
                     open: Route {
@@ -1110,6 +1163,22 @@ async fn present(
     for alert in &mut alerts {
         alert.sound &= !sounded;
         sounded |= alert.sound;
+    }
+    // A message's one-time code rides in the notification itself, with a
+    // button that copies it: the user reads and copies it with the app behind
+    // other windows, in the tray or on another desktop.
+    for alert in &mut alerts {
+        let Some(code) = alert.code.as_deref() else {
+            continue;
+        };
+        let line = window
+            .code_line(code)
+            .await
+            .unwrap_or_else(|| format!("Code {code}"));
+        alert.body = format!("{line}\n{}", alert.body);
+        if let Some(label) = window.copy_label().await {
+            alert.actions.insert(0, (Act::CopyCode, label));
+        }
     }
     let results = if alerts.is_empty() {
         Vec::new()
@@ -1347,7 +1416,13 @@ fn message_alert(mail: &NewMailNotification, words: &FixedWords) -> Alert {
         } else {
             subject.to_owned()
         },
-        preview: mail.preview.clone(),
+        // The code says what the message is about; its opening line would
+        // only push the code down.
+        preview: mail
+            .preview
+            .clone()
+            .filter(|_| mail.verification_code.is_none()),
+        code: mail.verification_code.clone(),
         account: mail.account.clone(),
         received_at: mail.received_at,
         sound: mail.sound,
@@ -1377,6 +1452,16 @@ pub(crate) trait Window {
     /// What a screen reader says for the app icon's count: "3 unread
     /// messages".
     fn badge_description(&self, count: u32) -> impl Future<Output = Option<String>> + Send;
+    /// The line a notification names a message's one-time code with, in the
+    /// UI's language ("Code 482913"). The English fallback is for a process
+    /// without a window, such as a phone's check in the background.
+    fn code_line(&self, code: &str) -> impl Future<Output = Option<String>> + Send {
+        std::future::ready(Some(format!("Code {code}")))
+    }
+    /// The label of the button that copies a one-time code.
+    fn copy_label(&self) -> impl Future<Output = Option<String>> + Send {
+        std::future::ready(Some("Copy code".to_owned()))
+    }
 }
 
 /// The translated words of a batch of notifications.
@@ -1431,7 +1516,13 @@ mod tests {
             thread_id: Some(40),
             message_id: Some(512),
         };
-        for act in [Act::Open, Act::MarkRead, Act::Archive, Act::Delete] {
+        for act in [
+            Act::Open,
+            Act::MarkRead,
+            Act::Archive,
+            Act::Delete,
+            Act::CopyCode,
+        ] {
             assert_eq!(parse_payload(&payload(route, act)), Some((route, act)));
         }
         let inbox = Route {
@@ -1549,6 +1640,7 @@ mod tests {
             received_at,
             account: None,
             sound: false,
+            verification_code: None,
             can_archive: true,
         };
         let batch = [mail("Ann", 1), mail("Bo", 3), mail(" Ann ", 2), mail("", 4)];
@@ -1817,6 +1909,7 @@ mod tests {
             received_at: message_id,
             account: None,
             sound,
+            verification_code: None,
             can_archive: true,
         }
     }
@@ -1984,6 +2077,7 @@ mod tests {
             received_at: 99,
             account: Some("me@example.com".into()),
             sound: true,
+            verification_code: None,
             can_archive: false,
         };
         let alert = message_alert(&mail, &words);

@@ -4,6 +4,25 @@ thread_local! {
     static CLIPBOARD: std::cell::RefCell<Option<arboard::Clipboard>> = const { std::cell::RefCell::new(None) };
 }
 
+/// Put `text` on the clipboard, and keep it there while the app runs: the
+/// clipboard serves what its owner holds, and this slot is that owner.
+pub fn set_text(text: &str) -> bool {
+    #[cfg(desktop)]
+    return CLIPBOARD.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        if slot.is_none() {
+            *slot = arboard::Clipboard::new().ok();
+        }
+        slot.as_mut()
+            .is_some_and(|clipboard| clipboard.set_text(text).is_ok())
+    });
+    #[cfg(mobile)]
+    {
+        let _ = text;
+        false
+    }
+}
+
 pub fn set_html(html: &str, text: &str) -> bool {
     #[cfg(desktop)]
     return CLIPBOARD.with(|slot| {

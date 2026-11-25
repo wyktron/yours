@@ -116,6 +116,25 @@ impl super::Window for Live {
         })
         .await
     }
+
+    async fn code_line(&self, code: &str) -> Option<String> {
+        let code = code.to_owned();
+        with_window(move |app, _| {
+            app.global::<I18n>()
+                .invoke_notification_code(code.into())
+                .into()
+        })
+        .await
+    }
+
+    async fn copy_label(&self) -> Option<String> {
+        with_window(move |app, _| {
+            app.global::<I18n>()
+                .invoke_notification_copy_code()
+                .into()
+        })
+        .await
+    }
 }
 
 /// Which of these accounts' new mail the user sees arrive: the focused
@@ -126,8 +145,11 @@ impl super::Window for Live {
 async fn on_screen(accounts: BTreeSet<i64>) -> Option<BTreeSet<i64>> {
     with_window(move |app, state| {
         let window = app.window();
+        // The app lock covers the mail with its own screen: while it is up the
+        // user sees no message, so new mail is still worth a notification.
         let looking = window.is_visible()
             && !window.is_minimized()
+            && !app.get_locked()
             && app.global::<WindowChrome>().get_active()
             && app.get_active_view() == "mail";
         // A phone's window stays focused while the app is in the background.

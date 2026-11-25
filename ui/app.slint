@@ -124,6 +124,9 @@ export global I18n {
     pure callback notification-delete() -> string;
     pure callback notification-new-mail-channel() -> string;
     pure callback notification-quiet-mail-channel() -> string;
+    // A message's one-time code, so a notification can carry it.
+    pure callback notification-code(string) -> string;
+    pure callback notification-copy-code() -> string;
     // What a screen reader says for the count on the app icon.
     pure callback notification-unread-count(int) -> string;
     // The line a desktop shows for the app while it runs with its window
@@ -263,6 +266,8 @@ export global I18n {
     // notification settings list: mail that may play a sound, and the rest.
     notification-new-mail-channel() => { return @tr("New mail"); }
     notification-quiet-mail-channel() => { return @tr("New mail without sound"); }
+    notification-code(code) => { return @tr("Code {0}", code); }
+    notification-copy-code() => { return @tr("Copy code"); }
     background-status() => { return @tr("Checking for new mail"); }
     last-contacted(date) => { return @tr("Last contacted {}", date); }
     loading-local-data() => { return @tr("Loading local data…"); }

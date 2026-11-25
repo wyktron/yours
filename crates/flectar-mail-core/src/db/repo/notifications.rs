@@ -325,6 +325,10 @@ pub struct NewMailNotification {
     /// Mail from a person with sounds on: the host may play the new-mail
     /// sound for it.
     pub sound: bool,
+    /// The one-time code the message asks its reader to enter, when it has
+    /// one. A notification for it carries the code, so it can be read and
+    /// copied without opening the mail or the app.
+    pub verification_code: Option<String>,
     /// The account has an Archive or All Mail folder to archive into;
     /// otherwise the message can only go to the Trash.
     pub can_archive: bool,
@@ -437,11 +441,12 @@ fn notification(
         .map(str::to_owned)
         .or_else(|| item.sender_addr.clone())
         .unwrap_or_default();
-    let (snippet, received_at, account, several_accounts, can_archive) = conn.query_row(
+    let (snippet, received_at, account, several_accounts, can_archive, code) = conn.query_row(
         "SELECT m.snippet, COALESCE(m.internal_date, m.date), a.email,
                 (SELECT COUNT(*) FROM accounts WHERE mail_protocol <> 'local') > 1,
                 EXISTS (SELECT 1 FROM folders f
-                        WHERE f.account_id = m.account_id AND f.role IN (?2, ?3))
+                        WHERE f.account_id = m.account_id AND f.role IN (?2, ?3)),
+                TRIM(COALESCE(m.verification_code, ''))
          FROM messages m JOIN accounts a ON a.id = m.account_id
          WHERE m.id = ?1",
         params![item.notified_message_id, roles::ARCHIVE, roles::ALL],
@@ -452,6 +457,7 @@ fn notification(
                 row.get::<_, Option<String>>(2)?,
                 row.get::<_, bool>(3)?,
                 row.get::<_, bool>(4)?,
+                row.get::<_, String>(5)?,
             ))
         },
     )?;
@@ -465,6 +471,7 @@ fn notification(
         received_at,
         account: account.filter(|_| several_accounts),
         sound: settings.sound_enabled && item.audible,
+        verification_code: Some(code).filter(|code| !code.is_empty()),
         can_archive,
     })
 }
@@ -543,10 +550,15 @@ fn decide(
     Ok(match resolve_tab(conn, thread_id)? {
         None => Decision::Suppress("thread was deleted"),
         Some(RoutedTab::Pending) => Decision::Wait,
-        Some(RoutedTab::Resolved(tab)) if scope_allows(settings, &tab) => {
-            Decision::Publish(thread_id)
+        Some(RoutedTab::Resolved(tab)) => {
+            // A one-time code goes out whatever the scope says: the user is in
+            // the middle of signing in and is waiting for that number.
+            if scope_allows(settings, &tab) || asks_for_a_code(conn, item.message_id)? {
+                Decision::Publish(thread_id)
+            } else {
+                Decision::Suppress("outside notification scope")
+            }
         }
-        Some(RoutedTab::Resolved(_)) => Decision::Suppress("outside notification scope"),
     })
 }
 
@@ -579,6 +591,22 @@ fn still_new(conn: &Connection, message_id: Option<i64>) -> Result<bool> {
                 still_new_condition(2)
             ),
             params![message_id, roles::INBOX],
+            |row| row.get(0),
+        )
+        .optional()?
+        .unwrap_or(false))
+}
+
+/// Whether the message asks its reader for a one-time code, which the user
+/// is waiting for and a notification must carry (see [`decide`]).
+fn asks_for_a_code(conn: &Connection, message_id: Option<i64>) -> Result<bool> {
+    let Some(message_id) = message_id else {
+        return Ok(false);
+    };
+    Ok(conn
+        .query_row(
+            "SELECT TRIM(COALESCE(verification_code, '')) <> '' FROM messages WHERE id = ?1",
+            params![message_id],
             |row| row.get(0),
         )
         .optional()?
@@ -926,6 +954,7 @@ mod tests {
                     received_at: 1500,
                     account: None,
                     sound: true,
+                    verification_code: None,
                     can_archive: false,
                 }
             )]
@@ -963,6 +992,42 @@ mod tests {
         assert_eq!(later.claimed[0].0, routing_id);
         assert!(!later.claimed[0].1.sound);
         assert_eq!(next_due_at(&c, now + ROUTE_WAIT_MS).unwrap(), None);
+    }
+
+    #[test]
+    fn a_one_time_code_goes_out_whatever_the_scope_says() {
+        let c = testutil::conn();
+        testutil::seed_account(&c);
+        // Automated mail lands in Other, which the default Important scope
+        // leaves out.
+        let (thread_id, message_id) = testutil::seed_message(&c, "github@test.dev", "Code", true);
+        c.execute(
+            "UPDATE messages SET verification_code = '482913' WHERE id = ?1",
+            params![message_id],
+        )
+        .unwrap();
+        let settings = Settings::default();
+        let id = enqueue_at(&c, message_id, false, 1_000).unwrap();
+        let claimed = settle_due(&c, &settings, 2_000, 10).unwrap().claimed;
+        assert_eq!(claimed.len(), 1, "the code the user waits for is not scoped out");
+        assert_eq!(claimed[0].0, id);
+        assert_eq!(claimed[0].1.thread_id, thread_id);
+        assert_eq!(claimed[0].1.verification_code.as_deref(), Some("482913"));
+
+        // The same mail without a code stays outside the scope.
+        c.execute(
+            "UPDATE messages SET verification_code = NULL WHERE id = ?1",
+            params![message_id],
+        )
+        .unwrap();
+        let (_, other) = testutil::seed_message(&c, "news@test.dev", "Digest", true);
+        enqueue_at(&c, other, false, 1_000).unwrap();
+        assert!(
+            settle_due(&c, &settings, 2_000, 10)
+                .unwrap()
+                .claimed
+                .is_empty()
+        );
     }
 
     #[test]
