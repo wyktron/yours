@@ -3165,6 +3165,11 @@ pub struct StartupPresentation {
     /// Whether the first mail list, and the cached one shown before it,
     /// group conversations.
     pub grouping: MailGrouping,
+    /// Whether `app_settings` holds an app password, so the window can show the
+    /// real lock screen in its first frame instead of waiting for the mailbox to
+    /// open. `None` when the settings row could not be read: the caller then
+    /// waits for the core's own answer.
+    pub app_lock: Option<bool>,
 }
 fn default_theme_preset() -> String {
     "default".into()

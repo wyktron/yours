@@ -216,8 +216,18 @@ fn open_connection(path: &Path, kind: StoreKind) -> Result<Connection> {
 /// read-only query so presentation state can be applied before the window is
 /// shown without putting database startup or mailbox loading on that path.
 pub(crate) fn startup_presentation(path: &Path) -> StartupPresentation {
-    let Some(value) = startup_settings_value(path) else {
+    // One read-only connection answers both questions the first frame needs:
+    // the saved presentation and whether an app password exists. Neither needs
+    // a migration, a store open or the writer's lock.
+    let Some(conn) = startup_connection(path) else {
         return StartupPresentation::default();
+    };
+    let app_lock = startup_app_lock_present(&conn);
+    let Some(value) = startup_settings_value(&conn) else {
+        return StartupPresentation {
+            app_lock,
+            ..StartupPresentation::default()
+        };
     };
     StartupPresentation {
         workspace_list_pane_width: value
@@ -244,17 +254,23 @@ pub(crate) fn startup_presentation(path: &Path) -> StartupPresentation {
             Some(false) => MailGrouping::Messages,
             _ => MailGrouping::Conversations,
         },
+        app_lock,
     }
 }
 
-fn startup_settings_value(path: &Path) -> Option<serde_json::Value> {
+/// A read-only, zero-wait connection for the presentation lookup: it must never
+/// queue behind a sync write, because the window is waiting for it.
+fn startup_connection(path: &Path) -> Option<Connection> {
     let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
     conn.busy_timeout(std::time::Duration::ZERO).ok()?;
     conn.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)
         .ok()?;
     conn.set_db_config(DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false)
         .ok()?;
+    Some(conn)
+}
 
+fn startup_settings_value(conn: &Connection) -> Option<serde_json::Value> {
     let json = conn
         .query_row(
             "SELECT value FROM app_settings WHERE key = 'settings'",
@@ -264,6 +280,19 @@ fn startup_settings_value(path: &Path) -> Option<serde_json::Value> {
         .optional()
         .ok()??;
     serde_json::from_str::<serde_json::Value>(&json).ok()
+}
+
+/// Whether an app password is set: the presence of the row the unlock check
+/// reads. The hash itself is only needed once the user submits a password.
+fn startup_app_lock_present(conn: &Connection) -> Option<bool> {
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM app_settings WHERE key = 'app_lock')",
+        [],
+        |row| row.get::<_, bool>(0),
+    )
+    .optional()
+    .ok()
+    .flatten()
 }
 
 fn sqlite_sidecar(path: &Path, suffix: &str) -> PathBuf {

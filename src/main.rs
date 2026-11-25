@@ -1869,7 +1869,97 @@ fn percentile(samples: &[f32], percentile: f32) -> f32 {
     samples[rank.min(samples.len() - 1)]
 }
 
+/// Start the launch clock; the desktop entry point calls this first.
+pub fn mark_process_start() {
+    startup_metrics::mark_process_start();
+}
+
+/// Print one `startup-phase` marker from the launch path.
+fn startup_phase(name: &str) {
+    startup_metrics::phase(name);
+}
+
+/// Check an app password against the stored hash.
+///
+/// Returns false while the mail store is still opening, which is when the lock
+/// screen can already be up. The caller keeps that attempt and replays it once
+/// the startup snapshot arrives, instead of dropping the typed password.
+fn try_unlock(
+    app: &slint::Weak<AppWindow>,
+    state: &Rc<RefCell<InboxState>>,
+    runtime: &tokio::runtime::Handle,
+    password: String,
+) -> bool {
+    let Some(core) = state.borrow().core.as_ref().map(CoreMailSource::file_core) else {
+        return false;
+    };
+    let weak = app.clone();
+    runtime.spawn(async move {
+        let stored = core.get_app_lock().await.ok().flatten();
+        let ok = stored
+            .as_deref()
+            .is_some_and(|stored| verify_app_lock(stored, password.as_str()));
+        eprintln!(
+            "app lock: unlock attempt len={} ok={ok}",
+            password.chars().count()
+        );
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(app) = weak.upgrade() {
+                if ok {
+                    app.set_locked(false);
+                    app.set_lock_changing(false);
+                    app.set_lock_error(Default::default());
+                } else {
+                    app.set_lock_error("Wrong password".into());
+                }
+            }
+        });
+    });
+    true
+}
+
+/// How many Space reference frames decode per event-loop turn.
+const SPACE_FRAME_BATCH: usize = 8;
+
+/// Decode the Space reference frames the first visible frame did not need.
+///
+/// One batch per event-loop turn keeps every turn short. `Starfield` wraps its
+/// frame index at the frames it has, so the field animates from the first frame
+/// on and settles on the exact 119-frame loop without a visible gap.
+fn load_remaining_space_frames(
+    runtime: &tokio::runtime::Handle,
+    directory: &std::path::Path,
+    window: slint::Weak<AppWindow>,
+) {
+    let directory = directory.to_path_buf();
+    let runtime = runtime.clone();
+    runtime.spawn(async move {
+        let mut decoded = 1;
+        while decoded < space_frames::frame_count() {
+            tokio::time::sleep(Duration::from_millis(16)).await;
+            let start = decoded;
+            let end = (start + SPACE_FRAME_BATCH).min(space_frames::frame_count());
+            let batch_directory = directory.clone();
+            let batch_window = window.clone();
+            let posted = slint::invoke_from_event_loop(move || {
+                let Some(app) = batch_window.upgrade() else {
+                    return;
+                };
+                let mut frames: Vec<slint::Image> = app.get_space_frames().iter().collect();
+                frames.extend(space_frames::decode_range(&batch_directory, start, end));
+                app.set_space_frames(ModelRc::new(VecModel::from(frames)));
+            });
+            if posted.is_err() {
+                return;
+            }
+            decoded = end;
+        }
+        startup_phase("space_frames_complete");
+    });
+}
+
 pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> {
+    startup_phase("run_enter");
     let startup_metrics = StartupMetrics::from_environment();
     let benchmark_tray = startup_metrics.enabled()
         && std::env::var_os("FLECTAR_BENCHMARK_TRAY_INTERVAL_MS").is_some();
@@ -1894,6 +1984,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
             .build()?,
     );
     let runtime = app_runtime.handle().clone();
+    startup_phase("runtime_ready");
     #[cfg(desktop)]
     let launch_links = mailto_links::launch_links(std::env::args_os().skip(1));
     // A mail link launch always shows the window, whatever else it says.
@@ -1924,6 +2015,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
             }
         }
     };
+    startup_phase("instance_acquired");
     // Set up by the process that owns the profile, before any window: Windows
     // takes the app's identity before the first one, and macOS needs the
     // notification delegate before the application finishes launching, so a
@@ -1950,6 +2042,10 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     // when the window is created. This is the same zero-wait lookup used for
     // the rest of the first frame's presentation state.
     let startup_presentation = flectar_mail_core::startup_presentation(&platform.paths);
+    // One read-only query: the first frame's saved layout and, with it, whether
+    // an app password exists. This is the whole lock decision, available before
+    // any store is opened or migrated.
+    startup_phase("presentation_read");
     let window_frame = startup_presentation.window_frame.as_deref().map_or_else(
         window_chrome::WindowFrame::default,
         window_chrome::WindowFrame::parse,
@@ -1962,6 +2058,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     // The platform layer installs the mobile backend and names its renderer.
     #[cfg(mobile)]
     let (use_wgpu, cpu_renderer) = (false, platform::select_renderer()?);
+    startup_phase("renderer_selected");
 
     eprintln!(
         "FLECTAR_RENDERER {}",
@@ -1988,6 +2085,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     // initial text is measured.
     configure_emoji_font_fallback()?;
     han_fallback::install_ui(&mut slint::fontique_012::shared_collection());
+    startup_phase("fonts_ready");
 
     // Construct the window before opening or migrating either database. Seed
     // the presentation preferences visible in the inert mailbox shell from
@@ -1996,12 +2094,30 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     // happens during normal background startup.
     window_chrome::prepare(window_frame);
     let app = renderer_preferences::initialize_step(use_wgpu, AppWindow::new)?;
+    startup_phase("window_created");
     // Space renders the installed Firefox theme's own background: the literal
     // 119 frames, tiled at native 640x360, one image pixel per device pixel.
     // Starfield cross-fades consecutive frames from one Slint animation clock.
-    let space_frames = space_frames::load(&platform.paths.cache_dir);
-    app.set_space_frame_count(space_frames.len() as i32);
+    //
+    // Only the cache files are written on this path. Decoding all 119 frames
+    // costs about 110 MB of RGBA and used to run before the window mapped; the
+    // field now opens on its first frame and the rest follow after the show.
+    let space_frame_cache = space_frames::cache_frames(&platform.paths.cache_dir);
+    let space_frames = space_frames::decode_range(&space_frame_cache, 0, 1);
+    startup_phase("space_frames_loaded");
+    app.set_space_frame_count(space_frames::frame_count() as i32);
     app.set_space_frames(ModelRc::new(VecModel::from(space_frames)));
+
+    // The lock decision needs nothing from the stores: whether an app password
+    // exists is one row of app_settings, read by the presentation lookup above.
+    // Publishing it here puts the real lock screen in the first frame instead
+    // of leaving the "Starting Yours" spinner up until the mailbox has opened.
+    if let Some(has_app_lock) = startup_presentation.app_lock {
+        app.set_lock_has_password(has_app_lock);
+        app.set_lock_known(true);
+        app.set_locked(true);
+        startup_phase("lock_screen_known");
+    }
     let space_tiles_window = app.as_weak();
     app.on_arrange_space_tiles(move |width, height| {
         if let Some(app) = space_tiles_window.upgrade() {
@@ -2063,6 +2179,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
         startup_metrics.emit("started_in_tray", serde_json::Value::Null);
     } else {
         renderer_preferences::initialize_step(use_wgpu, || app.show())?;
+        startup_phase("window_shown");
         // The winit window reports its real device pixel ratio once it maps,
         // so lay the native-size frame tiles out again with the settled size.
         let space_scale = app.window().scale_factor().max(1.0);
@@ -2103,6 +2220,15 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                 "wayland_display": std::env::var("WAYLAND_DISPLAY").ok(),
             }),
         );
+    }
+    // Every frame the first visible frame did not need decodes here, a batch per
+    // event-loop turn. The field plays from a model that grows to the full 119
+    // frames, so Space never waits for the whole set to map its window.
+    load_remaining_space_frames(&runtime, &space_frame_cache, app.as_weak());
+    // The first event-loop turn after the window maps is the first painted
+    // frame; this timer runs only once that turn has been rendered.
+    if !start_hidden {
+        slint::Timer::single_shot(Duration::ZERO, || startup_phase("first_frame"));
     }
     startup_metrics.schedule_rendered_frame(app.as_weak(), "first_frame");
     let favicon_wake = UiWake::new(app.as_weak(), |app| app.invoke_drain_favicon_updates());
@@ -4889,6 +5015,10 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     let startup_tray = tray.as_ref().map(|tray| tray.as_weak());
     let startup_metrics_for_ui = startup_metrics.clone();
     let startup_benchmark_disable_background = benchmark_disable_background;
+    // The lock screen is up before the mail store opens, so an unlock attempt
+    // can arrive first; it waits here instead of being dropped.
+    let pending_unlock: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+    let startup_pending_unlock = Rc::clone(&pending_unlock);
     app.on_drain_startup_updates(move || {
         while let Ok(update) = startup_rx.borrow_mut().try_recv() {
             let Some(app) = startup_app.upgrade() else {
@@ -4936,6 +5066,9 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                             ));
                             app.set_startup_failed(true);
                             app.set_startup_ready(false);
+                            // Keep no password in memory when there is no
+                            // store that could ever check it.
+                            startup_pending_unlock.borrow_mut().take();
                             continue;
                         }
                     };
@@ -4979,6 +5112,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                             .map(|settings| settings.mark_read)
                             .unwrap_or_default();
                         let has_app_lock = app_lock.is_some();
+                        startup_phase("lock_snapshot_ready");
                         eprintln!("app lock: has_password={has_app_lock}");
                         app.set_lock_has_password(has_app_lock);
                         app.set_locked(true);
@@ -5064,6 +5198,16 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                         startup_state.borrow().remote_images_enabled,
                     );
 
+                    // A password typed while the lock screen was already up but
+                    // the store was still opening is checked now.
+                    if let Some(password) = startup_pending_unlock.borrow_mut().take() {
+                        let _ = try_unlock(
+                            &app.as_weak(),
+                            &startup_state,
+                            &startup_runtime,
+                            password,
+                        );
+                    }
                     apply_local_mail(&app, &startup_state, local_mail);
                     refresh_rows_only(&app, &startup_state, &startup_runtime);
                     refresh_list_metadata(&app, &startup_state);
@@ -7629,32 +7773,20 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
         let state = Rc::clone(&state);
         let runtime = runtime.clone();
         let weak = app.as_weak();
+        let pending = Rc::clone(&pending_unlock);
         app.on_unlock_app(move |password| {
-            let Some(core) = state.borrow().core.as_ref().map(CoreMailSource::file_core) else {
+            if try_unlock(&weak, &state, &runtime, password.to_string()) {
                 return;
-            };
-            let weak = weak.clone();
-            runtime.spawn(async move {
-                let stored = core.get_app_lock().await.ok().flatten();
-                let ok = stored
-                    .as_deref()
-                    .is_some_and(|stored| verify_app_lock(stored, password.as_str()));
-                eprintln!(
-                    "app lock: unlock attempt len={} ok={ok}",
-                    password.chars().count()
+            }
+            // The store is still opening: hold the attempt, say so, and check
+            // it the moment the startup snapshot lands.
+            *pending.borrow_mut() = Some(password.to_string());
+            if let Some(app) = weak.upgrade() {
+                app.set_lock_error(
+                    "Opening your mailbox. The password is checked as soon as it is ready."
+                        .into(),
                 );
-                let _ = slint::invoke_from_event_loop(move || {
-                    if let Some(app) = weak.upgrade() {
-                        if ok {
-                            app.set_locked(false);
-                            app.set_lock_changing(false);
-                            app.set_lock_error(Default::default());
-                        } else {
-                            app.set_lock_error("Wrong password".into());
-                        }
-                    }
-                });
-            });
+            }
         });
     }
     {

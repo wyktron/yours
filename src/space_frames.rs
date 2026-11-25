@@ -3,7 +3,9 @@
 //! The installed Firefox theme ships only a manifest plus `background.gif`:
 //! 640x360, 119 frames at 60-70 ms, a starfield that twinkles quickly. The app
 //! renders those exact pixels, embedded here as lossless PNGs; no star is
-//! generated or imitated. All 119 frames are decoded once at startup.
+//! generated or imitated. The frames decode a batch per event-loop turn after
+//! the window is up: 119 images are about 110 MB of RGBA, which must never sit
+//! between the process start and the first frame.
 //!
 //! `Starfield` tiles the current frame at native size. One image pixel is one
 //! device pixel: a tile is `640 / device-pixel-ratio` logical pixels wide, the
@@ -14,7 +16,7 @@
 
 use crate::{AppWindow, SpaceTile};
 use slint::{ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The reference frames in playback order, embedded in the binary.
 const FRAMES: [&[u8]; 119] = [
@@ -148,36 +150,63 @@ const FRAME_HEIGHT: f32 = 360.0;
 /// tiles to one texture per frame.
 const CACHE_DIR: &str = "space-frames-v1-640x360";
 
-/// Cache every embedded frame as a file, then load it as a path-backed image.
-pub(crate) fn load(cache_dir: &Path) -> Vec<Image> {
+/// How many reference frames the field plays once all of them are decoded.
+pub(crate) fn frame_count() -> usize {
+    FRAMES.len()
+}
+
+/// Cache every embedded frame as a file, returning the directory of PNGs.
+///
+/// Nothing is decoded here. The 119 frames expand to about 110 MB of RGBA, and
+/// decoding them all before the window mapped delayed the first frame by
+/// seconds on every launch, so the caller decodes the frame it first shows and
+/// [decode_range] brings the rest in once the window is visible.
+pub(crate) fn cache_frames(cache_dir: &Path) -> PathBuf {
     let directory = cache_dir.join(CACHE_DIR);
     if let Err(error) = std::fs::create_dir_all(&directory) {
         eprintln!("space frame cache unavailable: {error}");
     }
-    FRAMES
-        .iter()
-        .enumerate()
-        .map(|(index, png)| {
-            let path = directory.join(format!("frame-{index:03}.png"));
-            let cached = std::fs::metadata(&path)
-                .map(|metadata| metadata.len() == png.len() as u64)
-                .unwrap_or(false);
-            if !cached {
-                let _ = write_cached(&path, png);
-            }
-            Image::load_from_path(&path).unwrap_or_else(|_| {
-                let decoded = image::load_from_memory(png)
-                    .expect("the embedded Space frames are valid PNGs")
-                    .to_rgba8();
-                let (width, height) = decoded.dimensions();
-                Image::from_rgba8(SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(
-                    decoded.as_raw(),
-                    width,
-                    height,
-                ))
-            })
-        })
+    for (index, png) in FRAMES.iter().enumerate() {
+        let path = directory.join(frame_file(index));
+        let cached = std::fs::metadata(&path)
+            .map(|metadata| metadata.len() == png.len() as u64)
+            .unwrap_or(false);
+        if !cached {
+            let _ = write_cached(&path, png);
+        }
+    }
+    directory
+}
+
+fn frame_file(index: usize) -> String {
+    format!("frame-{index:03}.png")
+}
+
+/// Decode frames start..end of the cached set as path-backed images.
+///
+/// A path-backed image is what keeps the native tiles to one texture per frame;
+/// Slint caches decoded pixels per thread, so this runs on the event-loop
+/// thread. Indexes past the last frame are skipped.
+pub(crate) fn decode_range(directory: &Path, start: usize, end: usize) -> Vec<Image> {
+    (start..end.min(FRAMES.len()))
+        .map(|index| decode_frame(directory, index))
         .collect()
+}
+
+fn decode_frame(directory: &Path, index: usize) -> Image {
+    let png = FRAMES[index];
+    let path = directory.join(frame_file(index));
+    Image::load_from_path(&path).unwrap_or_else(|_| {
+        let decoded = image::load_from_memory(png)
+            .expect("the embedded Space frames are valid PNGs")
+            .to_rgba8();
+        let (width, height) = decoded.dimensions();
+        Image::from_rgba8(SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(
+            decoded.as_raw(),
+            width,
+            height,
+        ))
+    })
 }
 
 fn write_cached(path: &Path, png: &[u8]) -> std::io::Result<()> {
@@ -225,7 +254,12 @@ mod tests {
     #[test]
     fn embeds_the_whole_reference_frame_set() {
         let directory = tempfile::tempdir().unwrap();
-        let frames = load(directory.path());
+        let cached = cache_frames(directory.path());
+        assert_eq!(frame_count(), 119);
+        // Decoding is per-range, so the field can start on one frame.
+        assert_eq!(decode_range(&cached, 0, 1).len(), 1);
+        assert_eq!(decode_range(&cached, 0, frame_count()).len(), 119);
+        let frames = decode_range(&cached, 0, frame_count());
         assert_eq!(frames.len(), 119);
         for frame in frames {
             assert_eq!(

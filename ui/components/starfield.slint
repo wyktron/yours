@@ -52,6 +52,10 @@ export component Starfield inherits Rectangle {
     // 70ms is the reference GIF's frame step; the blend is the clock's
     // position inside the step.
     private property <duration> clock: root.tick * 16ms;
+    // The frames are decoded after the window shows, so only a prefix of them
+    // may be present. The clock keeps the reference timing; the index wraps
+    // within the frames loaded so far and unfolds as the rest arrive.
+    private property <int> loaded-frames: max(1, root.frames.length);
     private property <int> frame:
         floor(mod(root.clock, 70ms * root.frame-count) / 70ms);
     private property <float> blend: mod(root.clock, 70ms) / 70ms;
@@ -61,7 +65,7 @@ export component Starfield inherits Rectangle {
         y: tile.y;
         width: 640px / root.pixel-ratio;
         height: 360px / root.pixel-ratio;
-        source: root.frames[root.frame];
+        source: root.frames[Math.mod(root.frame, root.loaded-frames)];
         image-fit: fill;
         image-rendering: pixelated;
     }
@@ -73,7 +77,7 @@ export component Starfield inherits Rectangle {
         y: tile.y;
         width: 640px / root.pixel-ratio;
         height: 360px / root.pixel-ratio;
-        source: root.frames[Math.mod(root.frame + 1, root.frame-count)];
+        source: root.frames[Math.mod(root.frame + 1, root.loaded-frames)];
         image-fit: fill;
         image-rendering: pixelated;
         opacity: root.blend;

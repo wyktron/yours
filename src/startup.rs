@@ -1002,9 +1002,12 @@ pub(crate) async fn load_startup_snapshot(
 ) -> Result<StartupSnapshot, String> {
     let core = CoreMailSource::start(paths, credentials, oauth_redirects).await?;
     metrics.emit("core_opened", serde_json::Value::Null);
+    crate::startup_metrics::phase("core_opened");
     // The first page shows only the active profile's accounts.
     let settings = core.load_settings().await.ok();
+    crate::startup_metrics::phase("settings_loaded");
     let app_lock = core.load_app_lock().await.ok().flatten();
+    crate::startup_metrics::phase("app_lock_loaded");
     // The first page is listed the way the saved preference groups mail.
     let _ = core.set_grouping(
         settings
@@ -1024,6 +1027,7 @@ pub(crate) async fn load_startup_snapshot(
         core.trusted_image_senders(),
     );
 
+    crate::startup_metrics::phase("startup_queries_loaded");
     let (accounts, scope, page) = mail.unwrap_or_else(|_| (Vec::new(), Scope::UNIFIED_INBOX, None));
     metrics.emit(
         "startup_queries_loaded",

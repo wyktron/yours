@@ -1,6 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // The launch clock starts before anything else, so the phase markers in
+    // `run` cover dynamic loading, platform setup and the window's first frame.
+    flectar_mail::mark_process_start();
     #[cfg(glibc)]
     tune_allocator();
     // Slint 1.19 keeps the native window and its rendering surface when

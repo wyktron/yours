@@ -16,6 +16,28 @@ use std::{
 
 const METRIC_PREFIX: &str = "FLECTAR_STARTUP_METRIC ";
 
+/// When the process started, from the first statement of `main`.
+static PROCESS_START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+
+/// Start the launch clock before platform initialization, so every phase
+/// marker measures from the real beginning of the process.
+pub(crate) fn mark_process_start() {
+    PROCESS_START.get_or_init(Instant::now);
+}
+
+/// Print one startup phase on stderr as `startup-phase: <name> +<ms>`.
+///
+/// Always on: one `Instant` read and one line per phase, which is what makes a
+/// slow launch diagnosable from a terminal without a profiling build. The
+/// process-start clock is seeded on first use when `main` did not do it.
+pub(crate) fn phase(name: &str) {
+    let started = *PROCESS_START.get_or_init(Instant::now);
+    eprintln!(
+        "startup-phase: {name} +{}ms",
+        started.elapsed().as_millis()
+    );
+}
+
 #[derive(Clone)]
 pub(crate) struct StartupMetrics {
     inner: Option<Arc<StartupMetricsInner>>,
