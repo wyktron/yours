@@ -256,7 +256,9 @@ export component FilesView inherits Rectangle {
     private property <bool> executable;
     private property <bool> subscribed;
     private property <FileRow> selected-row: FilesUi.selected >= 0 && FilesUi.selected < FilesUi.rows.length ? FilesUi.rows[FilesUi.selected] : {name: ""};
-    background: AppTheme.surface;
+    // Space shows the window's starfield through the workspace panes; only
+    // dialogs and controls that carry text keep an opaque surface.
+    background: AppTheme.workspace-surface;
     forward-focus: files-focus;
     files-focus := FocusScope {
         width: parent.width; height: parent.height;
@@ -364,7 +366,7 @@ export component FilesView inherits Rectangle {
                     y: 0px;
                     width: max(0px, parent.width - 2 * LayoutMetrics.list-row-inset);
                     height: parent.height;
-                    background: AppTheme.surface;
+                    background: AppTheme.workspace-surface;
                     clip: true;
 
                     for index in 8 : WorkspaceListLoadingRow {
@@ -434,7 +436,7 @@ export component FilesView inherits Rectangle {
                 }
                 ScrollFade {
                     x: file-list.x; y: file-list.y; width: file-list.visible-width; height: file-list.visible-height;
-                    surface-color: AppTheme.surface; content-y: file-list.content-y;
+                    surface-color: AppTheme.workspace-surface; content-y: file-list.content-y;
                     content-height: file-list.content-height; visible-height: file-list.visible-height;
                 }
                 // On phones, Upload and New folder leave the toolbar for one
@@ -487,7 +489,7 @@ export component FilesView inherits Rectangle {
             }
         }
         if root.detail-visible : Rectangle {
-            horizontal-stretch: 1; min-width: 0px; background: AppTheme.surface;
+            horizontal-stretch: 1; min-width: 0px; background: AppTheme.workspace-surface;
             if WindowChrome.controls-visible : WindowDragArea { width: parent.width; height: WindowChrome.band-height; }
             VerticalBox {
                 width: parent.width; height: parent.height;
@@ -718,7 +720,7 @@ export component FilesView inherits Rectangle {
     }
     }
     if FilesUi.transfers-open : Rectangle {
-        background: AppTheme.surface;
+        background: AppTheme.workspace-surface;
         VerticalBox {
             padding: 16px; spacing: 12px;
             HorizontalBox {Text {text:@tr("Transfers and operations");color:AppTheme.heading;font-size:TypeScale.title;} Button {text:@tr("Close");clicked=>{FilesUi.transfers-open=false;}}}

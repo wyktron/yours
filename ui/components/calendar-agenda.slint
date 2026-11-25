@@ -49,6 +49,7 @@ export component CalendarAgendaFilter inherits Rectangle {
         close-policy: close-on-click-outside;
         forward-focus: popup-focus;
         Rectangle {
+            // A popup card carries text of its own, so it stays opaque.
             background: AppTheme.surface;
             border-radius: LayoutMetrics.corner-radius;
             border-width: 1px;
@@ -130,7 +131,7 @@ export component CalendarAgenda inherits Rectangle {
     out property <length> scroll-offset: root.scroll-y;
     private property <length> scroll-y: 0px;
     private property <length> edge-gutter: 48px;
-    background: AppTheme.surface;
+    background: AppTheme.workspace-surface;
     forward-focus: agenda-keyboard;
 
     public function scroll-to-selection() {
@@ -286,7 +287,7 @@ export component CalendarAgenda inherits Rectangle {
             }
         }
     }
-    ScrollFade { width: parent.width; height: parent.height; fade-height: root.edge-gutter; surface-color: AppTheme.surface; content-y: agenda-list.content-y; content-height: agenda-list.content-height; visible-height: agenda-list.visible-height; }
+    ScrollFade { width: parent.width; height: parent.height; fade-height: root.edge-gutter; surface-color: AppTheme.workspace-surface; content-y: agenda-list.content-y; content-height: agenda-list.content-height; visible-height: agenda-list.visible-height; }
     if root.event-count == 0: VerticalBox {
         padding: 24px;
         spacing: 12px;

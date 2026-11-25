@@ -207,6 +207,12 @@ export global AppTheme {
     out property <color> surface-raised: preset == "default" ? (dark ? #131415 : #fafaf8)
         : preset == "pixel" ? #211b3e : preset == "space" ? #0d0d0d
         : themed-surface.mix(themed-page-bg, 0.72);
+    // A workspace's list and detail panes, as opposed to the rows and cards
+    // inside them. Space draws the starfield behind the whole workspace, so
+    // these panes are clear; anything that carries text keeps its own opaque
+    // surface and the 4.5:1 contrast the text tokens are built for.
+    out property <color> workspace-surface: preset == "space" ? transparent : surface;
+    out property <color> workspace-surface-raised: preset == "space" ? transparent : surface-raised;
     // Space's sidebars are part of the field, not a tint over it.
     out property <color> sidebar-tint: preset == "default" ? (dark ? #151617 : #f0f0ee)
         : preset == "pixel" ? #15112a : preset == "space" ? transparent

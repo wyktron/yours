@@ -2189,7 +2189,9 @@ export component AppWindow inherits Window {
             // Space lets the shared starfield show between calendar surfaces.
             background-color: AppTheme.preset == "space" ? transparent : root.page-bg;
             sidebar-color: root.sidebar-bg;
-            surface-color: root.surface;
+            // The calendar's own panes are workspace surfaces: clear in Space,
+            // so the window's starfield reaches the grid, agenda and toolbar.
+            surface-color: AppTheme.workspace-surface;
             ui-border-color: root.border;
             subtle-border-color: root.border-subtle;
             title-color: root.title-color;
@@ -2290,8 +2292,10 @@ export component AppWindow inherits Window {
             secondary-text: root.secondary-text;
             selected-row: root.selected-row;
             sidebar-bg: root.sidebar-bg;
-            surface: root.surface;
-            surface-raised: root.surface-raised;
+            // Clear in Space: the starfield shows behind the list and detail
+            // panes, while rows, inputs and cards keep their opaque fills.
+            surface: AppTheme.workspace-surface;
+            surface-raised: AppTheme.workspace-surface-raised;
             title-color: root.title-color;
             select-contact(id) => { root.select-contact(id); }
             search(query) => { root.search-contacts(query); }
