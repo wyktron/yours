@@ -541,6 +541,13 @@ export component MailListPane inherits FocusScope {
         : root.row-top + root.sender-line + root.line-gap + root.subject-line
             + (root.inline-detail ? 0px : root.line-gap + root.preview-height) + root.row-bottom;
     private property <length> group-row-height: root.compact ? 44px : 40px;
+    // Unread rows wash their surface with the theme accent instead of
+    // filling it. Seven percent stays readable on every theme, and it sits
+    // over selection or a flagged sender's red so those states still read.
+    private property <color> unread-tint: root.accent.with-alpha(0.07);
+    // The timestamp stays accent-hued but is pulled 28% toward the theme's
+    // heading, which keeps it above 4.5:1 on every selected or flagged wash.
+    private property <color> unread-time: root.accent.mix(root.heading, 0.72);
     // A label shows only with room for the start of its name, and its gap.
     private property <length> label-least-width: label-probe.least-width + 4px;
     forward-focus: list-keyboard;
@@ -1197,6 +1204,17 @@ export component MailListPane inherits FocusScope {
                                     }
                                 }
 
+                                // The wash sits above the selected, checked or
+                                // flagged background and below the text, so the
+                                // unread state survives every row state.
+                                Rectangle {
+                                    visible: !entry.is_header && entry.show_row && mail-data.unread;
+                                    width: parent.width;
+                                    height: parent.height;
+                                    background: root.unread-tint;
+                                    accessible-role: none;
+                                }
+
                                 Timer {
                                     interval: 16ms;
                                     running: entry.reveal_row && !mail-row.reveal-ready;
@@ -1215,12 +1233,27 @@ export component MailListPane inherits FocusScope {
 
                                 Rectangle {
                                     visible: !entry.is_header && mail-data.show_account_marker;
-                                    x: 0px;
+                                    // The unread edge owns the leading 3px;
+                                    // the account colour keeps a 2px line
+                                    // beside it instead of disappearing.
+                                    x: mail-data.unread ? 4px : 0px;
                                     y: 4px;
-                                    width: 3px;
+                                    width: mail-data.unread ? 2px : 3px;
                                     height: parent.height - 8px;
                                     border-radius: 2px;
                                     background: mail-data.account_color;
+                                    accessible-role: none;
+                                }
+
+                                // Unread's loudest cue: a full-height accent
+                                // edge that reads even over the red wash.
+                                Rectangle {
+                                    visible: !entry.is_header && entry.show_row && mail-data.unread;
+                                    x: 0px;
+                                    y: 0px;
+                                    width: 3px;
+                                    height: parent.height;
+                                    background: root.accent;
                                     accessible-role: none;
                                 }
 
@@ -1341,7 +1374,7 @@ export component MailListPane inherits FocusScope {
                                                     width: min(72px, self.preferred-width);
                                                     height: root.dense ? 44px : root.sender-line;
                                                     text: mail-data.time;
-                                                    color: root.muted-text;
+                                                    color: mail-data.unread ? root.unread-time : root.muted-text;
                                                     font-size: TypeScale.caption;
                                                     overflow: elide;
                                                     horizontal-alignment: right;
@@ -1435,7 +1468,7 @@ export component MailListPane inherits FocusScope {
                                                             : max(0px, sender-time.x - 22px);
                                                     height: root.dense ? 44px : root.sender-line;
                                                     text: mail-data.sender;
-                                                    color: root.heading;
+                                                    color: mail-data.unread ? root.heading : root.muted-text;
                                                     font-size: root.dense ? TypeScale.body : TypeScale.body-large;
                                                     font-weight: mail-data.unread ? 700 : 500;
                                                     overflow: elide;
@@ -1443,14 +1476,13 @@ export component MailListPane inherits FocusScope {
                                                 }
                                                 Rectangle {
                                                     visible: mail-data.unread;
-                                                    x: root.dense
-                                                        ? min(sender-title.preferred-width + 6px, sender-title.width - 9px)
-                                                        : min(sender-title.preferred-width + 6px, sender-title.width - 9px);
-                                                    y: root.dense ? 18px : 8px + (root.sender-line - 22px) / 2;
-                                                    width: 7px;
-                                                    height: 7px;
-                                                    border-radius: 4px;
+                                                    x: min(sender-title.preferred-width + 5px, sender-title.width - 8px);
+                                                    y: root.dense ? (44px - 6px) / 2 : (root.sender-line - 6px) / 2;
+                                                    width: 6px;
+                                                    height: 6px;
+                                                    border-radius: 3px;
                                                     background: root.accent;
+                                                    accessible-role: none;
                                                 }
                                                 subject-label := Text {
                                                     x: root.dense ? message-content.dense-subject-x : 0px;
@@ -1461,7 +1493,7 @@ export component MailListPane inherits FocusScope {
                                                         : parent.width;
                                                     height: root.dense ? 44px : root.subject-line;
                                                     text: mail-data.subject == "" ? @tr("(No subject)") : mail-data.subject;
-                                                    color: root.body-text;
+                                                    color: mail-data.unread ? root.heading : root.muted-text;
                                                     font-size: TypeScale.body;
                                                     font-weight: mail-data.unread ? 700 : 500;
                                                     overflow: elide;
