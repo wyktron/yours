@@ -82,11 +82,20 @@ fn configure_query_connection(conn: &Connection, kind: StoreKind) -> Result<()> 
     Ok(())
 }
 
+/// An integrity pass the mail store still owes this process.
+struct IntegrityPass {
+    path: PathBuf,
+    pending: std::sync::atomic::AtomicBool,
+}
+
 #[derive(Clone)]
 pub struct Db {
     write_tx: Option<mpsc::Sender<Command>>,
     read_tx: Option<mpsc::Sender<Command>>,
     lazy: Option<std::sync::Arc<LazyStore>>,
+    /// Mail only: the pass `prepare_store` deferred until the window is
+    /// usable. `None` when the last shutdown closed the store cleanly.
+    integrity: Option<std::sync::Arc<IntegrityPass>>,
 }
 
 fn spawn_conn_thread(
@@ -312,32 +321,111 @@ fn quick_check(conn: &Connection, store: &str) -> Result<()> {
     }
 }
 
+/// The marker that keeps a deferred integrity pass owed across restarts.
+///
+/// SQLite's own sidecars only tell the truth while the last process failed to
+/// close the store. A quit that happens before the background pass runs would
+/// otherwise close the store cleanly and take the debt with it.
+fn integrity_marker(path: &Path) -> PathBuf {
+    sqlite_sidecar(path, ".integrity-due")
+}
+
+/// Whether a WAL or journal sidecar holds work for SQLite to recover.
+///
+/// Size matters. The presentation lookup that puts the lock screen in the
+/// first frame opens the database read-only before the store does, and a
+/// read-only connection cannot checkpoint its own empty WAL away, so it leaves
+/// a zero-length sidecar behind on every launch. A zero-length WAL holds no
+/// frames: SQLite ignores it, and there is nothing to recover. Only a sidecar
+/// with content means the last shutdown left committed frames or a hot journal
+/// behind.
+fn recovered_dirty_state(path: &Path) -> bool {
+    ["-wal", "-journal"].into_iter().any(|suffix| {
+        sqlite_sidecar(path, suffix)
+            .metadata()
+            .is_ok_and(|meta| meta.len() > 0)
+    })
+}
+
+/// Verify one store on a connection of its own.
+///
+/// A multi-gigabyte scan must never queue behind, or ahead of, the window's
+/// own queries, which is why this opens its own connection instead of using
+/// the writer or reader thread.
+fn check_store_integrity(path: &Path, store: &str) -> Result<()> {
+    let conn = match Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    ) {
+        Ok(conn) => conn,
+        Err(_) => {
+            // A WAL database without its shared-memory file cannot be opened
+            // read-only. This connection still never writes mail data.
+            let conn = Connection::open_with_flags(
+                path,
+                OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            )?;
+            conn.pragma_update(None, "query_only", "ON")?;
+            conn
+        }
+    };
+    conn.busy_timeout(std::time::Duration::from_secs(30))?;
+    conn.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
+    conn.set_db_config(DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false)?;
+    quick_check(&conn, store)
+}
+
+/// Prepare a store for its connection threads and report whether the mail
+/// store still owes an integrity pass.
+///
+/// The pass is proportional to the file, and a real mailbox file is
+/// gigabytes, so the mail store never pays for it inside the open. The debt is
+/// recorded in `integrity_marker` and run later on the host's schedule, once
+/// the window is usable. Calendar and files stores are small enough to check
+/// here.
 fn prepare_store(
     path: &Path,
     kind: StoreKind,
     store: &str,
     migrate: impl FnOnce(&mut Connection) -> Result<()>,
-) -> Result<()> {
-    // A clean final SQLite close removes WAL/journal sidecars. Their presence
-    // before opening is therefore a cheap dirty-shutdown signal. Do the O(n)
-    // scan only then, or after a schema change, never on every normal launch.
-    let recovered_dirty_state =
-        sqlite_sidecar(path, "-wal").exists() || sqlite_sidecar(path, "-journal").exists();
+) -> Result<bool> {
+    // A clean final SQLite close removes WAL/journal sidecars with content in
+    // them. What is left before opening is therefore a cheap dirty-shutdown
+    // signal; an empty sidecar carries nothing to recover.
+    let recovered_dirty_state = recovered_dirty_state(path);
+    let marker = integrity_marker(path);
+    let pending_before_open = marker.exists();
     let mut conn = open_connection(path, kind)?;
     let version_before: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    if recovered_dirty_state {
-        quick_check(&conn, store)?;
-    }
     migrate(&mut conn)?;
     // SQLite 3.46+ bounds the ANALYZE work performed by optimize. The 0x10000
     // bit also considers tables that this short-lived preparation connection
     // has not queried, keeping statistics useful after large syncs/imports.
     conn.execute_batch("PRAGMA optimize=0x10002;")?;
     let version_after: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    if version_after != version_before {
-        quick_check(&conn, store)?;
+    let schema_changed = version_after != version_before;
+    if !matches!(kind, StoreKind::Mail) {
+        if recovered_dirty_state || schema_changed || pending_before_open {
+            quick_check(&conn, store)?;
+        }
+        return Ok(false);
     }
-    Ok(())
+    let owed = recovered_dirty_state || schema_changed || pending_before_open;
+    if owed {
+        let reason = if pending_before_open {
+            "an earlier check did not finish"
+        } else if recovered_dirty_state {
+            "the last run did not close the store cleanly"
+        } else {
+            "a migration changed the schema"
+        };
+        if let Err(error) = std::fs::write(&marker, format!("{reason}\n")) {
+            // The debt still stands for this process, which verifies before
+            // it exits; only a quit before that pass would lose the record.
+            eprintln!("store integrity: could not record the pending check: {error}");
+        }
+    }
+    Ok(owed)
 }
 
 impl Db {
@@ -350,6 +438,7 @@ impl Db {
                 kind,
                 opened: tokio::sync::OnceCell::new(),
             })),
+            integrity: None,
         }
     }
 
@@ -446,6 +535,58 @@ impl Db {
         self.on_each_connection(Command::ReleaseMemory).await
     }
 
+    /// Run the integrity pass the last shutdown left owed for the mail store.
+    ///
+    /// The window is already usable when the host calls this: the pass reads
+    /// the file on a connection of its own, so it neither delays the first
+    /// page nor queues behind it. It returns `Ok(())` at once when the last
+    /// shutdown closed the store cleanly. A failure keeps the pending marker,
+    /// so the next launch checks again, and returns the error for the host to
+    /// log and show in its status line.
+    pub async fn verify_integrity(&self) -> Result<()> {
+        let Some(pass) = self.integrity.as_ref() else {
+            return Ok(());
+        };
+        // One pass per process, even if two callers race here.
+        if !pass
+            .pending
+            .swap(false, std::sync::atomic::Ordering::SeqCst)
+        {
+            return Ok(());
+        }
+        let path = pass.path.clone();
+        let started = std::time::Instant::now();
+        // The pass runs on a thread of its own rather than the runtime's
+        // blocking pool: a multi-gigabyte scan would otherwise occupy one of
+        // the two blocking threads the shell keeps for opening stores and
+        // decoding images.
+        let (done, result) = tokio::sync::oneshot::channel();
+        std::thread::Builder::new()
+            .name("flectar-mail-integrity".into())
+            .spawn(move || {
+                let _ = done.send(check_store_integrity(&path, "mail"));
+            })
+            .map_err(|error| CoreError::Other(error.to_string()))?;
+        let result = result
+            .await
+            .map_err(|error| CoreError::Other(error.to_string()))?;
+        let elapsed = started.elapsed().as_millis();
+        match &result {
+            Ok(()) => {
+                eprintln!("store integrity: mail quick_check ok in {elapsed} ms");
+                if let Err(error) = std::fs::remove_file(integrity_marker(&pass.path)) {
+                    if error.kind() != std::io::ErrorKind::NotFound {
+                        eprintln!("store integrity: clearing the pending marker: {error}");
+                    }
+                }
+            }
+            Err(error) => {
+                eprintln!("store integrity: mail quick_check failed in {elapsed} ms: {error}");
+            }
+        }
+        result
+    }
+
     /// Inspect currently live connections without opening a deferred store or
     /// reopening a connection released by `release_idle_connections`.
     /// SQLite reports allocated page-cache bytes, not mapped resident pages.
@@ -474,7 +615,7 @@ impl Db {
             std::fs::create_dir_all(parent)?;
         }
         // Run migrations on a throwaway connection before the threads start.
-        prepare_store(path, StoreKind::Mail, "mail", |conn| {
+        let integrity_owed = prepare_store(path, StoreKind::Mail, "mail", |conn| {
             migrations::run(conn)?;
             repo::contacts::backfill_folded(conn)
         })?;
@@ -484,6 +625,12 @@ impl Db {
             write_tx: Some(write_tx),
             read_tx: Some(read_tx),
             lazy: None,
+            integrity: integrity_owed.then(|| {
+                std::sync::Arc::new(IntegrityPass {
+                    path: path.to_path_buf(),
+                    pending: std::sync::atomic::AtomicBool::new(true),
+                })
+            }),
         })
     }
 
@@ -492,7 +639,7 @@ impl Db {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        prepare_store(path, StoreKind::Calendar, "calendar", |conn| {
+        let _ = prepare_store(path, StoreKind::Calendar, "calendar", |conn| {
             calendar_migrations::run(conn)
         })?;
         // Calendar operations are short and low-volume. One serialized
@@ -504,6 +651,7 @@ impl Db {
             read_tx: Some(write_tx.clone()),
             write_tx: Some(write_tx),
             lazy: None,
+            integrity: None,
         })
     }
 
@@ -511,7 +659,7 @@ impl Db {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        prepare_store(path, StoreKind::Files, "files", files_migrations::run)?;
+        let _ = prepare_store(path, StoreKind::Files, "files", files_migrations::run)?;
         let write_tx =
             spawn_conn_thread(path.to_path_buf(), "files-writer", StoreKind::Files, false)?;
         let read_tx =
@@ -520,6 +668,7 @@ impl Db {
             write_tx: Some(write_tx),
             read_tx: Some(read_tx),
             lazy: None,
+            integrity: None,
         })
     }
 
@@ -882,6 +1031,33 @@ mod connection_profile_tests {
             .unwrap();
 
         assert_eq!(cache_size, -2_048);
+    }
+}
+
+#[cfg(test)]
+mod integrity_tests {
+    #[test]
+    fn an_empty_sidecar_is_not_a_dirty_shutdown() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("mail.db");
+        std::fs::write(&path, b"").unwrap();
+        assert!(!super::recovered_dirty_state(&path));
+
+        // The read-only presentation lookup leaves this behind on every
+        // launch. It holds no frames, so SQLite has nothing to recover.
+        let wal = super::sqlite_sidecar(&path, "-wal");
+        std::fs::write(&wal, b"").unwrap();
+        assert!(!super::recovered_dirty_state(&path));
+
+        // A WAL with frames is a shutdown that left work behind.
+        std::fs::write(&wal, [0_u8; 4096]).unwrap();
+        assert!(super::recovered_dirty_state(&path));
+        std::fs::remove_file(&wal).unwrap();
+
+        // Likewise a hot rollback journal.
+        let journal = super::sqlite_sidecar(&path, "-journal");
+        std::fs::write(&journal, [0_u8; 512]).unwrap();
+        assert!(super::recovered_dirty_state(&path));
     }
 }
 

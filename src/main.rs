@@ -5290,6 +5290,38 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                     startup_metrics_for_ui
                         .schedule_rendered_frame(app.as_weak(), "core_ready_frame");
                     startup_metrics_for_ui.schedule_benchmark_exit(app.as_weak());
+                    // The store open only records that a dirty shutdown (or a
+                    // migration) owes the mail database an integrity pass; the
+                    // pass runs here, after the window is usable, on a
+                    // connection of its own. A failure is logged and shown in
+                    // the status line, and the pending marker makes the next
+                    // launch retry it.
+                    let integrity_core = core.clone();
+                    let integrity_app = app.as_weak();
+                    startup_runtime.spawn(async move {
+                        // Let the first frame land and the first clicks run
+                        // before the file scan starts competing for I/O.
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                        if let Err(error) = integrity_core.file_core().verify_store_integrity().await
+                        {
+                            let detail = error.to_string();
+                            eprintln!(
+                                "store integrity: the local mail database failed its check: {detail}"
+                            );
+                            tracing::error!(
+                                error = %detail,
+                                "local mail database integrity check failed"
+                            );
+                            let _ = slint::invoke_from_event_loop(move || {
+                                if let Some(app) = integrity_app.upgrade() {
+                                    app.set_sync_status(UiMessage::detail(
+                                        "The local mail database failed its integrity check after an unexpected shutdown: {}",
+                                        detail,
+                                    ));
+                                }
+                            });
+                        }
+                    });
                 }
                 StartupUpdate::MailMetadata(result) => match result {
                     Ok(metadata) => {
@@ -8417,9 +8449,33 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     #[cfg(desktop)]
     agents::shutdown();
     let core = state.borrow().core.as_ref().map(CoreMailSource::file_core);
-    notifications::withdraw_before_exit(&runtime, core, platform.notifications.clone());
+    notifications::withdraw_before_exit(
+        &runtime,
+        core.clone(),
+        platform.notifications.clone(),
+    );
     // The runtime ends with this function.
     notifications::core_closed();
+    // A clean quit closes the store's connections: SQLite's last close
+    // checkpoints and removes the WAL, which is what tells the next launch the
+    // store was closed cleanly, so it skips the integrity pass. A crash, a
+    // power loss, or a quit before this point leaves the sidecar or the
+    // pending marker behind, and the pass still runs on the next start.
+    if let Some(core) = core {
+        let close = async {
+            let _ = core.db.release_idle_connections().await;
+            let _ = core.calendar_db.release_idle_connections().await;
+            let _ = core.files_db.release_idle_connections().await;
+        };
+        // The timeout is built inside the runtime context: constructing a
+        // Tokio timer before entering it panics.
+        let closed = runtime.block_on(async {
+            tokio::time::timeout(Duration::from_secs(5), close).await
+        });
+        if closed.is_err() {
+            eprintln!("store close: timed out; the next start will verify the mail store");
+        }
+    }
     event_loop_result.map_err(|error| {
         renderer_preferences::startup_error(error, use_wgpu && !gpu_startup_completed.get())
     })?;

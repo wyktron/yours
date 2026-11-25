@@ -1071,13 +1071,10 @@ impl Core {
         if removed_staged_files > 0 {
             tracing::info!(removed_staged_files, "removed orphaned draft staging files");
         }
-        let removed_mail_files = core.remove_interrupted_mail_files().await?;
-        if removed_mail_files > 0 {
-            tracing::info!(
-                removed_mail_files,
-                "removed files of interrupted mail writes"
-            );
-        }
+        // Interrupted mail files are reconciled in the post-ready task below:
+        // finding them scans every message's origin path, and that scan must
+        // not hold the first page back. It still runs before any account
+        // worker can write the mail root.
 
         // Make saved OAuth app registrations available before any actor
         // needs a token refresh.
@@ -1156,6 +1153,18 @@ impl Core {
                 tokio::select! {
                     _ = core.ui_ready.notified() => {}
                     _ = tokio::time::sleep(std::time::Duration::from_secs(60)) => {}
+                }
+                // Leftovers of one interrupted write are reconciled here:
+                // after the window is usable, but before any account worker
+                // can write the mail root this pass is reconciling.
+                match core.remove_interrupted_mail_files().await {
+                    Ok(removed) if removed > 0 => {
+                        tracing::info!(removed, "removed files of interrupted mail writes")
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        tracing::warn!(%error, "removing interrupted mail files failed")
+                    }
                 }
                 events::sync_diagnostic("startup_accounts", None, "loading");
                 let configs = match core
@@ -2334,6 +2343,17 @@ impl Core {
         self.files_db.release_cache_memory().await
     }
 
+    /// Run the integrity pass a dirty shutdown (or a migration) left owed for
+    /// the mail store.
+    ///
+    /// Opening the store only records the debt; this is where the pass runs,
+    /// after the window is usable. It returns `Ok(())` at once when the last
+    /// shutdown closed the store cleanly, `Err` when quick_check found a
+    /// problem (the host logs it, shows it and the next launch retries).
+    pub async fn verify_store_integrity(&self) -> Result<()> {
+        self.db.verify_integrity().await
+    }
+
     /// Finish the rollback for an account whose process stopped after
     /// reserving its database id but before committing credentials. These rows
     /// are excluded from account lists and actor startup.
@@ -2987,11 +3007,24 @@ impl Core {
         let (stale_paths, referenced_paths) = self
             .db
             .write(|conn| {
+                // A profile with no draft attachments, the common case, must
+                // not scan every message to prove that: SQLite would drive
+                // the join from the wide table and read it whole.
+                let has_attachments: bool = conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM draft_attachments)",
+                    [],
+                    |row| row.get(0),
+                )?;
+                if !has_attachments {
+                    return Ok((Vec::new(), Vec::new()));
+                }
                 let stale_paths = {
                     let mut statement = conn.prepare(
                         "SELECT da.file_path FROM draft_attachments da
-                         JOIN messages m ON m.id = da.draft_id
-                         WHERE m.is_draft = 0",
+                         WHERE EXISTS (
+                             SELECT 1 FROM messages m
+                             WHERE m.id = da.draft_id AND m.is_draft = 0
+                         )",
                     )?;
                     statement
                         .query_map([], |row| row.get::<_, String>(0))?
