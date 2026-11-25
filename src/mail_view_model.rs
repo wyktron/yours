@@ -676,18 +676,25 @@ pub(super) fn render_current(
                 });
         }
         apply_selected_favicon(app, favicon_icons.get(&display_email.domain));
+        let sender_trusted = state.borrow().trusted_image_senders.contains(
+            &display_email.address.trim().to_ascii_lowercase(),
+        );
         apply_email(
             app,
             display_email,
             &email_renderer,
             use_wgpu,
-            allow_remote_images,
+            allow_remote_images || sender_trusted,
+            sender_trusted,
         )
     } else {
         app.global::<EmailReader>().invoke_ensure_body(-1);
         email_renderer.borrow_mut().clear();
         app.set_selected_sender("".into());
         app.set_selected_address("".into());
+        app.global::<EmailReader>().set_sender_address("".into());
+        app.global::<EmailReader>().set_sender_images_trusted(false);
+        app.global::<EmailReader>().set_remote_images_present(false);
         app.set_selected_subject(if query.trim().is_empty() {
             translated(app, &UiMessage::plain("No conversations in this folder"))
         } else {

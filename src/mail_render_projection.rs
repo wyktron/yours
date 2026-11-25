@@ -139,6 +139,9 @@ pub(super) fn clear_reader_projection(app: &AppWindow) {
     reader.set_context_link("".into());
     reader.set_width_ratio(1.0);
     reader.set_failed_images(0);
+    reader.set_sender_address("".into());
+    reader.set_sender_images_trusted(false);
+    reader.set_remote_images_present(false);
     reader.set_items(ModelRc::default());
     reader.set_images(ModelRc::default());
     reader.set_selection_start(Default::default());
@@ -155,6 +158,7 @@ pub(super) fn apply_email(
     email_renderer: &Rc<RefCell<GpuEmailRenderer>>,
     use_wgpu: bool,
     allow_remote_images: bool,
+    sender_trusted: bool,
 ) -> Result<(), String> {
     app.set_selected_sender(email.sender.clone().into());
     app.set_selected_address(email.address.clone().into());
@@ -175,6 +179,9 @@ pub(super) fn apply_email(
     crate::invitation::project(app, &email);
     crate::read_receipts::project(app, &email);
     let reader = app.global::<EmailReader>();
+    // The reader's "Always load images" choice follows this From address.
+    reader.set_sender_address(email.address.clone().into());
+    reader.set_sender_images_trusted(sender_trusted);
     // The reader explains the AI's judgement on this row; the list only tints
     // it. The date follows the reader's language like every other date.
     reader.set_security(email.security.clone().into());
@@ -222,7 +229,9 @@ pub(super) fn apply_email(
     if same_message && email_renderer.borrow().loaded_key == Some(key) {
         return Ok(());
     }
-    let blocked = renderer::has_remote_images(html) && !allow_remote_images;
+    let has_remote_images = renderer::has_remote_images(html);
+    let blocked = has_remote_images && !allow_remote_images;
+    reader.set_remote_images_present(has_remote_images);
     if same_message && app.get_remote_images_blocked() != blocked {
         scroll = (scroll + if blocked { -60.0 } else { 60.0 }).min(0.0);
     }

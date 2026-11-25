@@ -475,6 +475,9 @@ export component MailView inherits FocusScope {
                 horizontal-stretch: 1;
                 print_supported: root.print_supported;
                 window-width: root.width;
+                reader-column-width: max(0px, root.available-width
+                    - root.desktop-sidebar-width - root.effective-list-pane-width
+                    - LayoutMetrics.divider-width);
                 email_tiles: root.email_tiles;
                 email_links: root.email_links;
                 thread-messages: root.thread_messages;
@@ -721,6 +724,7 @@ export component MailView inherits FocusScope {
                 animate opacity { duration: 170ms; easing: ease-out; }
                 compact: root.compact;
                 window-width: self.width;
+                reader-column-width: max(0px, root.available-width - root.single-pane-content-x);
                 email_tiles: root.email_tiles;
                 email_links: root.email_links;
                 thread-messages: root.thread_messages;

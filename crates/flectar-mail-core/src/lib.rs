@@ -4238,6 +4238,44 @@ impl Core {
         self.db.read(|conn| repo::blocked::list(conn)).await
     }
 
+    /// Every sender whose remote images load without asking, alphabetically.
+    pub async fn trusted_image_senders(&self) -> Result<Vec<TrustedImageSender>> {
+        self.db
+            .read(|conn| repo::trusted_image_senders::list(conn))
+            .await
+    }
+
+    /// Whether mail from `address` may load its remote images without asking.
+    /// This is what the reader's remote-image policy consults before blocking.
+    pub async fn is_trusted_image_sender(&self, address: &str) -> Result<bool> {
+        let Some(address) = repo::trusted_image_senders::normalized(address) else {
+            return Ok(false);
+        };
+        self.db
+            .read(move |conn| repo::trusted_image_senders::is_trusted(conn, &address))
+            .await
+    }
+
+    /// Trust the remote images of mail from `address`. False when it already
+    /// was trusted.
+    pub async fn trust_image_sender(&self, address: &str) -> Result<bool> {
+        let address = repo::trusted_image_senders::normalized(address)
+            .ok_or_else(|| CoreError::Other(format!("not an address: {address}")))?;
+        self.db
+            .write(move |conn| repo::trusted_image_senders::add(conn, &address, now_ms()))
+            .await
+    }
+
+    /// Stop trusting `address`. False when it wasn't trusted.
+    pub async fn untrust_image_sender(&self, address: &str) -> Result<bool> {
+        let Some(address) = repo::trusted_image_senders::normalized(address) else {
+            return Ok(false);
+        };
+        self.db
+            .write(move |conn| repo::trusted_image_senders::remove(conn, &address))
+            .await
+    }
+
     /// Every rule that sorts new mail, in the order they are tried (#238).
     pub async fn mail_rules(&self) -> Result<Vec<MailRule>> {
         self.db.read(|conn| repo::rules::list(conn)).await

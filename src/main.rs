@@ -758,6 +758,8 @@ struct InboxState {
     profile_avatar_tx: UiSender<ProfileAvatarUpdate>,
     remote_images_enabled: bool,
     remote_images_override_id: Option<i32>,
+    /// Senders whose remote images load without asking, lowercase.
+    trusted_image_senders: HashSet<String>,
     /// When an opened unread message counts as read.
     mark_read: flectar_mail_core::models::MarkRead,
     /// Whether the mail list shows conversations or each message on its own.
@@ -1331,6 +1333,7 @@ impl InboxState {
             profile_avatar_tx,
             remote_images_enabled,
             remote_images_override_id: None,
+            trusted_image_senders: HashSet::new(),
             mark_read: flectar_mail_core::models::MarkRead::Immediately,
             grouping: MailGrouping::Conversations,
             list_order: ListOrder::NewestFirst,
@@ -1787,6 +1790,59 @@ fn spawn_startup_load(
 pub unsafe fn take_launch_activation_token() {
     // SAFETY: forwarded from the caller.
     unsafe { window_chrome::take_launch_activation_token() };
+}
+
+/// Remember, or forget, that a sender's remote images load without asking.
+/// The reader owns the choice; this persists it before rendering again.
+fn set_sender_image_trust(
+    app: &AppWindow,
+    state: &Rc<RefCell<InboxState>>,
+    runtime: &tokio::runtime::Handle,
+    sender: &str,
+    trusted: bool,
+) {
+    if !cfg!(feature = "remote-content") {
+        app.set_render_status(UiMessage::plain("Remote-image loading is disabled."));
+        return;
+    }
+    let address = sender.trim().to_ascii_lowercase();
+    if address.is_empty() {
+        app.set_render_status(UiMessage::plain("This message has no sender address."));
+        return;
+    }
+    let Some(core) = state.borrow().core.clone() else {
+        app.set_render_status(UiMessage::plain("Mail is still starting."));
+        return;
+    };
+    let saved = if trusted {
+        runtime.block_on(core.trust_image_sender(&address))
+    } else {
+        runtime.block_on(core.untrust_image_sender(&address))
+    };
+    if let Err(error) = saved {
+        app.set_render_status(UiMessage::detail(
+            "Could not save the sender's image choice: {}",
+            error,
+        ));
+        return;
+    }
+    {
+        let mut state = state.borrow_mut();
+        if trusted {
+            state.trusted_image_senders.insert(address);
+        } else {
+            state.trusted_image_senders.remove(&address);
+        }
+        // The next render must re-decide from the sender list, not from an
+        // earlier one-message "Load images" override.
+        state.remote_images_override_id = None;
+    }
+    if let Err(error) = render_current(app, state, runtime) {
+        app.set_render_status(UiMessage::detail(
+            "Could not refresh message images: {}",
+            error,
+        ));
+    }
 }
 
 /// Slint installs one backend per process. Retry failed GPU startup in a fresh
@@ -4888,6 +4944,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                         scope,
                         page,
                         remote_images_enabled,
+                        trusted_image_senders,
                         accounts,
                         account_configs,
                         local_mail,
@@ -4915,6 +4972,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                         state.local_mail = local_mail;
                         state.set_scope(scope);
                         state.remote_images_enabled = allow_remote_images;
+                        state.trusted_image_senders = trusted_image_senders.into_iter().collect();
                         state.mark_read = settings
                             .as_ref()
                             .map(|settings| settings.mark_read)
@@ -6079,6 +6137,40 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                 error,
             ));
         }
+    });
+
+    let trust_images_app = app.as_weak();
+    let trust_images_state = Rc::clone(&state);
+    let trust_images_runtime = runtime.clone();
+    app.global::<EmailReader>().on_always_load_images(move || {
+        let Some(app) = trust_images_app.upgrade() else {
+            return;
+        };
+        let sender = app.global::<EmailReader>().get_sender_address().to_string();
+        set_sender_image_trust(
+            &app,
+            &trust_images_state,
+            &trust_images_runtime,
+            &sender,
+            true,
+        );
+    });
+
+    let stop_images_app = app.as_weak();
+    let stop_images_state = Rc::clone(&state);
+    let stop_images_runtime = runtime.clone();
+    app.global::<EmailReader>().on_stop_loading_images(move || {
+        let Some(app) = stop_images_app.upgrade() else {
+            return;
+        };
+        let sender = app.global::<EmailReader>().get_sender_address().to_string();
+        set_sender_image_trust(
+            &app,
+            &stop_images_state,
+            &stop_images_runtime,
+            &sender,
+            false,
+        );
     });
 
     // Sync is network-bound and may take many seconds. Run it (including the

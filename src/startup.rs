@@ -584,6 +584,7 @@ pub(crate) struct StartupSnapshot {
     pub(crate) scope: Scope,
     pub(crate) page: Option<mail::MailPage>,
     pub(crate) remote_images_enabled: bool,
+    pub(crate) trusted_image_senders: Vec<String>,
     pub(crate) accounts: Vec<Account>,
     pub(crate) account_configs: Vec<AccountConfig>,
     pub(crate) local_mail: Option<flectar_mail_core::models::LocalMail>,
@@ -1013,13 +1014,14 @@ pub(crate) async fn load_startup_snapshot(
     let _ = core.set_profile_accounts(settings.as_ref().and_then(|settings| {
         AccountPresentationSettings::from_settings(settings).active_profile_accounts()
     }));
-    let (mail, configs, local_mail) = tokio::join!(
+    let (mail, configs, local_mail, trusted_image_senders) = tokio::join!(
         // Counts walk every mailbox and can dominate startup on a large local
         // store. The first useful frame only needs one bounded page; sidebar
         // totals arrive as a separate progressive update.
         core.load_startup_page(preferred_scope, PAGE_SIZE as i64),
         core.load_account_configs(),
         core.load_local_mail(),
+        core.trusted_image_senders(),
     );
 
     let (accounts, scope, page) = mail.unwrap_or_else(|_| (Vec::new(), Scope::UNIFIED_INBOX, None));
@@ -1038,6 +1040,7 @@ pub(crate) async fn load_startup_snapshot(
         remote_images_enabled: settings
             .as_ref()
             .is_some_and(|settings| settings.load_remote_images),
+        trusted_image_senders: trusted_image_senders.unwrap_or_default(),
         accounts,
         account_configs: configs.unwrap_or_default(),
         local_mail: local_mail.ok().flatten(),

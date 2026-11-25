@@ -1400,6 +1400,15 @@ pub struct BlockedSender {
     pub blocked_at: i64,
 }
 
+/// A sender whose remote images load without asking.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrustedImageSender {
+    /// Lowercase.
+    pub address: String,
+    pub created_at: i64,
+}
+
 /// A sender, for the confirmation shown before blocking them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

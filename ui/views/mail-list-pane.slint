@@ -1157,7 +1157,7 @@ export component MailListPane inherits FocusScope {
                                 // painting the surface again per row would hide the
                                 // starfield behind a second pane layer.
                                 background: entry.is_header ? (AppTheme.preset == "space" ? transparent : root.surface)
-                                    : mail-data.security != "" ? (mail-data.security == "phishing" ? #ff3b3026 : #ff8a0026)
+                                    : mail-data.security != "" ? #ff3b3026
                                     : mail-data.checked ? root.accent-soft
                                     : mail-data.selected ? root.selected-row
                                     : AppTheme.preset == "space" ? transparent : root.surface;

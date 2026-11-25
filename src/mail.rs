@@ -2609,6 +2609,31 @@ impl CoreMailSource {
             .map_err(|error| error.to_string())
     }
 
+    /// Every sender whose remote images load without asking, alphabetically.
+    pub async fn trusted_image_senders(&self) -> Result<Vec<String>, String> {
+        self.core
+            .trusted_image_senders()
+            .await
+            .map(|senders| senders.into_iter().map(|sender| sender.address).collect())
+            .map_err(|error| error.to_string())
+    }
+
+    /// Trust the remote images of mail from `address`.
+    pub async fn trust_image_sender(&self, address: &str) -> Result<bool, String> {
+        self.core
+            .trust_image_sender(address)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    /// Stop trusting the remote images of mail from `address`.
+    pub async fn untrust_image_sender(&self, address: &str) -> Result<bool, String> {
+        self.core
+            .untrust_image_sender(address)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
     /// Every rule that sorts new mail, in order (#238).
     pub async fn mail_rules(&self) -> Result<Vec<MailRule>, String> {
         self.core

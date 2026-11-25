@@ -551,8 +551,18 @@ export global EmailReader {
     in-out property <[ReaderImage]> images;
     in-out property <int> revision: -1;
     in-out property <int> message-id: -1;
+    /// The From address of the open message, which the reader trusts when
+    /// "Always load images" is chosen.
+    in-out property <string> sender-address: "";
+    /// This sender's remote images load without asking.
+    in-out property <bool> sender-images-trusted: false;
+    /// The open message actually has remote images, so the trust row can
+    /// offer to undo the choice without appearing on text-only mail.
+    in-out property <bool> remote-images-present: false;
     callback ensure-body(int);
     callback retry-images();
+    callback always-load-images();
+    callback stop-loading-images();
     in-out property <int> failed-images;
     pure callback link-at(float, float) -> string;
     callback command(string);

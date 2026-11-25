@@ -291,6 +291,10 @@ export component MailReadingPane inherits FocusScope {
     // The title wrap width comes from the containing window, not this pane's
     // preferred width, which avoids a HorizontalBox measurement cycle.
     in property <length> window-width;
+    /// The reader column's actual width. The pane's own width cannot measure
+    /// it (a child width would feed back into the layout), so MailView passes
+    /// the window width less the panes beside it.
+    in property <length> reader-column-width: 0px;
     in property <[EmailTile]> email_tiles: [];
     in property <[EmailLink]> email_links: [];
     in property <[MailLabelRow]> mail_labels: [];
@@ -465,7 +469,12 @@ export component MailReadingPane inherits FocusScope {
         40px,
         email-surface.height - root.thread-header-height - root.renderer-controls-height
     );
-    private property <length> rendered-email-height: root.email-viewport-width * EmailReader.width-ratio * root.email-content-aspect + (root.remote-images-blocked ? 60px : 0px);
+    // The remote-image bar sits above the message and offsets what follows.
+    // Trusted senders keep the bar so the choice can be undone.
+    private property <bool> image-bar-visible: root.remote-images-blocked
+        || (EmailReader.sender-images-trusted && EmailReader.remote-images-present);
+    private property <length> image-bar-height: root.image-bar-visible ? 60px : 0px;
+    private property <length> rendered-email-height: root.email-viewport-width * EmailReader.width-ratio * root.email-content-aspect + root.image-bar-height;
     // Attachment rows share one height so the document height stays exact.
     private property <length> attachment-heading-line: max(20px, attachment-heading-probe.preferred-height);
     private property <length> attachment-name-line: max(22px, attachment-name-probe.preferred-height);
@@ -571,8 +580,9 @@ export component MailReadingPane inherits FocusScope {
         && EmailReader.message-id != root.security-dismissed;
     private property <int> security-dismissed: -1;
     // The mail list tints a flagged row with these; the banner follows it.
-    private property <color> security-wash: EmailReader.security == "phishing" ? #ff3b3026 : #ff8a0026;
-    private property <color> security-accent: EmailReader.security == "phishing" ? #ff3b30 : #ff8a00;
+    // Phishing and suspicious both read red; the banner text names the verdict.
+    private property <color> security-wash: #ff3b3026;
+    private property <color> security-accent: #ff3b30;
 
     // Message shortcuts act on the open conversation, as its toolbar does,
     // but not behind a dialog the reader shows.
@@ -1184,14 +1194,15 @@ export component MailReadingPane inherits FocusScope {
                         }
 
                         // Why the AI flagged the conversation, above the mail
-                        // it judged. It follows the row's red or amber tint.
+                        // it judged. It follows the row's red tint.
                         if root.security-flagged : Rectangle {
-                            // Measured from the window like the subject: the
-                            // pane's preferred width already depends on this
-                            // column, so parent.width would be a binding loop.
-                            width: root.compact ? max(0px, root.window-width - 24px)
-                                : root.full-width ? max(0px, root.window-width - 48px)
-                                : max(0px, root.window-width - 734px);
+                            // parent.width would be a binding loop: the pane's
+                            // preferred width depends on this column. The
+                            // column width MailView passes in is measured
+                            // outside it, so the banner fits narrow windows
+                            // and wraps its text instead of overflowing.
+                            width: max(0px, root.reader-column-width
+                                - (root.compact ? 24px : 48px));
                             // The row layout gives the banner its height, so a
                             // wrapped reason grows it instead of clipping.
                             height: security-banner.preferred-height;
@@ -1550,10 +1561,10 @@ export component MailReadingPane inherits FocusScope {
                                     // Like the card, the banner keeps its place
                                     // while a wide message scrolls sideways, so
                                     // its button stays in view.
-                                    if root.remote-images-blocked && !root.text_mode && !root.source_mode && !EmailReader.reader-mode : Rectangle {
+                                    if root.image-bar-visible && !root.text_mode && !root.source_mode && !EmailReader.reader-mode : Rectangle {
                                         x: -email-scroll.content-x + 12px;
                                         y: 12px;
-                                        width: root.email-viewport-width - 24px;
+                                        width: max(0px, root.email-viewport-width - 24px);
                                         height: 36px;
                                         background: root.control-bg;
                                         border-radius: 6px;
@@ -1565,17 +1576,29 @@ export component MailReadingPane inherits FocusScope {
                                             padding-right: 8px;
                                             spacing: 10px;
                                             Text {
-                                                text: @tr("Remote images were blocked to protect your privacy.");
+                                                text: EmailReader.sender-images-trusted
+                                                    ? @tr("Images from this sender load automatically.")
+                                                    : @tr("Remote images were blocked to protect your privacy.");
                                                 color: root.secondary-text;
                                                 font-size: TypeScale.secondary;
                                                 vertical-alignment: center;
                                                 horizontal-stretch: 1;
                                                 overflow: elide;
                                             }
-                                            Button {
+                                            if EmailReader.sender-images-trusted : Button {
+                                                height: 26px;
+                                                text: @tr("Stop loading images");
+                                                clicked => { EmailReader.stop-loading-images(); }
+                                            }
+                                            if !EmailReader.sender-images-trusted : Button {
                                                 height: 26px;
                                                 text: @tr("Load images");
                                                 clicked => { root.load-remote-images-for-message(); }
+                                            }
+                                            if !EmailReader.sender-images-trusted : Button {
+                                                height: 26px;
+                                                text: @tr("Always load images");
+                                                clicked => { EmailReader.always-load-images(); }
                                             }
                                         }
                                     }
@@ -1583,7 +1606,7 @@ export component MailReadingPane inherits FocusScope {
                                     for tile in root.email_tiles : Image {
                                         source: tile.image;
                                         x: 0px;
-                                        y: tile.y * root.email-viewport-width * EmailReader.width-ratio + (root.remote-images-blocked ? 60px : 0px);
+                                        y: tile.y * root.email-viewport-width * EmailReader.width-ratio + (root.image-bar-height);
                                         width: parent.width;
                                         height: tile.height * root.email-viewport-width * EmailReader.width-ratio;
                                         visible: !root.text_mode && !root.source_mode && !EmailReader.reader-mode;
@@ -1598,7 +1621,7 @@ export component MailReadingPane inherits FocusScope {
 
                                     for missing in EmailReader.images : Rectangle {
                                         visible: !root.text_mode && !root.source_mode && !EmailReader.reader-mode;
-                                        x: missing.x * 1px; y: missing.y * 1px + (root.remote-images-blocked ? 60px : 0px);
+                                        x: missing.x * 1px; y: missing.y * 1px + (root.image-bar-height);
                                         width: missing.width * 1px; height: missing.height * 1px;
                                         clip: true; accessible-role: image; accessible-label: missing.alt;
                                         Rectangle {
@@ -1616,7 +1639,7 @@ export component MailReadingPane inherits FocusScope {
                                     // document so its native text-selection state
                                     // and selection highlights stay authoritative.
                                     email-focus := FocusScope {
-                                        y: root.remote-images-blocked ? 60px : 0px;
+                                        y: root.image-bar-height;
                                         width: parent.width;
                                         height: root.email-viewport-width * EmailReader.width-ratio * root.email-content-aspect;
                                         enabled: root.has_selected && !root.text_mode && !root.source_mode && !EmailReader.reader-mode;
@@ -1650,7 +1673,7 @@ export component MailReadingPane inherits FocusScope {
                                                     EmailReader.context-link = EmailReader.link-at(email-input.mouse-x / 1px, email-input.mouse-y / 1px);
                                                 }
                                                 if (event.button == PointerEventButton.right && event.kind == PointerEventKind.down) {
-                                                    email-context.show({ x: email-input.mouse-x, y: email-input.mouse-y + (root.remote-images-blocked ? 60px : 0px) });
+                                                    email-context.show({ x: email-input.mouse-x, y: email-input.mouse-y + (root.image-bar-height) });
                                                 } else if (event.button == PointerEventButton.left || event.kind == PointerEventKind.move || event.kind == PointerEventKind.cancel) {
                                                     if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
                                                         email-focus.focus();
@@ -1705,14 +1728,14 @@ export component MailReadingPane inherits FocusScope {
 
                                     if EmailReader.caret-mode && EmailReader.selection-end.valid && !root.has_selection && !root.text_mode && !root.source_mode : Rectangle {
                                         x: EmailReader.selection-end.x * 1px;
-                                        y: EmailReader.selection-end.y * 1px + (root.remote-images-blocked ? 60px : 0px);
+                                        y: EmailReader.selection-end.y * 1px + (root.image-bar-height);
                                         width: 2px; height: EmailReader.selection-end.height * 1px;
                                         background: root.accent; accessible-role: none;
                                     }
                                     for caret[index] in [EmailReader.selection-start,EmailReader.selection-end] : Rectangle {
                                         visible: root.compact && root.has_selection && caret.valid && !root.text_mode && !root.source_mode;
                                         x: caret.x * 1px - 18px;
-                                        y: (caret.y + caret.height) * 1px + (root.remote-images-blocked ? 60px : 0px) - 4px;
+                                        y: (caret.y + caret.height) * 1px + (root.image-bar-height) - 4px;
                                         width: 36px; height: 36px;
                                         Rectangle { x: 11px; y: 4px; width: 14px; height: 18px; border-radius: 7px; background: root.accent; }
                                         TouchArea {
@@ -1840,7 +1863,7 @@ export component MailReadingPane inherits FocusScope {
                                     x: root.message-card-inset + root.message-card-border-width
                                         + link.x * root.email-viewport-width;
                                     y: root.message-body-y + link.y * root.email-viewport-width
-                                        + (root.remote-images-blocked ? 60px : 0px);
+                                        + (root.image-bar-height);
                                     width: link.width * root.email-viewport-width;
                                     height: link.height * root.email-viewport-width;
                                     enabled: !root.text_mode && !root.source_mode && !EmailReader.reader-mode;
