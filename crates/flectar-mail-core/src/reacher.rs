@@ -17,7 +17,10 @@ const CHECK_PATH: &str = "/v0/check_email";
 /// A Reacher answer is about 1 KiB; this only bounds a broken server.
 const MAX_RESPONSE_BYTES: usize = 1024 * 1024;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
+// Big providers take several MX probes before answering, and this network
+// cannot complete an SMTP probe at all, so a long wait only delays the
+// honest "Could not verify" the caller shows anyway.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Where the Reacher service listens.
 #[derive(Debug, Clone, PartialEq, Eq)]
