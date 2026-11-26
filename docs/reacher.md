@@ -5,7 +5,18 @@ whether an address is deliverable before using it in compose. Reacher is the
 open-source backend that checks syntax, MX records and a live SMTP probe. It
 runs inside the estate; nothing is sent to a third-party verification service.
 
-## Topology: Reacher runs on `makler`, not on tron
+## Topology: local by default, an optional remote probe for real verdicts
+
+**Current state (2026-11-26):** the local unit `flectar-reacher.service` is
+running and the app points at `http://127.0.0.1:8084`. Because tron's outbound
+port 25 is blocked, a check of an address whose MX exists hangs in the SMTP
+probe until the app's 8 s client timeout, so those addresses show "Could not
+verify" (yellow). Syntax-invalid addresses and role/disposable addresses still
+colour red/purple without a completed SMTP dialogue.
+
+The remote probe described below was set up, verified and then **stopped and
+disabled** (makler is a laptop: it sleeps, and the tunnel dies with it). Re-enable
+those two units if real SMTP verdicts matter more than the fragility.
 
 Reacher's useful verdicts need a **live SMTP probe on port 25**. Outbound port
 25 is blocked on tron and on home-server, so a Reacher on tron can only ever
@@ -16,7 +27,7 @@ probe and tron reaches it over a loopback tunnel.
 | --- | --- |
 | **makler** | `/etc/systemd/system/reacher-makler.service` — rootful Podman, image `docker.io/reacherhq/backend:v0.11.11`, `PORT=8080 RCH_HTTP_HOST=0.0.0.0 RCH_ENABLE_BULK=0 RUST_LOG=reacher=info`, published on **127.0.0.1:8084** only, enabled. |
 | **tron** | `~/.config/systemd/user/reacher-tunnel.service` — `ssh -N -J server makler@100.123.138.57 -L 127.0.0.1:8085:127.0.0.1:8084` with `SSH_AUTH_SOCK=/run/user/1000/gcr/ssh`, `ExitOnForwardFailure=yes`, `Restart=always`, enabled. |
-| **app** | `reacherUrl` in settings is `http://127.0.0.1:8085`. |
+| **app** | with the remote probe enabled, `reacherUrl` is `http://127.0.0.1:8085`; default/local is `http://127.0.0.1:8084`. |
 
 Direct SSH to makler from tron times out; the jump host `server` is the path.
 The tunnel depends on makler being up **and** the jump host being reachable.
