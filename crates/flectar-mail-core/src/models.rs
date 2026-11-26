@@ -2867,6 +2867,16 @@ pub struct Settings {
     /// "You've got mail from LinkedIn." Off by default; the voice talks.
     #[serde(default)]
     pub tts_announce_mail: bool,
+    /// Stop every sound and spoken announcement between `quiet_start` and
+    /// `quiet_end`. On by default, so a fresh install is quiet at night.
+    #[serde(default = "default_true")]
+    pub quiet_hours: bool,
+    /// When quiet hours begin, "HH:MM" on the local clock (inclusive).
+    #[serde(default = "default_quiet_start")]
+    pub quiet_start: String,
+    /// When quiet hours end, "HH:MM" on the local clock (exclusive).
+    #[serde(default = "default_quiet_end")]
+    pub quiet_end: String,
     /// Keep the process running in the system tray when the main window is
     /// closed. Disabled by default so close retains normal desktop semantics.
     #[serde(default)]
@@ -3066,6 +3076,14 @@ fn default_true() -> bool {
     true
 }
 
+fn default_quiet_start() -> String {
+    crate::quiet_hours::DEFAULT_START.to_owned()
+}
+
+fn default_quiet_end() -> String {
+    crate::quiet_hours::DEFAULT_END.to_owned()
+}
+
 fn default_notify_lead() -> i64 {
     10
 }
@@ -3240,6 +3258,9 @@ impl Default for Settings {
             add_invitations: AddInvitations::default(),
             notifications_enabled: true,
             tts_announce_mail: false,
+            quiet_hours: true,
+            quiet_start: default_quiet_start(),
+            quiet_end: default_quiet_end(),
             sync_interval_minutes: default_sync_interval_minutes(),
             sound_enabled: true,
             close_to_tray: false,
@@ -3687,6 +3708,11 @@ mod tests {
         )
         .unwrap();
         assert!(s.notifications_enabled);
+        // A settings blob written before quiet hours existed, and a fresh
+        // install that starts from serde defaults, are both quiet at night.
+        assert!(s.quiet_hours);
+        assert_eq!(s.quiet_start, "22:00");
+        assert_eq!(s.quiet_end, "08:00");
         assert!(s.auto_advance);
         assert!(s.auto_labels_enabled);
         assert!(s.signature_list.is_empty());

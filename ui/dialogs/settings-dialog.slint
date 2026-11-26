@@ -430,6 +430,10 @@ export component SettingsDialog inherits Rectangle {
     in-out property <bool> monochrome_sidebar_icons: false;
     in-out property <bool> notifications_enabled: true;
     in-out property <bool> notification_sound_enabled: true;
+    // Silence every sound and spoken announcement between these local times.
+    in-out property <bool> quiet_hours: true;
+    in-out property <string> quiet_start: "22:00";
+    in-out property <string> quiet_end: "08:00";
     in-out property <bool> unread_badge_enabled: true;
     in-out property <string> notification_scope: "important";
     in-out property <int> sync_interval_minutes: 5;
@@ -563,6 +567,7 @@ export component SettingsDialog inherits Rectangle {
     callback save_tts_voice(string);
     callback save_sidebar_icon_style(bool);
     callback save_notification_settings(bool, bool, string);
+    callback save_quiet_hours(bool, string, string);
     callback save_unread_badge(bool);
     callback save_sync_interval(int);
     callback save_undo_send(int);
@@ -3357,6 +3362,46 @@ export component SettingsDialog inherits Rectangle {
                                         toggled(checked) => {
                                             root.unread_badge_enabled = checked;
                                             root.save_unread_badge(checked);
+                                        }
+                                    }
+                                    Rectangle { height: 1px; background: root.border-subtle; }
+                                    // Quiet hours: the one window that silences every sound and spoken
+                                    // line, with a start and an end that may cross midnight.
+                                    SettingsSwitchRow {
+                                        compact: root.compact;
+                                        title: @tr("Quiet hours");
+                                        description: @tr("Silences spoken announcements and notification sounds between these times. On by default, from 22:00 to 08:00.");
+                                        checked: root.quiet_hours;
+                                        title-color: root.heading;
+                                        description-color: root.faint-text;
+                                        toggled(checked) => {
+                                            root.quiet_hours = checked;
+                                            root.save_quiet_hours(checked, root.quiet-start, root.quiet-end);
+                                        }
+                                    }
+                                    HorizontalBox {
+                                        spacing: 8px;
+                                        padding-bottom: 4px;
+                                        FormField {
+                                            horizontal-stretch: 1;
+                                            label: @tr("Starts");
+                                            value <=> root.quiet-start;
+                                            placeholder: @tr("22:00");
+                                            label-color: root.secondary-text;
+                                        }
+                                        FormField {
+                                            horizontal-stretch: 1;
+                                            label: @tr("Ends");
+                                            value <=> root.quiet-end;
+                                            placeholder: @tr("08:00");
+                                            label-color: root.secondary-text;
+                                        }
+                                        VerticalBox {
+                                            alignment: end;
+                                            Button {
+                                                text: @tr("Save");
+                                                clicked => { root.save_quiet_hours(root.quiet_hours, root.quiet-start, root.quiet-end); }
+                                            }
                                         }
                                     }
                                 }

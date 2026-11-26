@@ -145,6 +145,34 @@ pub(super) fn register_settings_preference_callbacks(
     });
 
     let app_weak = app.as_weak();
+    let state_for_quiet = Rc::clone(state);
+    let runtime_for_quiet = runtime.clone();
+    app.on_save_quiet_hours(move |enabled, start, end| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        let (start, end) = (start.to_string(), end.to_string());
+        let Some(core) = state_for_quiet.borrow().core.clone() else {
+            app.set_sync_status(UiMessage::plain(
+                "Notification preferences are active for this session.",
+            ));
+            return;
+        };
+        match runtime_for_quiet.block_on(core.set_quiet_hours(enabled, &start, &end)) {
+            Ok((start, end)) => {
+                app.set_quiet_hours(enabled);
+                app.set_quiet_start(start.into());
+                app.set_quiet_end(end.into());
+                app.set_sync_status(UiMessage::plain("Quiet hours saved."));
+            }
+            Err(error) => app.set_sync_status(UiMessage::detail(
+                "Could not save quiet hours: {}",
+                error,
+            )),
+        }
+    });
+
+    let app_weak = app.as_weak();
     let state_for_badge = Rc::clone(state);
     let runtime_for_badge = runtime.clone();
     app.on_save_unread_badge(move |enabled| {

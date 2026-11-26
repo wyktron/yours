@@ -572,6 +572,24 @@ pub(super) fn restore_account_backup(
             {
                 settings.sound_enabled = enabled;
             }
+            if let Some(enabled) = preferences
+                .get("quietHours")
+                .and_then(|value| value.as_bool())
+            {
+                settings.quiet_hours = enabled;
+            }
+            if let Some(start) = preferences.get("quietStart").and_then(|value| value.as_str()) {
+                settings.quiet_start = flectar_mail_core::quiet_hours::normalize_hhmm(
+                    start,
+                    flectar_mail_core::quiet_hours::DEFAULT_START,
+                );
+            }
+            if let Some(end) = preferences.get("quietEnd").and_then(|value| value.as_str()) {
+                settings.quiet_end = flectar_mail_core::quiet_hours::normalize_hhmm(
+                    end,
+                    flectar_mail_core::quiet_hours::DEFAULT_END,
+                );
+            }
             if let Some(minutes) = preferences
                 .get("syncIntervalMinutes")
                 .and_then(|value| value.as_i64())
@@ -719,6 +737,9 @@ pub(super) fn restore_account_backup(
     ) as f32);
     app.set_notifications_enabled(settings.notifications_enabled);
     app.set_notification_sound_enabled(settings.sound_enabled);
+    app.set_quiet_hours(settings.quiet_hours);
+    app.set_quiet_start(settings.quiet_start.clone().into());
+    app.set_quiet_end(settings.quiet_end.clone().into());
     app.set_unread_badge_enabled(settings.unread_badge_enabled);
     app.global::<Updates>()
         .set_enabled(settings.check_for_updates);
@@ -1408,6 +1429,9 @@ pub(super) fn register_data_management_callbacks(
                     "notificationsEnabled": settings.notifications_enabled,
                     "notificationScope": settings.notification_scope,
                     "soundEnabled": settings.sound_enabled,
+                    "quietHours": settings.quiet_hours,
+                    "quietStart": settings.quiet_start,
+                    "quietEnd": settings.quiet_end,
                     "syncIntervalMinutes": settings.sync_interval_minutes,
                     "closeToTray": settings.close_to_tray,
                     "windowFrame": settings.window_frame,
@@ -1737,6 +1761,9 @@ pub(super) fn register_data_management_callbacks(
                     app.set_workspace_list_pane_width(MIN_WORKSPACE_LIST_PANE_WIDTH as f32);
                     app.set_notifications_enabled(true);
                     app.set_notification_sound_enabled(true);
+                    app.set_quiet_hours(true);
+                    app.set_quiet_start("22:00".into());
+                    app.set_quiet_end("08:00".into());
                     app.set_unread_badge_enabled(true);
                     app.global::<Updates>().set_enabled(true);
                     crate::updates::set_enabled(true);

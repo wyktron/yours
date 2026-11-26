@@ -338,6 +338,8 @@ export global I18n {
         if (key == "Could not save the cleanup preference: {}") { return @tr("Could not save the cleanup preference: {}", argument); }
         if (key == "Notification preferences are active for this session.") { return @tr("Notification preferences are active for this session."); }
         if (key == "Notification preferences saved.") { return @tr("Notification preferences saved."); }
+        if (key == "Quiet hours saved.") { return @tr("Quiet hours saved."); }
+        if (key == "Could not save quiet hours: {}") { return @tr("Could not save quiet hours: {}", argument); }
         if (key == "Address check settings saved.") { return @tr("Address check settings saved."); }
         if (key == "Address check settings are active for this session.") { return @tr("Address check settings are active for this session."); }
         if (key == "Could not save address check settings: {}") { return @tr("Could not save address check settings: {}", argument); }
@@ -1084,6 +1086,7 @@ export component AppWindow inherits Window {
     callback save_ai_key(string);
     callback save_sidebar_icon_style(bool);
     callback save_notification_settings(bool, bool, string);
+    callback save_quiet_hours(bool, string, string);
     callback save_unread_badge(bool);
     callback save_sync_interval(int);
     callback save_undo_send(int);
@@ -1494,6 +1497,11 @@ export component AppWindow inherits Window {
     in-out property <bool> monochrome_sidebar_icons: false;
     in-out property <bool> notifications_enabled: true;
     in-out property <bool> notification_sound_enabled: true;
+    // Silence every sound and spoken announcement between these local times.
+    // A window that wraps midnight, 22:00 to 08:00 by default, is allowed.
+    in-out property <bool> quiet_hours: true;
+    in-out property <string> quiet_start: "22:00";
+    in-out property <string> quiet_end: "08:00";
     in-out property <bool> unread_badge_enabled: true;
     in-out property <string> notification_scope: "important";
     in-out property <int> sync_interval_minutes: 5;
@@ -2458,6 +2466,9 @@ export component AppWindow inherits Window {
             monochrome_sidebar_icons <=> root.monochrome_sidebar_icons;
             notifications_enabled <=> root.notifications_enabled;
             notification_sound_enabled <=> root.notification_sound_enabled;
+            quiet_hours <=> root.quiet_hours;
+            quiet_start <=> root.quiet_start;
+            quiet_end <=> root.quiet_end;
             unread_badge_enabled <=> root.unread_badge_enabled;
             notification_scope <=> root.notification_scope;
             sync_interval_minutes <=> root.sync_interval_minutes;
@@ -2579,6 +2590,9 @@ export component AppWindow inherits Window {
             save_sidebar_icon_style(monochrome) => { root.save_sidebar_icon_style(monochrome); }
             save_notification_settings(enabled, sound-enabled, scope) => {
                 root.save_notification_settings(enabled, sound-enabled, scope);
+            }
+            save_quiet_hours(enabled, start, end) => {
+                root.save_quiet_hours(enabled, start, end);
             }
             save_unread_badge(enabled) => { root.save_unread_badge(enabled); }
             save_sync_interval(minutes) => { root.save_sync_interval(minutes); }

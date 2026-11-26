@@ -1344,6 +1344,9 @@ pub(crate) fn apply_settings(app: &AppWindow, settings: &Settings) {
     app.set_download_directory_available(cfg!(desktop));
     app.set_notifications_enabled(settings.notifications_enabled);
     app.set_notification_sound_enabled(settings.sound_enabled);
+    app.set_quiet_hours(settings.quiet_hours);
+    app.set_quiet_start(settings.quiet_start.clone().into());
+    app.set_quiet_end(settings.quiet_end.clone().into());
     app.set_unread_badge_enabled(settings.unread_badge_enabled);
     app.global::<Updates>()
         .set_enabled(settings.check_for_updates);

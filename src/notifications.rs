@@ -28,10 +28,12 @@ use std::{
     time::Duration,
 };
 
+use chrono::{Local, NaiveTime};
 use flectar_mail_core::{
     Core,
     events::CoreEvent,
-    models::{ActionKind, ActionTarget, PerformActionArgs, now_ms},
+    models::{ActionKind, ActionTarget, PerformActionArgs, Settings, now_ms},
+    quiet_hours,
 };
 use tokio::sync::{
     Notify,
@@ -931,6 +933,17 @@ async fn notifications_enabled(core: &Core) -> bool {
         .is_ok_and(|settings| settings.notifications_enabled)
 }
 
+/// Whether the user asked for silence at this moment.
+///
+/// This is read for every pass, so a change in Settings applies to the next
+/// notification without a restart. A settings row that cannot be read is
+/// treated as loud, the way the rest of the dispatcher treats it.
+async fn settings_quiet_now(core: &Core) -> bool {
+    core.get_settings()
+        .await
+        .is_ok_and(|settings| quiet_hours::is_quiet_at(Local::now().time(), &settings))
+}
+
 /// Show what is due. Returns how long to wait before the next look.
 async fn dispatch(
     core: &Core,
@@ -939,10 +952,11 @@ async fn dispatch(
 ) -> Option<Duration> {
     // New mail is not announced from here: the voice follows the core's
     // MailNew event instead, so it speaks even when no notification is shown.
+    let quiet = settings_quiet_now(core).await;
     let result = core
         .dispatch_notifications(|batch| async move {
             match host {
-                Some(host) => present(host, window, batch).await,
+                Some(host) => present(host, window, batch, quiet).await,
                 None => vec![
                     NotificationOutcome::Unavailable(
                         "this platform shows no notifications".into()
@@ -1048,6 +1062,7 @@ async fn present(
     host: &dyn NotificationHost,
     window: &impl Window,
     batch: NotificationBatch,
+    quiet: bool,
 ) -> Vec<NotificationOutcome> {
     let count = batch.mail.len();
     if host.availability().await == Availability::NotAsked {
@@ -1163,6 +1178,13 @@ async fn present(
     for alert in &mut alerts {
         alert.sound &= !sounded;
         sounded |= alert.sound;
+    }
+    // Quiet hours silence the sound flag every notification host reads, while
+    // the notification itself still appears.
+    if quiet {
+        for alert in &mut alerts {
+            alert.sound = false;
+        }
     }
     // A message's one-time code rides in the notification itself, with a
     // button that copies it: the user reads and copies it with the app behind
@@ -1339,7 +1361,14 @@ fn announce_once(spoken: &mut BTreeSet<i64>, message_id: i64) -> bool {
 async fn announces_new_mail(core: &Core) -> bool {
     core.get_settings()
         .await
-        .is_ok_and(|settings| settings.tts_announce_mail)
+        .is_ok_and(|settings| announces(&settings, Local::now().time()))
+}
+
+/// Whether a burst of new mail should be spoken: Settings asks for it and
+/// quiet hours are not in effect. The Settings sample is not decided here:
+/// the user pressed Play, so it speaks even inside the window.
+fn announces(settings: &Settings, now: NaiveTime) -> bool {
+    settings.tts_announce_mail && !quiet_hours::is_quiet_at(now, settings)
 }
 
 /// What the voice says for this much new mail: one message names its sender,
@@ -1923,6 +1952,63 @@ mod tests {
 
     const NO_SCREEN: FakeWindow = FakeWindow(Some(BTreeSet::new()));
 
+    fn at(hours: u32, minutes: u32) -> NaiveTime {
+        NaiveTime::from_hms_opt(hours, minutes, 0).expect("a valid time of day")
+    }
+
+    #[test]
+    fn quiet_hours_silence_announcements_inside_the_window_and_not_outside() {
+        let settings = Settings {
+            tts_announce_mail: true,
+            ..Settings::default()
+        };
+        // The default window is 22:00-08:00: the start is quiet, the end is not.
+        assert!(!announces(&settings, at(22, 0)));
+        assert!(!announces(&settings, at(3, 0)));
+        assert!(!announces(&settings, at(7, 59)));
+        assert!(announces(&settings, at(8, 0)));
+        assert!(announces(&settings, at(21, 59)));
+        // Turning the switch off restores the announcement at night.
+        let switched_off = Settings {
+            quiet_hours: false,
+            ..settings.clone()
+        };
+        assert!(announces(&switched_off, at(23, 0)));
+        // The announcement switch itself still has the last word.
+        let muted = Settings {
+            tts_announce_mail: false,
+            ..settings
+        };
+        assert!(!announces(&muted, at(12, 0)));
+    }
+
+    #[tokio::test]
+    async fn quiet_hours_silence_the_notification_sound_but_not_the_notification() {
+        let host = FakeHost::new(Ok(()));
+        let outcomes = present(
+            &host,
+            &NO_SCREEN,
+            batch(vec![mail(1, 1, "Ann", true)]),
+            true,
+        )
+        .await;
+        assert_eq!(outcomes, vec![NotificationOutcome::Shown]);
+        let shown = host.shown();
+        assert_eq!(shown.len(), 1);
+        assert!(!shown[0].sound);
+
+        // Outside the window the mail from a person rings, as before.
+        let host = FakeHost::new(Ok(()));
+        present(
+            &host,
+            &NO_SCREEN,
+            batch(vec![mail(1, 1, "Ann", true)]),
+            false,
+        )
+        .await;
+        assert!(host.shown()[0].sound);
+    }
+
     #[tokio::test]
     async fn new_mail_shows_on_its_own_with_one_sound() {
         let host = FakeHost::new(Ok(()));
@@ -1930,6 +2016,7 @@ mod tests {
             &host,
             &NO_SCREEN,
             batch(vec![mail(1, 1, "Ann", true), mail(1, 2, "Bo", true)]),
+            false,
         )
         .await;
         assert_eq!(outcomes, vec![NotificationOutcome::Shown; 2]);
@@ -1957,7 +2044,7 @@ mod tests {
             .map(|id| mail(1, id, if id % 2 == 0 { "Ann" } else { "Bo" }, false))
             .collect::<Vec<_>>();
         mail.push(self::mail(2, 9, "Cy", true));
-        let outcomes = present(&host, &NO_SCREEN, batch(mail)).await;
+        let outcomes = present(&host, &NO_SCREEN, batch(mail), false).await;
         assert_eq!(
             outcomes,
             [
@@ -1993,7 +2080,7 @@ mod tests {
         let host = FakeHost::new(Ok(()));
         let mut batch = batch(vec![mail(1, 5, "Ann", false)]);
         batch.summarized.insert(1, 2);
-        let outcomes = present(&host, &NO_SCREEN, batch).await;
+        let outcomes = present(&host, &NO_SCREEN, batch, false).await;
         assert_eq!(outcomes, vec![NotificationOutcome::ShownInSummary]);
         assert_eq!(host.shown()[0].count, 3);
         assert_eq!(host.shown()[0].title, "3 new");
@@ -2007,6 +2094,7 @@ mod tests {
             &host,
             &window,
             batch(vec![mail(1, 1, "Ann", true), mail(2, 2, "Bo", true)]),
+            false,
         )
         .await;
         assert_eq!(
@@ -2021,14 +2109,14 @@ mod tests {
     #[tokio::test]
     async fn what_the_system_refuses_is_settled_or_tried_again() {
         let off = FakeHost::new(Err(Failure::Unavailable("turned off".into())));
-        let outcomes = present(&off, &NO_SCREEN, batch(vec![mail(1, 1, "Ann", false)])).await;
+        let outcomes = present(&off, &NO_SCREEN, batch(vec![mail(1, 1, "Ann", false)]), false).await;
         assert_eq!(
             outcomes,
             vec![NotificationOutcome::Unavailable("turned off".into())]
         );
 
         let busy = FakeHost::new(Err(Failure::Retry("no answer".into())));
-        let outcomes = present(&busy, &NO_SCREEN, batch(vec![mail(1, 1, "Ann", false)])).await;
+        let outcomes = present(&busy, &NO_SCREEN, batch(vec![mail(1, 1, "Ann", false)]), false).await;
         assert_eq!(
             outcomes,
             vec![NotificationOutcome::Retry("no answer".into())]
@@ -2039,6 +2127,7 @@ mod tests {
             &FakeHost::new(Ok(())),
             &FakeWindow(None),
             batch(vec![mail(1, 1, "Ann", false)]),
+            false,
         )
         .await;
         assert!(matches!(outcomes[..], [NotificationOutcome::Retry(_)]));
@@ -2050,7 +2139,7 @@ mod tests {
             availability: Availability::NotAsked,
             ..FakeHost::new(Ok(()))
         };
-        let outcomes = present(&host, &NO_SCREEN, batch(vec![mail(1, 1, "Ann", true)])).await;
+        let outcomes = present(&host, &NO_SCREEN, batch(vec![mail(1, 1, "Ann", true)]), false).await;
         assert!(matches!(outcomes[..], [NotificationOutcome::Retry(_)]));
         assert!(host.asked.load(std::sync::atomic::Ordering::SeqCst));
         assert!(host.shown().is_empty());

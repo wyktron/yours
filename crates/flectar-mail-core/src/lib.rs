@@ -38,6 +38,7 @@ pub mod net;
 pub mod oauth;
 pub mod pop3;
 pub mod queue;
+pub mod quiet_hours;
 pub mod reacher;
 mod read_receipts;
 pub mod route;

@@ -1868,6 +1868,32 @@ impl CoreMailSource {
             .map_err(|error| error.to_string())
     }
 
+    /// Saves the quiet-hours switch and times. A malformed time falls back to
+    /// the default for that end, so the UI can show what is now in effect.
+    pub async fn set_quiet_hours(
+        &self,
+        enabled: bool,
+        start: &str,
+        end: &str,
+    ) -> Result<(String, String), String> {
+        let mut settings = self.load_settings().await?;
+        settings.quiet_hours = enabled;
+        settings.quiet_start = flectar_mail_core::quiet_hours::normalize_hhmm(
+            start,
+            flectar_mail_core::quiet_hours::DEFAULT_START,
+        );
+        settings.quiet_end = flectar_mail_core::quiet_hours::normalize_hhmm(
+            end,
+            flectar_mail_core::quiet_hours::DEFAULT_END,
+        );
+        let saved = (settings.quiet_start.clone(), settings.quiet_end.clone());
+        self.core
+            .set_settings(settings)
+            .await
+            .map_err(|error| error.to_string())?;
+        Ok(saved)
+    }
+
     pub async fn set_unread_badge(&self, enabled: bool) -> Result<(), String> {
         let mut settings = self.load_settings().await?;
         settings.unread_badge_enabled = enabled;
