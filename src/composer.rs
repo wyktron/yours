@@ -753,7 +753,11 @@ fn compose_recipient_count(recipients: &str) -> usize {
 /// The local date and time a "YYYY-MM-DD" and "HH:MM" pair names.
 fn parse_local_schedule(date: &str, time: &str) -> Option<(chrono::NaiveDate, chrono::NaiveTime)> {
     let date = chrono::NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d").ok()?;
-    let time = chrono::NaiveTime::parse_from_str(time.trim(), "%H:%M").ok()?;
+    // "%H:%M" rejects "9:30", which is how people type a morning time; accept
+    // it too while "09:30" keeps parsing exactly as before.
+    let time = chrono::NaiveTime::parse_from_str(time.trim(), "%H:%M")
+        .or_else(|_| chrono::NaiveTime::parse_from_str(time.trim(), "%-H:%M"))
+        .ok()?;
     Some((date, time))
 }
 
@@ -4755,6 +4759,18 @@ mod tests {
         fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, slint::PlatformError> {
             Ok(MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer))
         }
+    }
+
+    /// A scheduled send accepts "09:30" and the "9:30" people actually type.
+    #[test]
+    fn schedule_time_accepts_single_digit_hours() {
+        let (date, time) = parse_local_schedule("2026-12-01", "9:30").expect("9:30 parses");
+        assert_eq!(date.to_string(), "2026-12-01");
+        assert_eq!(time.to_string(), "09:30:00");
+        let (_, padded) = parse_local_schedule("2026-12-01", "09:30").expect("09:30 parses");
+        assert_eq!(padded, time);
+        assert!(parse_local_schedule("2026-12-01", "25:00").is_none());
+        assert!(parse_local_schedule("01/12/2026", "09:30").is_none());
     }
 
     pub(super) struct Setup {
