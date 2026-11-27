@@ -772,8 +772,8 @@ mod apple_sign_in_guidance_tests {
 }
 
 /// An AI feature, each routed to a configurable model tier.
-#[derive(Clone, Copy)]
-enum Scenario {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Scenario {
     /// Ask-your-inbox agentic Q&A.
     Ask,
     /// Drafting / rewriting replies.
@@ -793,7 +793,20 @@ enum Scenario {
 }
 
 impl Scenario {
-    fn as_str(self) -> &'static str {
+    /// Every feature, in a stable order for the services report.
+    pub const ALL: [Scenario; 8] = [
+        Scenario::Ask,
+        Scenario::Draft,
+        Scenario::Summarize,
+        Scenario::Voice,
+        Scenario::Command,
+        Scenario::QuickReply,
+        Scenario::Categorize,
+        Scenario::Security,
+    ];
+
+    /// Stable id used in logs and the services report.
+    pub const fn as_str(self) -> &'static str {
         match self {
             Scenario::Ask => "ask",
             Scenario::Draft => "draft",
@@ -807,9 +820,9 @@ impl Scenario {
     }
 }
 
-/// Resolve the canonical model id for a scenario's configured tier.
-fn resolve_ai_model(settings: &Settings, scenario: Scenario) -> String {
-    let tier = match scenario {
+/// The tier a scenario is routed to in these settings.
+pub fn scenario_tier<'a>(settings: &'a Settings, scenario: Scenario) -> &'a str {
+    match scenario {
         Scenario::Ask => settings.ai_tier_ask.as_str(),
         Scenario::Draft => settings.ai_tier_draft.as_str(),
         Scenario::Summarize => settings.ai_tier_summarize.as_str(),
@@ -818,8 +831,12 @@ fn resolve_ai_model(settings: &Settings, scenario: Scenario) -> String {
         // Palette parsing, reply chips and the phishing screen want the
         // fastest model available; they run on every message or keystroke.
         Scenario::Command | Scenario::QuickReply | Scenario::Security => "instant",
-    };
-    match tier {
+    }
+}
+
+/// Resolve the canonical model id for a scenario's configured tier.
+pub fn resolve_ai_model(settings: &Settings, scenario: Scenario) -> String {
+    match scenario_tier(settings, scenario) {
         "instant" => &settings.ai_model_instant,
         "cheap" => &settings.ai_model_cheap,
         "intelligent" => &settings.ai_model_intelligent,
@@ -8431,7 +8448,13 @@ impl Core {
         let api_key = credentials::load_async(self.credentials.clone(), 0, Slot::AiApiKey)
             .await
             .unwrap_or_default();
-        ai::list_models(&settings.ai_base_url, &api_key).await
+        let models = ai::list_models(&settings.ai_base_url, &api_key).await?;
+        // Settings already shows this list; remember it so an AI call can be
+        // refused for a model the endpoint does not serve.
+        if services::refresh_ai_listed_config(settings.ai_base_url.trim(), models.clone()) {
+            tracing::debug!(models = models.len(), "AI models listed");
+        }
+        Ok(models)
     }
 
     /// What the reader speaks with: the stored engine and voice, where to
@@ -8507,6 +8530,17 @@ impl Core {
         tts::synthesize(&config, text).await
     }
 
+    /// True when the last model list showed the endpoint serves the model the
+    /// scenario runs on (see `services::ai_status_for`). Settings that cannot
+    /// be read let the call through: a wrong "no" would disable a working
+    /// setup.
+    pub async fn ai_scenario_usable(&self, scenario: Scenario) -> bool {
+        match self.db.read(|conn| repo::settings::get(conn)).await {
+            Ok(settings) => services::ai_status_for(&settings).scenario_usable(scenario),
+            Err(_) => true,
+        }
+    }
+
     /// Parse a natural-language palette query ("meeting tomorrow 8pm ...")
     /// into a structured intent the UI can execute.
     pub async fn ai_command(&self, query: String) -> Result<AiIntent> {
@@ -8520,6 +8554,11 @@ impl Core {
     pub async fn scan_security(&self, limit: usize) -> Result<usize> {
         let settings = self.db.read(|conn| repo::settings::get(conn)).await?;
         if !settings.ai_phishing_enabled {
+            return Ok(0);
+        }
+        // A model the endpoint does not serve fails every judgement the same
+        // way; stay idle until the probe or Settings finds one.
+        if !services::ai_status_for(&settings).scenario_usable(Scenario::Security) {
             return Ok(0);
         }
         let since = now_ms() - repo::security::SCAN_DAYS * 86_400_000;
@@ -8581,6 +8620,11 @@ impl Core {
 
     pub async fn ai_summarize(&self, thread_id: i64) -> Result<crate::models::AiThreadSummary> {
         let cfg = self.ai_config(Scenario::Summarize).await?;
+        // The endpoint may answer without serving (or knowing) this model;
+        // say so instead of surfacing the provider's "model not found".
+        if !self.ai_scenario_usable(Scenario::Summarize).await {
+            return Err(CoreError::AiNotConfigured);
+        }
         let detail = self.get_thread(thread_id).await?;
         let context = ai::thread_context(&detail.messages, 24_000);
         let bus = self.bus.clone();
@@ -8626,6 +8670,9 @@ impl Core {
     ) -> Result<String> {
         let settings = self.db.read(|conn| repo::settings::get(conn)).await?;
         let cfg = self.ai_config_from(&settings, Scenario::Draft).await?;
+        if !self.ai_scenario_usable(Scenario::Draft).await {
+            return Err(CoreError::AiNotConfigured);
+        }
         let use_voice = voice.unwrap_or(settings.voice_drafting);
 
         let (subject, context, reply_target) = match thread_id {

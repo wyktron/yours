@@ -23,7 +23,7 @@ pub(crate) fn spawn(runtime: &tokio::runtime::Handle, core: Arc<Core>) {
             // Without a reachable model every pass would fail the same way.
             // Keep the screen idle until Settings changes the endpoint or the
             // next probe finds one.
-            if crate::services::ai_unavailable() {
+            if crate::services::security_screen_unavailable() {
                 tokio::time::sleep(PASS_INTERVAL).await;
                 continue;
             }

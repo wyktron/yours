@@ -145,6 +145,7 @@ use favicon::{
     FaviconImage, FaviconImages, FaviconLoader, ProfileAvatarImages, ProfileAvatarLoader,
     physical_pixel_side,
 };
+use flectar_mail_core::Scenario;
 use flectar_mail_core::config::Paths;
 #[cfg(test)]
 use flectar_mail_core::models::ThreadCursor;
@@ -2616,9 +2617,9 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
         let Some(app) = summary_app.upgrade() else {
             return;
         };
-        // The button is disabled while no endpoint answers; a programmatic
-        // invoke must not start a request that can only fail.
-        if crate::services::ai_unavailable() {
+        // The button is disabled while the summarize model is not served; a
+        // programmatic invoke must not start a request that can only fail.
+        if crate::services::ai_unavailable_for(Scenario::Summarize) {
             return;
         }
         let Some(core) = summary_state.borrow().core.clone() else {

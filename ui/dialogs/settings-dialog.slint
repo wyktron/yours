@@ -767,8 +767,11 @@ export component SettingsDialog inherits Rectangle {
         : root.time_format == "24h" ? 2 : 0;
 
     // The Services card turns the probe's state into one word and one colour.
+    // Degraded is amber: the service answers, but not as configured, so it is
+    // neither a clean green nor the red of something that cannot be reached.
     pure function service-status-label(state: string) -> string {
         return state == "connected" ? @tr("Connected")
+            : state == "degraded" ? @tr("Degraded")
             : state == "unreachable" ? @tr("Unreachable")
             : state == "checking" ? @tr("Checking…")
             : @tr("Not configured");
@@ -776,6 +779,7 @@ export component SettingsDialog inherits Rectangle {
 
     pure function service-status-color(state: string) -> color {
         return state == "connected" ? (AppTheme.dark ? #69db7c : #237b3e)
+            : state == "degraded" ? (AppTheme.dark ? #f2b544 : #9a6700)
             : state == "unreachable" ? (AppTheme.dark ? #ff8787 : #b42318)
             : (AppTheme.dark ? #9aa0a6 : #6b7280);
     }
@@ -1220,8 +1224,25 @@ export component SettingsDialog inherits Rectangle {
                                             min-width: 0px;
                                             spacing: 2px;
                                             Text { text: @tr("AI"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                            // What the endpoint actually serves, model by model.
                                             Text {
-                                                text: AppServices.ai-available
+                                                visible: AppServices.ai-state == "degraded" && AppServices.ai-detail != "";
+                                                text: AppServices.ai-detail;
+                                                color: root.service-status-color(AppServices.ai-state);
+                                                font-size: TypeScale.caption;
+                                                wrap: word-wrap;
+                                            }
+                                            Text {
+                                                visible: AppServices.ai-models != "";
+                                                text: AppServices.ai-models;
+                                                color: root.faint-text;
+                                                font-size: TypeScale.caption;
+                                                wrap: word-wrap;
+                                            }
+                                            Text {
+                                                text: AppServices.ai-state == "degraded"
+                                                    ? @tr("Only the features whose model is served stay enabled. Pick a served model under AI agents.")
+                                                    : AppServices.ai-available
                                                     ? @tr("Summaries, reply drafts and the phishing screen are ready.")
                                                     : @tr("AI is not configured. Summary, draft and phishing scan stay disabled.");
                                                 color: root.faint-text;
@@ -1242,8 +1263,18 @@ export component SettingsDialog inherits Rectangle {
                                             min-width: 0px;
                                             spacing: 2px;
                                             Text { text: @tr("Speech"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                            // The chosen engine, and the one that speaks instead.
                                             Text {
-                                                text: AppServices.speech-available
+                                                visible: AppServices.speech-state == "degraded" && AppServices.speech-detail != "";
+                                                text: AppServices.speech-detail;
+                                                color: root.service-status-color(AppServices.speech-state);
+                                                font-size: TypeScale.caption;
+                                                wrap: word-wrap;
+                                            }
+                                            Text {
+                                                text: AppServices.speech-state == "degraded"
+                                                    ? @tr("Read aloud still works with the engine shown; choose it under Read aloud to stop the fallback.")
+                                                    : AppServices.speech-available
                                                     ? @tr("Read aloud and new-mail announcements can speak.")
                                                     : @tr("No speech engine was found. Read aloud and announcements stay off.");
                                                 color: root.faint-text;
@@ -3653,6 +3684,23 @@ export component SettingsDialog inherits Rectangle {
                                             placeholder-text: "llama3.2";
                                         }
                                         Button { text: @tr("Save"); clicked => { root.save_ai_model(root.ai_model); } }
+                                    }
+                                    // An endpoint that answers 200 can still serve other
+                                    // models; list what it actually has so the field can
+                                    // name one of them.
+                                    Text {
+                                        visible: AppServices.ai-models != "";
+                                        text: AppServices.ai-models;
+                                        color: root.faint-text;
+                                        font-size: TypeScale.caption;
+                                        wrap: word-wrap;
+                                    }
+                                    Text {
+                                        visible: AppServices.ai-catalog != "";
+                                        text: AppServices.ai-catalog;
+                                        color: root.faint-text;
+                                        font-size: TypeScale.caption;
+                                        wrap: word-wrap;
                                     }
                                     Text { text: @tr("Endpoint"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
                                     HorizontalBox {

@@ -9,15 +9,21 @@
 //! read, so it is never on the UI thread and never holds the database lock.
 
 use super::*;
-use flectar_mail_core::services::{ServiceState, ServicesReport};
-use std::sync::atomic::{AtomicU8, Ordering};
+use flectar_mail_core::Scenario;
+use flectar_mail_core::services::{
+    AiModelStatus, AiStatus, ServiceState, ServicesReport, SpeechStatus,
+};
+use std::sync::Mutex;
 
-const AVAILABLE: u8 = 1;
-const UNAVAILABLE: u8 = 2;
+/// The model list the endpoint returned last, newest first in time. The
+/// Settings page shows it under the model field.
+static AI_CATALOG: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
-/// The AI state as last probed. Unavailable until the probe proves otherwise,
-/// so a first run cannot fail at the first click.
-static AI_STATE: AtomicU8 = AtomicU8::new(UNAVAILABLE);
+/// AI usability per feature, as last probed. A pointer, not a flag: each AI
+/// feature runs on its own model tier, and a model the endpoint does not
+/// serve disables only the features routed to it. `None` until the first
+/// probe lands, so an existing setup is not disabled while it is in flight.
+static AI_STATUS: Mutex<Option<AiStatus>> = Mutex::new(None);
 
 /// Wire the Settings card's buttons before the first probe has run.
 pub(crate) fn register(
@@ -51,7 +57,12 @@ pub(crate) fn refresh(
     state: &Rc<RefCell<InboxState>>,
     runtime: &tokio::runtime::Handle,
 ) {
-    app.global::<AppServices>().set_checking(true);
+    let services = app.global::<AppServices>();
+    services.set_checking(true);
+    let catalog = ai_catalog();
+    if !catalog.is_empty() {
+        services.set_ai_catalog(catalog.into());
+    }
     let Some(core) = state.borrow().core.as_ref().map(|core| core.file_core()) else {
         publish_unavailable(app);
         return;
@@ -59,54 +70,153 @@ pub(crate) fn refresh(
     let weak = app.as_weak();
     runtime.spawn(async move {
         let report = core.probe_services().await;
-        let _ = weak.upgrade_in_event_loop(move |app| match report {
-            Ok(report) => publish(&app, &report),
-            Err(error) => {
-                tracing::warn!(%error, "optional service probe could not read settings");
-                publish_unavailable(&app);
+        // The probe just recorded what the endpoint serves; show it in
+        // Settings so a missing model can be picked from what is there.
+        let listed = match &report {
+            Ok(report) if report.ai.answers() => core.ai_list_models().await.ok(),
+            _ => None,
+        };
+        let _ = weak.upgrade_in_event_loop(move |app| {
+            if let Some(models) = listed {
+                publish_ai_catalog(&app, models);
+            }
+            match report {
+                Ok(report) => publish(&app, &report),
+                Err(error) => {
+                    tracing::warn!(%error, "optional service probe could not read settings");
+                    publish_unavailable(&app);
+                }
             }
         });
     });
 }
 
 fn publish(app: &AppWindow, report: &ServicesReport) {
-    AI_STATE.store(state_code(report.ai.state), Ordering::Relaxed);
+    if let Ok(mut slot) = AI_STATUS.lock() {
+        *slot = Some(report.ai.clone());
+    }
 
     let services = app.global::<AppServices>();
     services.set_checking(false);
     services.set_reacher_enabled(report.reacher_enabled);
     services.set_reacher_state(report.reacher.state.as_str().into());
-    services.set_ai_state(report.ai.state.as_str().into());
-    services.set_speech_state(report.speech.state.as_str().into());
+    publish_ai(&services, &report.ai);
+    publish_speech(&services, &report.speech);
 
     crate::composer::set_address_checks_available(report.reacher.state == ServiceState::Connected);
+    // Read-aloud speaks whenever an engine can, fallback included; the card
+    // is what says which engine is doing the speaking.
     crate::speech::set_availability(
         report.speech.any_available(),
         report.speech.fallback.clone(),
     );
 }
 
+/// One line per configured model: what it is, the features that run on it,
+/// and whether the endpoint serves it.
+fn model_lines(models: &[AiModelStatus]) -> String {
+    models
+        .iter()
+        .map(|entry| {
+            let features = entry.scenario_names();
+            let features = if features.is_empty() {
+                entry
+                    .tiers
+                    .iter()
+                    .map(|tier| tier.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            } else {
+                features
+            };
+            let tiers = entry
+                .tiers
+                .iter()
+                .map(|tier| tier.as_str())
+                .collect::<Vec<_>>()
+                .join("/");
+            if entry.available {
+                format!("{} ({tiers}): served · {features}", entry.model)
+            } else {
+                format!("{} ({tiers}): missing · {features}", entry.model)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn publish_ai(services: &AppServices, ai: &AiStatus) {
+    services.set_ai_state(ai.state.as_str().into());
+    services.set_ai_detail(ai.detail.clone().into());
+    services.set_ai_models(model_lines(&ai.models).into());
+}
+
+fn publish_speech(services: &AppServices, speech: &SpeechStatus) {
+    services.set_speech_state(speech.state.as_str().into());
+    services.set_speech_detail(speech.detail().into());
+    services.set_speech_selected(speech.selected_engine_label().into());
+    let using = speech
+        .speaking_engine_label()
+        .map(str::to_owned)
+        .unwrap_or_default();
+    services.set_speech_using(using.into());
+}
+
+/// Remember and show the ids the endpoint serves, so Settings can offer them
+/// and the AI section can say why a configured model does not work.
+fn publish_ai_catalog(app: &AppWindow, models: Vec<String>) {
+    if let Ok(mut slot) = AI_CATALOG.lock() {
+        *slot = models.clone();
+    }
+    app.global::<AppServices>()
+        .set_ai_catalog(models.join("\n").into());
+}
+
 fn publish_unavailable(app: &AppWindow) {
-    AI_STATE.store(UNAVAILABLE, Ordering::Relaxed);
+    if let Ok(mut slot) = AI_STATUS.lock() {
+        *slot = None;
+    }
     let services = app.global::<AppServices>();
     services.set_checking(false);
     services.set_reacher_state("not-configured".into());
     services.set_ai_state("not-configured".into());
+    services.set_ai_detail(String::new().into());
+    services.set_ai_models(String::new().into());
     services.set_speech_state("not-configured".into());
+    services.set_speech_detail(String::new().into());
+    services.set_speech_selected(String::new().into());
+    services.set_speech_using(String::new().into());
     crate::composer::set_address_checks_available(false);
     crate::speech::set_availability(false, None);
 }
 
-const fn state_code(state: ServiceState) -> u8 {
-    match state {
-        ServiceState::Connected => AVAILABLE,
-        ServiceState::NotConfigured => UNAVAILABLE,
-        ServiceState::Unreachable => UNAVAILABLE,
-    }
+/// The models the endpoint served the last time it was asked, as one per
+/// line. Empty when it never answered or listed nothing.
+pub(crate) fn ai_catalog() -> String {
+    let guard = match AI_CATALOG.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    guard.join("\n")
 }
 
-/// True only when the last probe proved there is no AI endpoint. Unknown is
-/// allowed through, so a slow probe does not disable an existing setup.
-pub(crate) fn ai_unavailable() -> bool {
-    AI_STATE.load(Ordering::Relaxed) == UNAVAILABLE
+pub(crate) fn security_screen_unavailable() -> bool {
+    ai_unavailable_for(Scenario::Security)
+}
+
+/// True when the last probe proved the AI endpoint cannot run `scenario`,
+/// because it is down, unconfigured, or does not serve the feature's model.
+/// Unknown is allowed through, so a slow probe does not disable a setup that
+/// works. A feature whose model is served stays enabled when another tier's
+/// model is missing.
+pub(crate) fn ai_unavailable_for(scenario: Scenario) -> bool {
+    // A poisoned lock only means another thread panicked while publishing;
+    // the answer it wrote is still what the last probe found.
+    let guard = match AI_STATUS.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    guard
+        .as_ref()
+        .is_some_and(|status| !status.scenario_usable(scenario))
 }

@@ -10,6 +10,7 @@ use flectar_mail_core::models::{
     Address, AttachmentMeta, Importance, QueueSendArgs, SaveDraftArgs, SenderIdentity, Settings,
     Signature,
 };
+use flectar_mail_core::Scenario;
 use flectar_mail_core::reacher::ReacherVerdict;
 use slint::SharedString;
 #[cfg(desktop)]
@@ -4099,9 +4100,9 @@ impl ComposeSession {
     /// Ask the model for a reply draft and put it in the editor.
     fn ai_draft(self: &Rc<Self>) {
         // Disabled in the UI, and guarded here for a programmatic invoke: an
-        // endpoint that is not configured should never look like a broken
-        // request.
-        if crate::services::ai_unavailable() {
+        // endpoint that is not configured, or that does not serve the draft
+        // model, should never look like a broken request.
+        if crate::services::ai_unavailable_for(Scenario::Draft) {
             return;
         }
         let (Some(composers), Some(host)) = (self.composers(), self.host()) else {

@@ -62,16 +62,31 @@ export global MotionSettings {
 // them. Rust publishes the states; every screen that offers a feature which
 // needs one binds to these instead of finding out at click time.
 export global AppServices {
-    // "checking", "connected", "not-configured" or "unreachable".
+    // "checking", "connected", "degraded", "not-configured" or "unreachable".
+    // Degraded means it answers, but not with what the app is set to use.
     in-out property <string> reacher-state: "checking";
     // The Settings switch, so the composer can say "off" rather than "broken".
     in-out property <bool> reacher-enabled: true;
     in-out property <string> ai-state: "checking";
+    // Which configured model is missing, and which ones the endpoint serves.
+    in-out property <string> ai-detail: "";
+    // One line per configured model: "<id> (instant): served|missing · <features>".
+    in-out property <string> ai-models: "";
+    // The ids the endpoint listed, one per line, for the model field.
+    in-out property <string> ai-catalog: "";
     in-out property <string> speech-state: "checking";
+    // "Selected engine X is not available here; using Y." when something falls back.
+    in-out property <string> speech-detail: "";
+    // The engine chosen in Settings, and the one that would speak right now.
+    in-out property <string> speech-selected: "";
+    in-out property <string> speech-using: "";
     in-out property <bool> checking: true;
     out property <bool> reacher-available: root.reacher-state == "connected";
-    out property <bool> ai-available: root.ai-state == "connected";
-    out property <bool> speech-available: root.speech-state == "connected";
+    // Usable for at least one AI feature. Which features stay enabled is
+    // decided per model tier in Rust; the card shows the per-model detail.
+    out property <bool> ai-available: root.ai-state == "connected" || root.ai-state == "degraded";
+    // Read-aloud can speak with some engine, the chosen one or a fallback.
+    out property <bool> speech-available: root.speech-state == "connected" || root.speech-state == "degraded";
     // Settings > General asks for a fresh probe; the open button jumps to the
     // AI settings page that owns the endpoint and key.
     callback check-again();
