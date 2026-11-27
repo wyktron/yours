@@ -1749,6 +1749,7 @@ pub(super) fn register_data_management_callbacks(
                     app.set_reacher_url(flectar_mail_core::reacher::DEFAULT_URL.into());
                     crate::composer::set_address_checks_enabled(true);
                     crate::composer::reset_address_checks();
+                    crate::services::refresh(&app, &data_reset_state, &data_reset_runtime);
                     app.set_show_tabs(true);
                     apply_mail_grouping(
                         &app,

@@ -40,6 +40,14 @@ finish-args:
   - --talk-name=org.freedesktop.secrets
   - --talk-name=com.canonical.Unity
 
+# Optional services are deliberately not bundled: Reacher, Ollama and model
+# weights are large and belong to the user's machine, and eSpeak NG's installed
+# data is about 25 MB, over the 5 MB budget for an always-available speech
+# fallback. The app probes each service at startup, disables the features that
+# need a missing one, and explains it in Settings > General. The shared network
+# namespace above is what lets the sandbox reach a host Reacher, Ollama or
+# Kokoro on 127.0.0.1; no extra finish-arg is needed. Setup: docs/optional-services.md.
+
 # No --filesystem is needed for the profile. The app keeps durable state in
 # $XDG_DATA_HOME/yours-mail, which inside the sandbox is
 # ~/.var/app/org.yours.mail/data/yours-mail and is writable by default. Files

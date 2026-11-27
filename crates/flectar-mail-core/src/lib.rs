@@ -46,6 +46,7 @@ pub mod rules;
 pub mod scheduler;
 pub mod search;
 pub mod sender_identities;
+pub mod services;
 mod server_rules;
 mod sieve;
 pub mod signatures;

@@ -3,7 +3,7 @@ import { ComposeAttachment, ComposeLink } from "../models.slint";
 import { Button } from "button.slint";
 import { IconButton, Switch } from "controls.slint";
 import { TypeScale } from "../typography.slint";
-import { LayoutMetrics } from "../design-system.slint";
+import { AppServices, LayoutMetrics } from "../design-system.slint";
 import { FocusVisibleScope } from "focus-visible-scope.slint";
 
 // A color the composer offers, with its name for screen readers.
@@ -1024,7 +1024,10 @@ export component ComposerFooter inherits Rectangle {
                 icon: @image-url("../icons/lucide/outline/bot.svg");
                 icon-color: root.secondary-color;
                 hover-background: root.control-hover-color;
-                tooltip-text: @tr("Draft the reply with AI");
+                interactive: AppServices.ai-available;
+                tooltip-text: AppServices.ai-available
+                    ? @tr("Draft the reply with AI")
+                    : @tr("AI is not configured - set it in Settings > AI agents");
                 accessible-id: "composer-ai-draft-button";
                 clicked => { root.ai-draft(); }
             }
@@ -1049,7 +1052,9 @@ export component ComposerFooter inherits Rectangle {
                 width: max(0px, save-draft.x - self.x - 42px);
                 y: 0px;
                 height: 54px;
-                text: root.attachment-summary == "" ? @tr("Attach files") : root.attachment-summary;
+                text: !AppServices.ai-available
+                    ? @tr("AI is not configured - Settings > AI agents")
+                    : root.attachment-summary == "" ? @tr("Attach files") : root.attachment-summary;
                 color: root.muted-color;
                 font-size: TypeScale.caption;
                 vertical-alignment: center;

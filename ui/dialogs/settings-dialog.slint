@@ -32,7 +32,7 @@ import { TabsUi } from "../components/workspace-navigation.slint";
 import { AccountProfilePicker, ProfileColorChoice, ProfileMemberChoice, ProfilePalette } from "../components/profile-controls.slint";
 import { RuntimeColorPicker, ThemeEditor } from "../components/theme-editor.slint";
 import { InterfaceText, TypeScale } from "../typography.slint";
-import { AppTheme, LayoutMetrics, MotionSettings, SettingsIconPalette } from "../design-system.slint";
+import { AppServices, AppTheme, LayoutMetrics, MotionSettings, SettingsIconPalette } from "../design-system.slint";
 import { CompactPageHeader, WorkspaceSidebarSurface } from "../components/workspace-layout.slint";
 import { TabSwitcherButton } from "../components/tab-overview.slint";
 import { LocalMailUi } from "../local-mail.slint";
@@ -766,6 +766,20 @@ export component SettingsDialog inherits Rectangle {
     private property <int> time-format-index: root.time_format == "12h" ? 1
         : root.time_format == "24h" ? 2 : 0;
 
+    // The Services card turns the probe's state into one word and one colour.
+    pure function service-status-label(state: string) -> string {
+        return state == "connected" ? @tr("Connected")
+            : state == "unreachable" ? @tr("Unreachable")
+            : state == "checking" ? @tr("Checking…")
+            : @tr("Not configured");
+    }
+
+    pure function service-status-color(state: string) -> color {
+        return state == "connected" ? (AppTheme.dark ? #69db7c : #237b3e)
+            : state == "unreachable" ? (AppTheme.dark ? #ff8787 : #b42318)
+            : (AppTheme.dark ? #9aa0a6 : #6b7280);
+    }
+
     pure function settings-icon-color(section: string) -> color {
         if root.monochrome_sidebar_icons {
             return root.settings_tab == section ? root.accent : root.muted-text;
@@ -792,6 +806,7 @@ export component SettingsDialog inherits Rectangle {
                 + " " + @tr("spelling spell check dictionary misspelled words")
                 + " " + @tr("writing default text style font typeface text size")
                 + " " + @tr("address checks reacher email verification deliverability recipient mailbox exists risky endpoint")
+                + " " + @tr("services connected unreachable check again docker ollama speech engine espeak piper kokoro what this app needs")
                 + " " + @tr("message list density compact comfortable rows preview lines")
                 + " " + @tr("mark read opened delay receipts")
             : section == "Accounts"
@@ -1156,6 +1171,105 @@ export component SettingsDialog inherits Rectangle {
 
                             SettingsPageTitle { label: @tr("General"); title-color: root.title-color; }
                             Text { height: max(root.compact ? 34px : 17px, self.preferred-height); text: @tr("Manage appearance, privacy, and synchronization."); color: root.secondary-text; font-size: TypeScale.secondary; wrap: word-wrap; }
+
+                            // The optional services card sits first, because a
+                            // first run otherwise meets them as dead buttons.
+                            Rectangle {
+                                height: self.preferred-height;
+                                background: root.surface;
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: root.border-subtle;
+                                VerticalBox {
+                                    padding-top: 16px;
+                                    padding-right: 20px;
+                                    padding-bottom: 16px;
+                                    padding-left: 20px;
+                                    spacing: 8px;
+                                    Text { text: @tr("What this app needs"); color: root.heading; font-size: TypeScale.subtitle; font-weight: 700; wrap: word-wrap; }
+                                    Text { text: @tr("Yours works without these services. When one is missing, the features that need it stay disabled instead of failing."); color: root.faint-text; font-size: TypeScale.secondary; wrap: word-wrap; }
+
+                                    Rectangle { height: 1px; background: root.border-subtle; }
+                                    HorizontalBox {
+                                        spacing: 10px;
+                                        Rectangle { width: 4px; border-radius: 2px; background: root.service-status-color(AppServices.reacher-state); }
+                                        VerticalBox {
+                                            horizontal-stretch: 1;
+                                            min-width: 0px;
+                                            spacing: 2px;
+                                            Text { text: @tr("Address checks"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                            Text {
+                                                text: AppServices.reacher-available
+                                                    ? @tr("Recipient addresses are checked before you write.")
+                                                    : @tr("Checks are skipped; the composer shows no address chips.");
+                                                color: root.faint-text;
+                                                font-size: TypeScale.caption;
+                                                wrap: word-wrap;
+                                            }
+                                            Text { text: @tr("Run Reacher with Docker: docker run --rm -p 127.0.0.1:8084:8080 -e PORT=8080 -e RCH_HTTP_HOST=0.0.0.0 reacherhq/backend"); color: root.faint-text; font-size: TypeScale.caption; wrap: word-wrap; }
+                                        }
+                                        Text { text: root.service-status-label(AppServices.reacher-state); color: root.service-status-color(AppServices.reacher-state); font-size: TypeScale.caption; font-weight: 600; vertical-alignment: top; }
+                                    }
+
+                                    Rectangle { height: 1px; background: root.border-subtle; }
+                                    HorizontalBox {
+                                        spacing: 10px;
+                                        Rectangle { width: 4px; border-radius: 2px; background: root.service-status-color(AppServices.ai-state); }
+                                        VerticalBox {
+                                            horizontal-stretch: 1;
+                                            min-width: 0px;
+                                            spacing: 2px;
+                                            Text { text: @tr("AI"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                            Text {
+                                                text: AppServices.ai-available
+                                                    ? @tr("Summaries, reply drafts and the phishing screen are ready.")
+                                                    : @tr("AI is not configured. Summary, draft and phishing scan stay disabled.");
+                                                color: root.faint-text;
+                                                font-size: TypeScale.caption;
+                                                wrap: word-wrap;
+                                            }
+                                            Text { text: @tr("Run Ollama (ollama serve), or use any OpenAI-compatible endpoint under AI agents."); color: root.faint-text; font-size: TypeScale.caption; wrap: word-wrap; }
+                                        }
+                                        Text { text: root.service-status-label(AppServices.ai-state); color: root.service-status-color(AppServices.ai-state); font-size: TypeScale.caption; font-weight: 600; vertical-alignment: top; }
+                                    }
+
+                                    Rectangle { height: 1px; background: root.border-subtle; }
+                                    HorizontalBox {
+                                        spacing: 10px;
+                                        Rectangle { width: 4px; border-radius: 2px; background: root.service-status-color(AppServices.speech-state); }
+                                        VerticalBox {
+                                            horizontal-stretch: 1;
+                                            min-width: 0px;
+                                            spacing: 2px;
+                                            Text { text: @tr("Speech"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                            Text {
+                                                text: AppServices.speech-available
+                                                    ? @tr("Read aloud and new-mail announcements can speak.")
+                                                    : @tr("No speech engine was found. Read aloud and announcements stay off.");
+                                                color: root.faint-text;
+                                                font-size: TypeScale.caption;
+                                                wrap: word-wrap;
+                                            }
+                                            Text { text: @tr("Install espeak-ng or Piper, or run Kokoro on port 8766."); color: root.faint-text; font-size: TypeScale.caption; wrap: word-wrap; }
+                                        }
+                                        Text { text: root.service-status-label(AppServices.speech-state); color: root.service-status-color(AppServices.speech-state); font-size: TypeScale.caption; font-weight: 600; vertical-alignment: top; }
+                                    }
+
+                                    HorizontalBox {
+                                        spacing: 8px;
+                                        Button {
+                                            text: AppServices.checking ? @tr("Checking…") : @tr("Check again");
+                                            enabled: !AppServices.checking;
+                                            clicked => { AppServices.check-again(); }
+                                        }
+                                        if !AppServices.ai-available : Button {
+                                            text: @tr("AI settings");
+                                            clicked => { AppServices.open-ai-settings(); }
+                                        }
+                                    }
+                                }
+                            }
+
 
                             Rectangle {
                                 height: max(root.compact ? 158px : 96px, self.preferred-height);
@@ -1592,6 +1706,12 @@ export component SettingsDialog inherits Rectangle {
                             }
 
                             Text { text: @tr("Read aloud"); color: root.heading; font-size: TypeScale.subtitle; font-weight: 700; wrap: word-wrap; }
+                            if !AppServices.speech-available : Text {
+                                text: @tr("No speech engine was found, so read aloud and announcements stay off. Install espeak-ng or Piper, or start Kokoro, then use Check again in What this app needs.");
+                                color: root.faint-text;
+                                font-size: TypeScale.secondary;
+                                wrap: word-wrap;
+                            }
                             Rectangle {
                                 height: self.preferred-height;
                                 background: root.surface;
@@ -1677,15 +1797,23 @@ export component SettingsDialog inherits Rectangle {
                                     SettingsSwitchRow {
                                         compact: root.compact;
                                         title: @tr("Announce new mail");
-                                        description: @tr("Speaks “You've got mail from …” with the engine above when new mail is notified.");
-                                        checked: root.tts_announce_mail;
+                                        description: AppServices.speech-available
+                                            ? @tr("Speaks “You've got mail from …” with the engine above when new mail is notified.")
+                                            : @tr("No speech engine is available, so announcements stay off.");
+                                        checked: root.tts_announce_mail && AppServices.speech-available;
+                                        enabled: AppServices.speech-available;
                                         title-color: root.body-text;
                                         description-color: root.faint-text;
                                         toggled(checked) => { root.save_tts_announce(checked); }
                                     }
                                     HorizontalBox {
                                         spacing: 8px;
-                                        Button { text: @tr("Play a sample"); clicked => { root.preview_tts_voice(); } }
+                                        Button { text: AppServices.speech-available ? @tr("Play a sample") : @tr("No speech engine"); enabled: AppServices.speech-available; clicked => { root.preview_tts_voice(); } }
+                                        if !AppServices.speech-available : Button {
+                                            text: AppServices.checking ? @tr("Checking…") : @tr("Check again");
+                                            enabled: !AppServices.checking;
+                                            clicked => { AppServices.check-again(); }
+                                        }
                                     }
                                 }
                             }
@@ -3343,6 +3471,12 @@ export component SettingsDialog inherits Rectangle {
                                             root.save_notification_settings(root.notifications_enabled, checked, root.notification_scope);
                                         }
                                     }
+                                    if !AppServices.speech-available : Text {
+                                        text: @tr("Spoken announcements are off: no speech engine was found. Install espeak-ng or Piper in Settings > General.");
+                                        color: root.faint-text;
+                                        font-size: TypeScale.caption;
+                                        wrap: word-wrap;
+                                    }
                                     if SystemNotifications.badge-supported : Rectangle { height: 1px; background: root.border-subtle; }
                                     if SystemNotifications.badge-supported : SettingsSwitchRow {
                                         compact: root.compact;
@@ -3486,11 +3620,29 @@ export component SettingsDialog inherits Rectangle {
                                     SettingsSwitchRow {
                                         compact: root.compact;
                                         title: @tr("Check new mail for phishing");
-                                        description: @tr("Judges recent mail with the model above and marks a message it distrusts in red. Nothing is moved or blocked: you decide what to do with it.");
-                                        checked: root.ai_phishing;
+                                        description: AppServices.ai-available
+                                            ? @tr("Judges recent mail with the model above and marks a message it distrusts in red. Nothing is moved or blocked: you decide what to do with it.")
+                                            : @tr("AI is not configured. Set the endpoint below to turn phishing checks on.");
+                                        checked: root.ai_phishing && AppServices.ai-available;
+                                        enabled: AppServices.ai-available;
                                         title-color: root.body-text;
                                         description-color: root.faint-text;
                                         toggled(checked) => { root.save_ai_phishing(checked); }
+                                    }
+                                    if !AppServices.ai-available : HorizontalBox {
+                                        spacing: 8px;
+                                        Text {
+                                            horizontal-stretch: 1;
+                                            text: @tr("AI is not configured. Summary and draft buttons stay disabled until this endpoint answers.");
+                                            color: AppServices.ai-state == "unreachable" ? #b42318 : root.faint-text;
+                                            font-size: TypeScale.caption;
+                                            wrap: word-wrap;
+                                        }
+                                        Button {
+                                            text: AppServices.checking ? @tr("Checking…") : @tr("Check again");
+                                            enabled: !AppServices.checking;
+                                            clicked => { AppServices.check-again(); }
+                                        }
                                     }
                                     Text { text: @tr("Model"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
                                     HorizontalBox {
@@ -3498,7 +3650,7 @@ export component SettingsDialog inherits Rectangle {
                                         LineEdit {
                                             horizontal-stretch: 1;
                                             text <=> root.ai_model;
-                                            placeholder-text: "gemma4:e4b";
+                                            placeholder-text: "llama3.2";
                                         }
                                         Button { text: @tr("Save"); clicked => { root.save_ai_model(root.ai_model); } }
                                     }

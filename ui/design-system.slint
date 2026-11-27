@@ -58,6 +58,26 @@ export global MotionSettings {
     callback choose(string);
 }
 
+// The optional services Yours can use, as the last capability probe found
+// them. Rust publishes the states; every screen that offers a feature which
+// needs one binds to these instead of finding out at click time.
+export global AppServices {
+    // "checking", "connected", "not-configured" or "unreachable".
+    in-out property <string> reacher-state: "checking";
+    // The Settings switch, so the composer can say "off" rather than "broken".
+    in-out property <bool> reacher-enabled: true;
+    in-out property <string> ai-state: "checking";
+    in-out property <string> speech-state: "checking";
+    in-out property <bool> checking: true;
+    out property <bool> reacher-available: root.reacher-state == "connected";
+    out property <bool> ai-available: root.ai-state == "connected";
+    out property <bool> speech-available: root.speech-state == "connected";
+    // Settings > General asks for a fresh probe; the open button jumps to the
+    // AI settings page that owns the endpoint and key.
+    callback check-again();
+    callback open-ai-settings();
+}
+
 // Mail actions and their matching sidebar destinations share one semantic
 // icon palette. These colors stay stable across themes so the same action is
 // recognizable wherever it appears.

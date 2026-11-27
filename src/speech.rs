@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::io::BufWriter;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
@@ -30,6 +31,38 @@ static CONFIG: OnceLock<RwLock<TtsConfig>> = OnceLock::new();
 
 /// The failure of the last request, waiting to be shown in the reader.
 static LAST_ERROR: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+
+/// Whether the startup probe found an engine that can speak. Off until the
+/// probe answers: a first run must never try to speak without an engine.
+static SPEECH_AVAILABLE: AtomicBool = AtomicBool::new(false);
+
+/// The engine to use when the configured one is missing, with its voice.
+/// eSpeak NG is the last choice, but it is a real fallback rather than
+/// silence when a Flatpak or a fresh install has nothing else.
+static FALLBACK: OnceLock<RwLock<Option<(tts::TtsEngine, String)>>> = OnceLock::new();
+
+fn fallback_slot() -> &'static RwLock<Option<(tts::TtsEngine, String)>> {
+    FALLBACK.get_or_init(|| RwLock::new(None))
+}
+
+/// Publish what the capability probe found. `available` false means no engine
+/// at all: read-aloud and announcements stay silent instead of failing late.
+pub fn set_availability(available: bool, fallback: Option<(tts::TtsEngine, String)>) {
+    SPEECH_AVAILABLE.store(available, Ordering::Relaxed);
+    if let Ok(mut slot) = fallback_slot().write() {
+        *slot = fallback;
+    }
+}
+
+/// Whether anything can speak right now.
+pub fn available() -> bool {
+    SPEECH_AVAILABLE.load(Ordering::Relaxed)
+}
+
+/// The fallback engine, if the configured one is missing.
+pub fn fallback() -> Option<(tts::TtsEngine, String)> {
+    fallback_slot().read().ok().and_then(|slot| slot.clone())
+}
 
 fn error_slot() -> &'static Mutex<Option<String>> {
     LAST_ERROR.get_or_init(|| Mutex::new(None))
@@ -99,12 +132,20 @@ pub fn voice_id_for_label(label: &str) -> Option<String> {
         .cloned()
 }
 
-/// The clock currently speaking with.
+/// The clock currently speaking with, using the probe's fallback engine when
+/// the configured one is not installed.
 pub fn config() -> TtsConfig {
-    config_slot()
+    let mut config = config_slot()
         .read()
         .map(|config| config.clone())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    if let Some((engine, voice)) = fallback()
+        && engine != config.engine
+    {
+        config.engine = engine;
+        config.voice = voice;
+    }
+    config
 }
 
 struct Playback {
@@ -259,6 +300,11 @@ impl Speech {
         words: Vec<(usize, usize)>,
         from_word: usize,
     ) {
+        // No engine: never try to synthesize, and never leave a dead button
+        // looking like a broken request. Settings explains what to install.
+        if !available() {
+            return;
+        }
         let Some(&(start_byte, _)) = words.get(from_word) else {
             return;
         };
@@ -392,12 +438,16 @@ fn speak_short(runtime: &tokio::runtime::Handle, text: &str) {
 /// Speak a short sample with the current settings, without touching the
 /// reader's highlight. Settings uses this to let a voice be heard.
 pub fn preview(runtime: &tokio::runtime::Handle, text: &str) {
-    speak_short(runtime, text);
+    if available() {
+        speak_short(runtime, text);
+    }
 }
 
 /// Say that new mail arrived, with the engine chosen in Settings.
 pub fn announce(runtime: &tokio::runtime::Handle, text: &str) {
-    speak_short(runtime, text);
+    if available() {
+        speak_short(runtime, text);
+    }
 }
 
 /// Map each spoken word onto the document word it came from.

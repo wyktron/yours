@@ -378,11 +378,19 @@ export component IconButton inherits Rectangle {
         mouse-cursor: pointer;
     }
 
+    // A disabled button still explains itself on hover. The main hit area is
+    // disabled with the action, so this one only observes the pointer.
+    tooltip-hover := TouchArea {
+        enabled: !root.interactive;
+        width: parent.width;
+        height: parent.height;
+    }
+
     // Keep action help inside the main scene. Native Tooltip uses a popup
     // surface, which is not consistently presented by every AppImage/Wayland
     // compositor combination.
     Rectangle {
-        visible: root.tooltip-text != "" && (IconButtonInput.keyboard ? keyboard.has-focus : hit-area.has-hover);
+        visible: root.tooltip-text != "" && (IconButtonInput.keyboard ? keyboard.has-focus : (root.interactive ? hit-area.has-hover : tooltip-hover.has-hover));
         x: root.tooltip-align-left ? 0px : parent.width - self.width;
         y: root.tooltip-above ? -self.height - 6px : parent.height + 6px;
         width: tooltip-label.preferred-width + 16px;

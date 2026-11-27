@@ -9,8 +9,11 @@ use futures::StreamExt;
 use serde_json::json;
 use std::sync::Arc;
 
-pub const DEFAULT_BASE_URL: &str = "https://openrouter.ai/api/v1";
-pub const DEFAULT_MODEL: &str = "openai/gpt-5.6-luna";
+/// Local-first: a fresh profile expects Ollama, which Yours does not install.
+/// The probe marks it not configured when nothing answers, and Settings
+/// explains how to start it. A hosted OpenAI-compatible endpoint is a setting.
+pub const DEFAULT_BASE_URL: &str = "http://127.0.0.1:11434/v1";
+pub const DEFAULT_MODEL: &str = "llama3.2";
 const MAX_AI_RESPONSE_BODY_BYTES: usize = 8 * 1024 * 1024;
 const MAX_AI_ERROR_BODY_BYTES: usize = 1024 * 1024;
 const MAX_AI_URL_BYTES: usize = 16 * 1024;

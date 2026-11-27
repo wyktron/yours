@@ -6,7 +6,7 @@ import { IconButton } from "controls.slint";
 import { ModeButton, RecipientRow } from "composer-controls.slint";
 import { ComposerContactMenu } from "composer-contact-menu.slint";
 import { TypeScale } from "../typography.slint";
-import { MotionSettings } from "../design-system.slint";
+import { AppServices, MotionSettings } from "../design-system.slint";
 import { WindowControlsClearance } from "../window-chrome.slint";
 
 // What a composer is for: its heading, and its window's title.
@@ -428,6 +428,30 @@ export component ComposerRecipients inherits Rectangle {
                     muted-color: root.muted-color;
                     chip-border-color: root.subtle-border-color;
                     chip-background: root.raised-color;
+                }
+                // A missing service explains itself here rather than as one
+                // failed check per recipient, or as an empty strip.
+                if !AppServices.reacher-enabled : HorizontalBox {
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    Text {
+                        horizontal-stretch: 1;
+                        text: @tr("Address checks are off in Settings.");
+                        color: root.muted-color;
+                        font-size: TypeScale.caption;
+                        wrap: word-wrap;
+                    }
+                }
+                if AppServices.reacher-enabled && !AppServices.reacher-available : HorizontalBox {
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    Text {
+                        horizontal-stretch: 1;
+                        text: @tr("Address checks unavailable - set a Reacher URL in Settings.");
+                        color: root.muted-color;
+                        font-size: TypeScale.caption;
+                        wrap: word-wrap;
+                    }
                 }
             }
 

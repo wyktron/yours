@@ -15,7 +15,7 @@ import { LoadingSkeletonBlock } from "../components/loading-skeleton.slint";
 import { RenderingInfoDialog } from "../dialogs/rendering-info-dialog.slint";
 import { MovePickerUi } from "../dialogs/move-dialog.slint";
 import { TypeScale } from "../typography.slint";
-import { AppTheme, LayoutMetrics, MailIconPalette, MotionSettings } from "../design-system.slint";
+import { AppServices, AppTheme, LayoutMetrics, MailIconPalette, MotionSettings } from "../design-system.slint";
 import { MessageColors } from "../message-colors.slint";
 import { WindowChrome, WindowControlsClearance } from "../window-chrome.slint";
 import { Shortcuts } from "../shortcuts.slint";
@@ -832,12 +832,14 @@ export component MailReadingPane inherits FocusScope {
                                 clicked => { root.compose_message_action("forward"); }
                             }
                             if !root.selected_is_draft : ToolbarIconButton {
-                                interactive: root.has_selected && EmailReader.available;
+                                interactive: root.has_selected && EmailReader.available && AppServices.speech-available;
                                 compact: root.compact;
                                 icon: @image-url("../icons/lucide/outline/volume-2.svg");
                                 icon-color: root.secondary-text;
                                 hover-background: root.muted-control-bg;
-                                tooltip-text: @tr("Read aloud (select text to start there)");
+                                tooltip-text: AppServices.speech-available
+                                    ? @tr("Read aloud (select text to start there)")
+                                    : @tr("No speech engine is available - install espeak-ng or Piper");
                                 accessible-id: "message-toolbar-read-aloud-button";
                                 clicked => { EmailReader.command("read-aloud"); }
                             }
@@ -855,12 +857,14 @@ export component MailReadingPane inherits FocusScope {
                                 clicked => { EmailReader.command("read-aloud-pause"); }
                             }
                             if !root.selected_is_draft : ToolbarIconButton {
-                                interactive: root.has_selected;
+                                interactive: root.has_selected && AppServices.ai-available;
                                 compact: root.compact;
                                 icon: @image-url("../icons/lucide/outline/bot.svg");
                                 icon-color: root.secondary-text;
                                 hover-background: root.muted-control-bg;
-                                tooltip-text: @tr("Summarize this conversation with AI");
+                                tooltip-text: AppServices.ai-available
+                                    ? @tr("Summarize this conversation with AI")
+                                    : @tr("AI is not configured - set it in Settings > AI agents");
                                 accessible-id: "message-toolbar-summarize-button";
                                 clicked => { EmailReader.command("summarize"); }
                             }

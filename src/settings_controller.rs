@@ -737,6 +737,7 @@ pub(super) fn register_settings_preference_callbacks(
             app.set_tts_engine(engine.id().into());
             app.set_tts_needs_key(engine.needs_key());
             refresh_tts(&app, &state_for_tts_engine, &runtime_for_tts_engine);
+            crate::services::refresh(&app, &state_for_tts_engine, &runtime_for_tts_engine);
         }
     });
 
@@ -763,6 +764,7 @@ pub(super) fn register_settings_preference_callbacks(
                 app.set_tts_key_present(!key.trim().is_empty());
                 app.set_sync_status(UiMessage::plain("Read-aloud key saved."));
                 refresh_tts(&app, &state_for_tts_key, &runtime_for_tts_key);
+                crate::services::refresh(&app, &state_for_tts_key, &runtime_for_tts_key);
             }
             Err(error) => app.set_sync_status(UiMessage::detail(
                 "Could not save the read-aloud key: {}",
@@ -787,6 +789,7 @@ pub(super) fn register_settings_preference_callbacks(
         );
         if saved {
             refresh_tts(&app, &state_for_tts_endpoint, &runtime_for_tts_endpoint);
+            crate::services::refresh(&app, &state_for_tts_endpoint, &runtime_for_tts_endpoint);
         }
     });
 
@@ -858,6 +861,7 @@ pub(super) fn register_settings_preference_callbacks(
             settings.ai_model_intelligent = model.clone();
         }) {
             app.set_ai_model(value);
+            crate::services::refresh(&app, &state_for_ai_model, &runtime_for_ai_model);
         }
     });
 
@@ -876,6 +880,7 @@ pub(super) fn register_settings_preference_callbacks(
             |settings| settings.ai_base_url = endpoint,
         ) {
             app.set_ai_endpoint(value);
+            crate::services::refresh(&app, &state_for_ai_endpoint, &runtime_for_ai_endpoint);
         }
     });
 
@@ -899,6 +904,7 @@ pub(super) fn register_settings_preference_callbacks(
             Ok(()) => {
                 app.set_ai_key_saved(!value.trim().is_empty());
                 app.set_sync_status(UiMessage::plain("AI key saved."));
+                crate::services::refresh(&app, &state_for_ai_key, &runtime_for_ai_key);
             }
             Err(error) => app.set_sync_status(UiMessage::detail(
                 "Could not save the AI key: {}",
@@ -1077,12 +1083,14 @@ pub(super) fn register_settings_preference_callbacks(
                 "Address check settings are active for this session.",
             ));
             crate::composer::address_checks_changed();
+            crate::services::refresh(&app, &state_for_reacher, &runtime_for_reacher);
             return;
         };
         match runtime_for_reacher.block_on(core.set_reacher_enabled(enabled)) {
             Ok(()) => {
                 app.set_sync_status(UiMessage::plain("Address check settings saved."));
                 crate::composer::address_checks_changed();
+                crate::services::refresh(&app, &state_for_reacher, &runtime_for_reacher);
             }
             Err(error) => app.set_sync_status(UiMessage::detail(
                 "Could not save address check settings: {}",
@@ -1103,6 +1111,7 @@ pub(super) fn register_settings_preference_callbacks(
             app.set_sync_status(UiMessage::plain(
                 "Address check settings are active for this session.",
             ));
+            crate::services::refresh(&app, &state_for_reacher_url, &runtime_for_reacher_url);
             return;
         };
         match runtime_for_reacher_url.block_on(core.set_reacher_url(&url)) {
@@ -1112,6 +1121,7 @@ pub(super) fn register_settings_preference_callbacks(
                 // Answers from the old service must not keep colouring chips.
                 crate::composer::reset_address_checks();
                 crate::composer::address_checks_changed();
+                crate::services::refresh(&app, &state_for_reacher_url, &runtime_for_reacher_url);
             }
             Err(error) => app.set_sync_status(UiMessage::detail(
                 "Could not save address check settings: {}",

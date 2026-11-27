@@ -20,6 +20,13 @@ pub(crate) fn spawn(runtime: &tokio::runtime::Handle, core: Arc<Core>) {
     runtime.spawn(async move {
         eprintln!("phishing screen: task started");
         loop {
+            // Without a reachable model every pass would fail the same way.
+            // Keep the screen idle until Settings changes the endpoint or the
+            // next probe finds one.
+            if crate::services::ai_unavailable() {
+                tokio::time::sleep(PASS_INTERVAL).await;
+                continue;
+            }
             match core.scan_security(BATCH).await {
                 Ok(0) => {}
                 Ok(judged) => eprintln!("phishing screen: judged {judged}"),

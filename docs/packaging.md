@@ -161,14 +161,24 @@ rather than storing a secret insecurely. Check with
 `flatpak override --user --talk-name=org.freedesktop.secrets org.yours.mail`
 if a local policy removed it.
 
-### Local Reacher
+### Optional services
 
-The optional Reacher address check defaults to `http://127.0.0.1:8084`.
-Because the manifest uses `--share=network`, 127.0.0.1 is the host's loopback
-and a Reacher service running on the host is reachable from the sandbox. If
-the network namespace is isolated (for example by a user override), loopback
-means the sandbox itself and checks fail; point the setting at a reachable
-host or keep the shared network. Reacher is not bundled with any package.
+Reacher address checks, the AI features and read-aloud all need services the
+packages do not install. **The Flatpak ships only the app**: no Reacher, no
+Ollama or model weights, and no speech engine. Because the manifest uses
+`--share=network`, 127.0.0.1 is the host's loopback and a Reacher, Ollama or
+Kokoro service running on the host is reachable from the sandbox. If the
+network namespace is isolated (for example by a user override), loopback
+means the sandbox itself and the probe reports the service as unreachable;
+point the setting at a reachable host or keep the shared network.
+
+eSpeak NG is not bundled: its installed data is about 25 MB, over the 5 MB
+budget, so the Flatpak relies on a host Kokoro server or an online engine for
+speech. The app detects a missing service at startup, disables the feature
+with an explanation, and never tries to call it anyway.
+
+Per-distribution and Flatpak setup for all three services is in
+[optional-services.md](optional-services.md).
 
 ### GPG, tray, notifications, file handlers
 

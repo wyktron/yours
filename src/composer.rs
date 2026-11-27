@@ -37,6 +37,10 @@ thread_local! {
 /// Whether Settings has address checks on. Kept beside the composers so typing
 /// never has to read the database to decide whether to draw a chip.
 static ADDRESS_CHECKS_ENABLED: AtomicBool = AtomicBool::new(true);
+/// Whether the last capability probe found Reacher. When it is missing, checks
+/// are skipped entirely: no chips, no per-address failures, no dead service
+/// called once per recipient.
+static ADDRESS_CHECKS_AVAILABLE: AtomicBool = AtomicBool::new(false);
 /// Typing settles for this long before the addresses are sent to Reacher.
 const ADDRESS_CHECK_DEBOUNCE: Duration = Duration::from_millis(450);
 /// The local service is small; never keep more than a handful of probes open.
@@ -54,6 +58,19 @@ enum AddressCheckState {
 /// Settings has an "Address checks" switch; the composers read it here.
 pub(crate) fn set_address_checks_enabled(enabled: bool) {
     ADDRESS_CHECKS_ENABLED.store(enabled, Ordering::Relaxed);
+}
+
+/// The capability probe found or lost Reacher. Losing it clears answers from
+/// the old service at once, so no chip can outlive the service that made it.
+pub(crate) fn set_address_checks_available(available: bool) {
+    if ADDRESS_CHECKS_AVAILABLE.swap(available, Ordering::Relaxed) == available {
+        return;
+    }
+    if available {
+        address_checks_changed();
+    } else {
+        reset_address_checks();
+    }
 }
 
 /// The switch or endpoint changed: redraw open composers and check their
@@ -790,7 +807,9 @@ impl Composers {
     /// Start queued checks while there is room for them. The local service is
     /// small, so this is the only place a request is launched.
     fn pump_address_checks(self: &Rc<Self>) {
-        if !ADDRESS_CHECKS_ENABLED.load(Ordering::Relaxed) {
+        if !ADDRESS_CHECKS_ENABLED.load(Ordering::Relaxed)
+            || !ADDRESS_CHECKS_AVAILABLE.load(Ordering::Relaxed)
+        {
             return;
         }
         let Some(core) = self.core() else {
@@ -1553,7 +1572,9 @@ impl ComposeSession {
             return;
         }
         self.refresh_address_checks_ui();
-        if !ADDRESS_CHECKS_ENABLED.load(Ordering::Relaxed) {
+        if !ADDRESS_CHECKS_ENABLED.load(Ordering::Relaxed)
+            || !ADDRESS_CHECKS_AVAILABLE.load(Ordering::Relaxed)
+        {
             return;
         }
         let Some(composers) = self.composers() else {
@@ -1596,7 +1617,9 @@ impl ComposeSession {
         let Some(composers) = self.composers() else {
             return;
         };
-        let rows = if ADDRESS_CHECKS_ENABLED.load(Ordering::Relaxed) {
+        let rows = if ADDRESS_CHECKS_ENABLED.load(Ordering::Relaxed)
+            && ADDRESS_CHECKS_AVAILABLE.load(Ordering::Relaxed)
+        {
             let checked = composers.address_checks.borrow();
             recipient_addresses(&ui)
                 .into_iter()
@@ -4075,6 +4098,12 @@ impl ComposeSession {
 
     /// Ask the model for a reply draft and put it in the editor.
     fn ai_draft(self: &Rc<Self>) {
+        // Disabled in the UI, and guarded here for a programmatic invoke: an
+        // endpoint that is not configured should never look like a broken
+        // request.
+        if crate::services::ai_unavailable() {
+            return;
+        }
         let (Some(composers), Some(host)) = (self.composers(), self.host()) else {
             return;
         };

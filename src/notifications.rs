@@ -1368,7 +1368,9 @@ async fn announces_new_mail(core: &Core) -> bool {
 /// quiet hours are not in effect. The Settings sample is not decided here:
 /// the user pressed Play, so it speaks even inside the window.
 fn announces(settings: &Settings, now: NaiveTime) -> bool {
-    settings.tts_announce_mail && !quiet_hours::is_quiet_at(now, settings)
+    settings.tts_announce_mail
+        && crate::speech::available()
+        && !quiet_hours::is_quiet_at(now, settings)
 }
 
 /// What the voice says for this much new mail: one message names its sender,

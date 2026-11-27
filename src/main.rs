@@ -8,6 +8,7 @@ mod app_icon;
 mod account_removal_tests;
 mod app_runtime;
 mod security_scan;
+mod services;
 mod speech;
 mod attachment_controller;
 mod attachment_reminder;
@@ -169,6 +170,7 @@ use mail_view_model::*;
 use renderer::{GpuEmailRenderer, RenderedEmail};
 use renderer_input_controller::register_renderer_input_callbacks;
 use rich_compose::{ComposeSelection, RichComposeDocument};
+use services::register as register_services;
 use settings_controller::register_settings_preference_callbacks;
 use sidebar_model::{SidebarAnimation, SidebarModel, refresh_sidebar, refresh_sidebar_with_motion};
 use slint::{DataTransfer, Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, Timer, VecModel};
@@ -2614,6 +2616,11 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
         let Some(app) = summary_app.upgrade() else {
             return;
         };
+        // The button is disabled while no endpoint answers; a programmatic
+        // invoke must not start a request that can only fail.
+        if crate::services::ai_unavailable() {
+            return;
+        }
         let Some(core) = summary_state.borrow().core.clone() else {
             return;
         };
@@ -5175,6 +5182,10 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
 
                     if let Some(settings) = settings.as_ref() {
                         apply_settings(&app, settings);
+                        // Ask the optional services once, after the settings
+                        // snapshot exists. The probe runs on the runtime and
+                        // never delays the first frame.
+                        crate::services::refresh(&app, &startup_state, &startup_runtime);
                         // The stored key and any online voice list arrive
                         // after the window is up; read-aloud waits for them.
                         crate::settings_controller::refresh_tts(
@@ -6984,6 +6995,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     });
 
     register_settings_preference_callbacks(&app, &state, &runtime);
+    register_services(&app, &state, &runtime);
     settings_controller::register_update_callbacks(&app, &state, &runtime, &platform.paths.cache_dir);
     #[cfg(desktop)]
     agents::register_settings(&app, &state, &runtime);
