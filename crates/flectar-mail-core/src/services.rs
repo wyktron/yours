@@ -106,6 +106,9 @@ pub struct SpeechStatus {
     /// deliberately last: it is the always-present safety net, not a
     /// replacement for a better voice when one is installed.
     pub fallback: Option<(TtsEngine, String)>,
+    /// The player that will turn the engine's WAV into sound. An engine
+    /// without one is silent, which is exactly what the card must not hide.
+    pub player: Option<AudioPlayer>,
 }
 
 impl SpeechStatus {
@@ -134,6 +137,59 @@ impl SpeechStatus {
         } else {
             self.fallback.as_ref().map(|(engine, _)| *engine)
         }
+    }
+}
+
+/// The programs read-aloud can play a synthesized WAV with, best first:
+/// PipeWire's own client, then PulseAudio's, then ffplay, then ALSA's aplay.
+/// Onyx has paplay but no pw-play, so naming one binary made the sample
+/// silent there while Settings still said "Connected".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AudioPlayer {
+    PwPlay,
+    Paplay,
+    Ffplay,
+    Aplay,
+}
+
+/// Said when a speech engine exists but nothing can play what it synthesizes.
+pub const NO_AUDIO_PLAYER: &str = "No audio player found; install pw-play, paplay or ffplay";
+
+impl AudioPlayer {
+    /// Every player read-aloud knows, in the order they are tried.
+    pub const ALL: [Self; 4] = [Self::PwPlay, Self::Paplay, Self::Ffplay, Self::Aplay];
+
+    pub const fn binary(self) -> &'static str {
+        match self {
+            Self::PwPlay => "pw-play",
+            Self::Paplay => "paplay",
+            Self::Ffplay => "ffplay",
+            Self::Aplay => "aplay",
+        }
+    }
+
+    /// Arguments a player needs before the file. ffplay is a video player: it
+    /// must be told not to open a window, to quit at the end, and to stay
+    /// quiet.
+    pub const fn flags(self) -> &'static [&'static str] {
+        match self {
+            Self::Ffplay => &["-nodisp", "-autoexit", "-loglevel", "quiet"],
+            Self::PwPlay | Self::Paplay | Self::Aplay => &[],
+        }
+    }
+
+    /// The first player installed on this PATH. The probe and the player ask
+    /// the same question in the same order, so Settings cannot promise audio
+    /// the shell cannot play.
+    pub fn detect_in(path: &std::ffi::OsStr) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|player| binary_in_path(player.binary(), path).is_some())
+    }
+
+    /// The first player installed on the process PATH.
+    pub fn find() -> Option<Self> {
+        Self::detect_in(&std::env::var_os("PATH")?)
     }
 }
 
@@ -591,6 +647,7 @@ pub async fn probe_speech(config: &TtsConfig) -> SpeechStatus {
     let piper = piper_voice.is_some() && binary_on_path("piper").is_some();
     let espeak = binary_on_path("espeak-ng").is_some();
     let edge = binary_on_path("edge-tts").is_some();
+    let player = AudioPlayer::find();
     let elevenlabs = !config.api_key.trim().is_empty();
     let custom = !config.endpoint.trim().is_empty();
     let engines = vec![
@@ -619,36 +676,46 @@ pub async fn probe_speech(config: &TtsConfig) -> SpeechStatus {
             available: custom,
         },
     ];
-    decide_speech(config.engine, engines, piper_voice.as_deref())
+    decide_speech(config.engine, engines, piper_voice.as_deref(), player)
 }
 
 impl SpeechStatus {
-    /// What the card says for a fallback: which engine is missing and which
-    /// one speaks instead.
+    /// What the card says: which engine is missing and which one speaks
+    /// instead, and separately whether anything can play it. A missing player
+    /// makes read-aloud silent even with an engine present, so it is named
+    /// rather than blamed on the engine.
     pub fn detail(&self) -> String {
-        match (&self.state, &self.fallback) {
-            (ServiceState::Connected, _) => {
+        match self.state {
+            ServiceState::Connected => {
                 format!("{} is available.", self.selected_engine_label())
             }
-            (ServiceState::Degraded, Some((engine, _))) => format!(
-                "Selected engine {} is not available here; using {}.",
-                self.selected_engine_label(),
-                engine.label()
-            ),
-            (ServiceState::Degraded, None) => {
-                format!("{} could not be checked.", self.selected_engine_label())
+            ServiceState::Degraded => match (&self.fallback, self.player) {
+                (Some((engine, _)), None) => format!(
+                    "Selected engine {} is not available here; using {}. {NO_AUDIO_PLAYER}",
+                    self.selected_engine_label(),
+                    engine.label()
+                ),
+                (Some((engine, _)), Some(_)) => format!(
+                    "Selected engine {} is not available here; using {}.",
+                    self.selected_engine_label(),
+                    engine.label()
+                ),
+                (None, _) => NO_AUDIO_PLAYER.to_owned(),
+            },
+            ServiceState::NotConfigured | ServiceState::Unreachable => {
+                "No speech engine was found.".to_owned()
             }
-            _ => "No speech engine was found.".to_owned(),
         }
     }
 }
 
-/// The decision half of probe_speech, kept pure so the "no engine" and
-/// fallback rules are unit-testable without touching the machine.
+/// The decision half of probe_speech, kept pure so the "no engine", "no
+/// player" and fallback rules are unit-testable without touching the machine.
 pub fn decide_speech(
     selected: TtsEngine,
     engines: Vec<EngineAvailability>,
     piper_voice: Option<&str>,
+    player: Option<AudioPlayer>,
 ) -> SpeechStatus {
     let selected_available = engines
         .iter()
@@ -684,18 +751,21 @@ pub fn decide_speech(
             (engine, voice)
         })
     };
-    // Connected means usable *as chosen*. A fallback keeps read-aloud working,
+    // Usable as chosen needs both halves: the engine synthesizes and some
+    // player turns the WAV into sound. A fallback keeps read-aloud working,
     // which is why it exists, but the label must not hide that the engine the
-    // user picked is missing: that is degraded, with both engines named.
-    let state = if selected_available {
-        ServiceState::Connected
-    } else if fallback.is_some() {
-        ServiceState::Degraded
-    } else {
+    // user picked is missing: that is degraded, with both engines named. An
+    // engine with no player is degraded too, with the player named instead.
+    let any_engine = engines.iter().any(|engine| engine.available);
+    let state = if !any_engine {
         ServiceState::NotConfigured
+    } else if selected_available && player.is_some() {
+        ServiceState::Connected
+    } else {
+        ServiceState::Degraded
     };
     debug_assert_eq!(
-        engines.iter().any(|engine| engine.available),
+        any_engine,
         matches!(state, ServiceState::Connected | ServiceState::Degraded)
     );
     SpeechStatus {
@@ -704,6 +774,7 @@ pub fn decide_speech(
         selected_available,
         engines,
         fallback,
+        player,
     }
 }
 
@@ -768,8 +839,12 @@ fn truncate(mut text: String) -> String {
 
 /// Look for an executable on the PATH, with Windows extensions where needed.
 fn binary_on_path(name: &str) -> Option<PathBuf> {
-    let path = std::env::var_os("PATH")?;
-    for directory in std::env::split_paths(&path) {
+    binary_in_path(name, &std::env::var_os("PATH")?)
+}
+
+/// The same lookup against an explicit PATH, so a test can supply one.
+fn binary_in_path(name: &str, path: &std::ffi::OsStr) -> Option<PathBuf> {
+    for directory in std::env::split_paths(path) {
         let candidate = directory.join(name);
         if candidate.is_file() {
             return Some(candidate);
@@ -899,7 +974,7 @@ impl crate::Core {
         // stderr. They carry service states and model ids only: no address,
         // mail, or key ever reaches them.
         eprintln!(
-            "service probe: ai={} detail={:?} speech={} selected={}(available={}) speaking={} fallback={} reacher={}",
+            "service probe: ai={} detail={:?} speech={} selected={}(available={}) speaking={} fallback={} player={} reacher={}",
             report.ai.state.as_str(),
             report.ai.detail,
             report.speech.state.as_str(),
@@ -915,6 +990,11 @@ impl crate::Core {
                 .fallback
                 .as_ref()
                 .map(|(engine, _)| engine.id())
+                .unwrap_or("-"),
+            report
+                .speech
+                .player
+                .map(AudioPlayer::binary)
                 .unwrap_or("-"),
             report.reacher.state.as_str(),
         );
@@ -1231,6 +1311,7 @@ mod tests {
                 (TtsEngine::Espeak, false),
             ]),
             None,
+            Some(AudioPlayer::Paplay),
         );
         assert_eq!(status.state, ServiceState::NotConfigured);
         assert!(!status.any_available());
@@ -1247,6 +1328,7 @@ mod tests {
                 (TtsEngine::Espeak, true),
             ]),
             None,
+            Some(AudioPlayer::Paplay),
         );
         assert_eq!(
             status.fallback,
@@ -1263,6 +1345,7 @@ mod tests {
                 (TtsEngine::Espeak, true),
             ]),
             Some("en_US-lessac-medium.onnx"),
+            Some(AudioPlayer::Paplay),
         );
         assert_eq!(
             status.fallback,
@@ -1276,6 +1359,7 @@ mod tests {
             TtsEngine::Kokoro,
             availability(&[(TtsEngine::Kokoro, true), (TtsEngine::Espeak, true)]),
             None,
+            Some(AudioPlayer::Paplay),
         );
         assert!(status.selected_available);
         assert_eq!(status.state, ServiceState::Connected);
@@ -1289,6 +1373,7 @@ mod tests {
             TtsEngine::Piper,
             availability(&[(TtsEngine::Piper, true), (TtsEngine::Espeak, true)]),
             Some("en_US-lessac-medium.onnx"),
+            Some(AudioPlayer::Paplay),
         );
         assert_eq!(status.state, ServiceState::Connected, "{status:?}");
         assert_eq!(status.speaking_engine(), Some(TtsEngine::Piper));
@@ -1306,6 +1391,7 @@ mod tests {
                 (TtsEngine::Espeak, true),
             ]),
             Some("en_US-lessac-medium.onnx"),
+            Some(AudioPlayer::Paplay),
         );
         assert_eq!(status.state, ServiceState::Degraded, "{status:?}");
         // Still truthful about what works: read-aloud stays on with the
@@ -1332,11 +1418,165 @@ mod tests {
             TtsEngine::Kokoro,
             availability(&[(TtsEngine::Kokoro, false), (TtsEngine::Espeak, true)]),
             None,
+            Some(AudioPlayer::Paplay),
         );
         assert_eq!(espeak_only.state, ServiceState::Degraded);
         assert_eq!(
             espeak_only.detail(),
             "Selected engine Kokoro (local) is not available here; using eSpeak NG (system)."
         );
+    }
+
+    /// A throwaway directory standing in for the PATH, holding the named
+    /// players as files, the way the probe finds them on a real PATH.
+    struct FakePath {
+        dir: PathBuf,
+        path: std::ffi::OsString,
+    }
+
+    impl FakePath {
+        fn new(names: &[&str]) -> Self {
+            static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+            let unique = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let dir = std::env::temp_dir().join(format!(
+                "flectar-audio-players-{}-{unique}",
+                std::process::id()
+            ));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).expect("create fake PATH directory");
+            for name in names {
+                std::fs::write(dir.join(name), b"#!/bin/sh\n").expect("write fake player");
+            }
+            let path = dir.clone().into_os_string();
+            Self { dir, path }
+        }
+
+        fn os(&self) -> &std::ffi::OsStr {
+            &self.path
+        }
+    }
+
+    impl Drop for FakePath {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    #[test]
+    fn player_resolution_takes_the_first_player_installed_in_order() {
+        assert_eq!(AudioPlayer::detect_in(FakePath::new(&[]).os()), None);
+
+        let alsa = FakePath::new(&["aplay"]);
+        assert_eq!(AudioPlayer::detect_in(alsa.os()), Some(AudioPlayer::Aplay));
+
+        let ffmpeg_and_alsa = FakePath::new(&["aplay", "ffplay"]);
+        assert_eq!(
+            AudioPlayer::detect_in(ffmpeg_and_alsa.os()),
+            Some(AudioPlayer::Ffplay)
+        );
+
+        let pulse = FakePath::new(&["ffplay", "paplay"]);
+        assert_eq!(AudioPlayer::detect_in(pulse.os()), Some(AudioPlayer::Paplay));
+
+        // PipeWire wins when it is there, whatever else is installed.
+        let pipewire = FakePath::new(&["aplay", "paplay", "pw-play"]);
+        assert_eq!(
+            AudioPlayer::detect_in(pipewire.os()),
+            Some(AudioPlayer::PwPlay)
+        );
+
+        // Only the known players count, not any program on the PATH.
+        let unrelated = FakePath::new(&["mpv", "play"]);
+        assert_eq!(AudioPlayer::detect_in(unrelated.os()), None);
+    }
+
+    #[test]
+    fn ffplay_is_told_to_stay_headless_and_quiet() {
+        assert_eq!(
+            AudioPlayer::Ffplay.flags(),
+            &["-nodisp", "-autoexit", "-loglevel", "quiet"]
+        );
+        for player in [
+            AudioPlayer::PwPlay,
+            AudioPlayer::Paplay,
+            AudioPlayer::Aplay,
+        ] {
+            assert!(
+                player.flags().is_empty(),
+                "{} needs no flags",
+                player.binary()
+            );
+        }
+    }
+
+    /// Onyx: Piper and paplay are installed, pw-play is not. Engine without
+    /// any player is degraded and says what to install instead of leaving the
+    /// sample silent.
+    #[test]
+    fn engine_without_a_player_reads_as_degraded_and_names_what_to_install() {
+        let no_player = decide_speech(
+            TtsEngine::Piper,
+            availability(&[(TtsEngine::Piper, true), (TtsEngine::Espeak, true)]),
+            Some("en_US-lessac-medium.onnx"),
+            None,
+        );
+        assert_eq!(no_player.state, ServiceState::Degraded, "{no_player:?}");
+        assert!(no_player.any_available(), "the engine itself still works");
+        assert_eq!(no_player.speaking_engine(), Some(TtsEngine::Piper));
+        assert_eq!(no_player.detail(), NO_AUDIO_PLAYER);
+
+        // A falling-back engine without a player names both problems.
+        let fallback_no_player = decide_speech(
+            TtsEngine::Kokoro,
+            availability(&[(TtsEngine::Kokoro, false), (TtsEngine::Espeak, true)]),
+            None,
+            None,
+        );
+        assert_eq!(fallback_no_player.state, ServiceState::Degraded);
+        assert_eq!(
+            fallback_no_player.detail(),
+            format!(
+                "Selected engine Kokoro (local) is not available here; using eSpeak NG (system). {}",
+                NO_AUDIO_PLAYER
+            )
+        );
+    }
+
+    #[test]
+    fn engine_and_player_together_read_as_connected() {
+        let status = decide_speech(
+            TtsEngine::Piper,
+            availability(&[(TtsEngine::Piper, true)]),
+            Some("en_US-lessac-medium.onnx"),
+            Some(AudioPlayer::Paplay),
+        );
+        assert_eq!(status.state, ServiceState::Connected, "{status:?}");
+        assert_eq!(status.player, Some(AudioPlayer::Paplay));
+        assert_eq!(status.detail(), "Piper (local) is available.");
+
+        // The selected engine being there is not enough on its own: a
+        // fallback engine plus a player stays degraded, as it did before.
+        let fallback = decide_speech(
+            TtsEngine::Kokoro,
+            availability(&[(TtsEngine::Kokoro, false), (TtsEngine::Espeak, true)]),
+            None,
+            Some(AudioPlayer::Ffplay),
+        );
+        assert_eq!(fallback.state, ServiceState::Degraded);
+    }
+
+    #[test]
+    fn no_engine_and_no_player_stays_not_configured() {
+        let status = decide_speech(
+            TtsEngine::Piper,
+            availability(&[(TtsEngine::Piper, false), (TtsEngine::Espeak, false)]),
+            None,
+            None,
+        );
+        assert_eq!(status.state, ServiceState::NotConfigured);
+        assert!(!status.any_available());
+        // The missing engine is the first thing to fix, so it is what the card
+        // says; the player only matters once something can synthesize.
+        assert_eq!(status.detail(), "No speech engine was found.");
     }
 }

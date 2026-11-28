@@ -15,6 +15,7 @@ use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
 use flectar_mail_core::models::Settings;
+use flectar_mail_core::services::{AudioPlayer, NO_AUDIO_PLAYER};
 use flectar_mail_core::tts::{self, TimedWord, TtsConfig};
 
 /// One spoken word: when it is heard, and which bytes of the document it is.
@@ -62,6 +63,17 @@ pub fn available() -> bool {
 /// The fallback engine, if the configured one is missing.
 pub fn fallback() -> Option<(tts::TtsEngine, String)> {
     fallback_slot().read().ok().and_then(|slot| slot.clone())
+}
+
+/// The hint Settings shows for a sample with nothing to play it, under the
+/// existing "Read aloud failed: ..." status line.
+pub const NO_PLAYER_HINT: &str = "No audio player found (install pipewire/pulseaudio clients)";
+
+/// The player read-aloud would use right now. Resolved from the PATH on every
+/// request, so a player installed while the app runs is picked up without a
+/// restart, and the probe and the player can never disagree.
+pub fn player() -> Option<AudioPlayer> {
+    AudioPlayer::find()
 }
 
 fn error_slot() -> &'static Mutex<Option<String>> {
@@ -305,6 +317,16 @@ impl Speech {
         if !available() {
             return;
         }
+        // An engine with no player is silence. Onyx has paplay but no pw-play,
+        // so a hard-coded player failed with its output discarded and the
+        // sample did nothing. Say it once, here, and let the reader show it.
+        let Some(player) = player() else {
+            tracing::error!("{NO_AUDIO_PLAYER}");
+            if let Ok(mut slot) = error_slot().lock() {
+                *slot = Some(NO_AUDIO_PLAYER.to_owned());
+            }
+            return;
+        };
         let Some(&(start_byte, _)) = words.get(from_word) else {
             return;
         };
@@ -361,8 +383,9 @@ impl Speech {
                     ..word
                 })
                 .collect();
-            let mut player = Command::new("pw-play");
-            player
+            let mut command = Command::new(player.binary());
+            command
+                .args(player.flags())
                 .arg(&path)
                 .stdout(Stdio::null())
                 .stderr(Stdio::null());
@@ -377,13 +400,20 @@ impl Speech {
                 // SAFETY: the closure only calls an async-signal-safe system
                 // call between fork and exec.
                 unsafe {
-                    player.pre_exec(|| {
+                    command.pre_exec(|| {
                         libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM, 0, 0, 0);
                         Ok(())
                     });
                 }
             }
-            let Ok(child) = player.spawn() else {
+            let Ok(child) = command.spawn() else {
+                tracing::error!(
+                    player = player.binary(),
+                    "read-aloud could not start the audio player"
+                );
+                if let Ok(mut slot) = error_slot().lock() {
+                    *slot = Some(format!("Could not start {}.", player.binary()));
+                }
                 let _ = std::fs::remove_file(&path);
                 speech.finish_request(generation, None);
                 return;

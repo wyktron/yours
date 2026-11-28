@@ -913,9 +913,24 @@ pub(super) fn register_settings_preference_callbacks(
         }
     });
 
+    let app_weak = app.as_weak();
     let state_for_tts_preview = Rc::clone(state);
     let runtime_for_tts_preview = runtime.clone();
     app.on_preview_tts_voice(move || {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        // An engine on a machine with no player is silence: onyx has paplay
+        // but no pw-play, and the sample used to do nothing at all there. Say
+        // what to install instead of spawning a player that cannot exist.
+        if crate::speech::player().is_none() {
+            tracing::error!("read-aloud sample: no audio player on the PATH");
+            app.set_sync_status(UiMessage::detail(
+                "Read aloud failed: {}",
+                crate::speech::NO_PLAYER_HINT,
+            ));
+            return;
+        }
         let Some(core) = state_for_tts_preview
             .borrow()
             .core
