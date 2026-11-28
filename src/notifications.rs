@@ -1368,9 +1368,13 @@ async fn announces_new_mail(core: &Core) -> bool {
 /// quiet hours are not in effect. The Settings sample is not decided here:
 /// the user pressed Play, so it speaks even inside the window.
 fn announces(settings: &Settings, now: NaiveTime) -> bool {
-    settings.tts_announce_mail
-        && crate::speech::available()
-        && !quiet_hours::is_quiet_at(now, settings)
+    announces_with(settings, now, crate::speech::available())
+}
+
+/// The announcement decision, with speech availability passed in so the time
+/// and switch rules can be tested without depending on this machine's engines.
+fn announces_with(settings: &Settings, now: NaiveTime, speech_ready: bool) -> bool {
+    settings.tts_announce_mail && speech_ready && !quiet_hours::is_quiet_at(now, settings)
 }
 
 /// What the voice says for this much new mail: one message names its sender,
@@ -1394,13 +1398,13 @@ fn announcement(count: usize, senders: &[String]) -> String {
     };
     if list.is_empty() {
         return match count {
-            1 => "You've got mail.".to_owned(),
-            count => format!("You've got {count} new messages."),
+            1 => "You've got email.".to_owned(),
+            count => format!("You've got {count} new emails."),
         };
     }
     match count {
-        1 => format!("You've got mail from {list}."),
-        count => format!("You've got {count} new messages from {list}."),
+        1 => format!("You've got email from {list}."),
+        count => format!("You've got {count} new emails from {list}."),
     }
 }
 
@@ -1586,10 +1590,10 @@ mod tests {
     fn announcement_names_the_sender_of_one_message() {
         assert_eq!(
             announcement(1, &["LinkedIn".to_owned()]),
-            "You've got mail from LinkedIn."
+            "You've got email from LinkedIn."
         );
-        assert_eq!(announcement(1, &[]), "You've got mail.");
-        assert_eq!(announcement(1, &["  ".to_owned()]), "You've got mail.");
+        assert_eq!(announcement(1, &[]), "You've got email.");
+        assert_eq!(announcement(1, &["  ".to_owned()]), "You've got email.");
     }
 
     #[test]
@@ -1597,13 +1601,13 @@ mod tests {
         let names = |list: &[&str]| list.iter().map(|name| (*name).to_owned()).collect::<Vec<_>>();
         assert_eq!(
             announcement(3, &names(&["Ana", "LinkedIn", "Google"])),
-            "You've got 3 new messages from Ana, LinkedIn and Google."
+            "You've got 3 new emails from Ana, LinkedIn and Google."
         );
         assert_eq!(
             announcement(2, &names(&["Ana", "LinkedIn"])),
-            "You've got 2 new messages from Ana and LinkedIn."
+            "You've got 2 new emails from Ana and LinkedIn."
         );
-        assert_eq!(announcement(4, &[]), "You've got 4 new messages.");
+        assert_eq!(announcement(4, &[]), "You've got 4 new emails.");
     }
 
     #[test]
@@ -1614,7 +1618,7 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(
             announcement(4, &names),
-            "You've got 4 new messages from Ana, LinkedIn, Google and others."
+            "You've got 4 new emails from Ana, LinkedIn, Google and others."
         );
     }
 
@@ -1965,23 +1969,25 @@ mod tests {
             ..Settings::default()
         };
         // The default window is 22:00-08:00: the start is quiet, the end is not.
-        assert!(!announces(&settings, at(22, 0)));
-        assert!(!announces(&settings, at(3, 0)));
-        assert!(!announces(&settings, at(7, 59)));
-        assert!(announces(&settings, at(8, 0)));
-        assert!(announces(&settings, at(21, 59)));
+        assert!(!announces_with(&settings, at(22, 0), true));
+        assert!(!announces_with(&settings, at(3, 0), true));
+        assert!(!announces_with(&settings, at(7, 59), true));
+        assert!(announces_with(&settings, at(8, 0), true));
+        assert!(announces_with(&settings, at(21, 59), true));
+        // No engine on the machine means no announcement at any hour.
+        assert!(!announces_with(&settings, at(12, 0), false));
         // Turning the switch off restores the announcement at night.
         let switched_off = Settings {
             quiet_hours: false,
             ..settings.clone()
         };
-        assert!(announces(&switched_off, at(23, 0)));
+        assert!(announces_with(&switched_off, at(23, 0), true));
         // The announcement switch itself still has the last word.
         let muted = Settings {
             tts_announce_mail: false,
             ..settings
         };
-        assert!(!announces(&muted, at(12, 0)));
+        assert!(!announces_with(&muted, at(12, 0), true));
     }
 
     #[tokio::test]
