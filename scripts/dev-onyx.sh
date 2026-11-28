@@ -1,28 +1,34 @@
 #!/usr/bin/env bash
-# Run cargo (check/test/clippy/build) on onyx instead of this workstation.
-# The release build lives in scripts/build-onyx.sh; this is the iterative
-# companion so a debug compile never eats tron's RAM and disk.
+# dev-onyx.sh — run ANY cargo command against the canonical Yours checkout on onyx.
 #
-#   scripts/dev-onyx.sh test --lib services
+# Yours is developed on onyx: onyx is the source of truth (edit, build, test,
+# commit, push). tron is a display node that runs the GUI.
+#
+# From tron (or any machine that can ssh to onyx):
 #   scripts/dev-onyx.sh check --all-targets
+#   scripts/dev-onyx.sh test --workspace
 #   scripts/dev-onyx.sh clippy -- -D warnings
+#   scripts/dev-onyx.sh build --release -j 16
+#
+# Run on onyx itself, the same command executes in the local checkout.
+# There is no tron->onyx file sync any more: pull on onyx with 'git pull'.
 set -euo pipefail
 
-HOST="${ONYON_HOST:-onyx}"
-REMOTE_DIR="${ONYON_DIR:-flectar-build}"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+HOST="${ONYX_HOST:-onyx}"
+REMOTE_DIR="${ONYX_DIR:-flectar-build}"
+LOCAL_CHECKOUT="$HOME/$REMOTE_DIR"
 
 if [ "$#" -eq 0 ]; then
   echo "usage: $0 <cargo subcommand> [args...]" >&2
   exit 2
 fi
 
-# Keep the remote tree in step with this one, without the build directory.
-rsync -a \
-  --exclude 'target/' --exclude '.git/' --exclude '.flatpak-builder/' \
-  --exclude 'target-ci/' --exclude '*.db' --exclude '*.db-wal' --exclude '*.db-shm' \
-  "$ROOT/" "$HOST:~/$REMOTE_DIR/"
+if [ -d "$LOCAL_CHECKOUT/.git" ]; then
+  cd "$LOCAL_CHECKOUT"
+  export RUST_MIN_STACK="${RUST_MIN_STACK:-67108864}"
+  exec cargo "$@"
+fi
 
-status=0
-ssh "$HOST" "cd ~/$REMOTE_DIR && RUST_MIN_STACK=67108864 cargo $*" || status=$?
-exit "$status"
+# Forward the exact argument vector over ssh; printf %q keeps the quoting sane.
+remote_cmd="cd ~/$REMOTE_DIR && export RUST_MIN_STACK=\${RUST_MIN_STACK:-67108864} && exec cargo $(printf '%q ' "$@")"
+exec ssh -t "$HOST" "$remote_cmd"

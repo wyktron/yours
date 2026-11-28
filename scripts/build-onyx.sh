@@ -14,6 +14,22 @@
 # Overrides: ONYX_HOST (onyx), ONYX_BUILD_DIR (flectar-build), ONYX_JOBS (16).
 set -euo pipefail
 
+# RETIRED (migration 2026-11-28): onyx is the canonical checkout and build host
+# now, so rsyncing a tron working tree over ~/flectar-build would overwrite the
+# source of truth with an older tree. Use scripts/build-and-show.sh on onyx, or
+# scripts/dev-onyx.sh <cargo cmd>. The implementation below stays behind the
+# override only for an emergency rebuild from a tree known to match onyx.
+if [ "${ALLOW_LEGACY_BUILD_ONYX:-}" != "1" ]; then
+  cat >&2 <<'MSG'
+build-onyx.sh is retired: onyx is now the canonical checkout.
+  on onyx:   scripts/build-and-show.sh
+  any cargo: scripts/dev-onyx.sh <cargo subcommand...>
+Set ALLOW_LEGACY_BUILD_ONYX=1 only for an emergency rebuild from a tron tree
+that is known to match onyx.
+MSG
+  exit 2
+fi
+
 HOST="${ONYX_HOST:-onyx}"
 REMOTE_DIR="${ONYX_BUILD_DIR:-flectar-build}"
 JOBS="${ONYX_JOBS:-16}"
