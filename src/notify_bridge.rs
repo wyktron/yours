@@ -68,6 +68,16 @@ static STATUS: Mutex<Status> = Mutex::new(Status {
 /// waiting for another probe.
 static APP: Mutex<Option<slint::Weak<AppWindow>>> = Mutex::new(None);
 
+/// The runtime and the store the bridge reads settings through, kept so a
+/// notification raised inside Yours' own Tuta web view can be read aloud
+/// without going through the session bus.
+static RUNTIME: OnceLock<tokio::runtime::Handle> = OnceLock::new();
+static CORE: OnceLock<std::sync::Arc<Core>> = OnceLock::new();
+
+/// The embedded window may send the same line twice for one message (a
+/// replace arrives moments after the original), and that repeat stays silent.
+static WEB_DEDUPE: Mutex<Dedupe> = Mutex::new(Dedupe { recent: Vec::new() });
+
 /// Whether anything has shown a desktop file for a Tuta application.
 static DETECTED_FILES: OnceLock<bool> = OnceLock::new();
 
@@ -129,6 +139,11 @@ pub(crate) fn start(
     if let Ok(mut slot) = APP.lock() {
         *slot = Some(app);
     }
+    // The embedded Tuta window's own notifications are announced in this
+    // process too (src/tuta_window.rs forwards them here), so it needs the
+    // same runtime and store.
+    let _ = RUNTIME.set(runtime.clone());
+    let _ = CORE.set(std::sync::Arc::clone(&core));
     let runtime = runtime.clone();
     runtime.clone().spawn(async move {
         loop {
@@ -155,6 +170,55 @@ pub(crate) fn start(
             tokio::time::sleep(BUS_RETRY).await;
         }
     });
+}
+
+
+/// Read a notification raised by the Tuta web app embedded in Yours aloud,
+/// with the same switch, quiet hours, sender extraction and dedupe as the
+/// notifications seen on the session bus.
+///
+/// The embedded page's notifications never reach the bus: WebKitGTK hands
+/// them to the window, which forwards the line here. So the bus listener
+/// above keeps covering the desktop Tuta application, while this entry covers
+/// Yours' own web view. `summary` is the notification's title, usually the
+/// sender, and `body` its text.
+///
+/// Returns true when the line was handed to the speech engine (or was a
+/// repeated copy). False means the notification was not spoken, and the
+/// caller should let WebKitGTK show it normally instead.
+pub fn announce_web_notification(summary: &str, body: &str) -> bool {
+    let (Some(runtime), Some(core)) = (RUNTIME.get(), CORE.get()) else {
+        return false;
+    };
+    let Ok(settings) = runtime.block_on(core.get_settings()) else {
+        return false;
+    };
+    if !announces_with(
+        &settings,
+        chrono::Local::now().time(),
+        detected(),
+        crate::speech::available(),
+    ) {
+        eprintln!(
+            "tuta web app: staying silent for {summary:?} (announcing is off, quiet hours, or no speech engine)"
+        );
+        return false;
+    }
+    if !WEB_DEDUPE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .accept(("tuta-web-app", summary, body), Instant::now())
+    {
+        // The same line again is the same message; keep it off screen too.
+        return true;
+    }
+    let sender = sender_from("Tuta", summary);
+    let line = spoken_line(&sender);
+    // The voice is inaudible in a log, so the line is printed: that is how a
+    // live check proves the embedded page's notification was read.
+    eprintln!("tuta web app: read aloud: {line}");
+    crate::speech::announce(runtime, &line);
+    true
 }
 
 /// One Notify call worth looking at.

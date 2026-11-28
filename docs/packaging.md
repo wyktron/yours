@@ -78,6 +78,32 @@ flatpak-cargo-generator -d Cargo.lock \
   -o packaging/flatpak/cargo-sources.json
 ```
 
+### The embedded Tuta web app and the Flatpak runtime
+
+The sidebar's "Tuta web app" entry embeds <https://app.tuta.com> in a WebKitGTK
+web view (`src/tuta_window.rs`). GTK 3 and WebKitGTK 4.1 are therefore
+link-time dependencies of the `yours` executable, and the current manifest
+needs attention before a bundle will work:
+
+- **`org.freedesktop.Platform` does not ship WebKitGTK.** The manifest as
+  written cannot build or run the embedded window. The smaller of the two
+  fixes is to switch `runtime`/`sdk` to `org.gnome.Platform`/`
+  org.gnome.Sdk` 25.08, whose runtime includes `webkit2gtk-4.1`; the
+  alternative is a bundled WebKitGTK module, which is a large build. Neither
+  change is made here.
+- `cargo-sources.json` must be regenerated with the command above: the
+  lockfile now includes `wry`, `tao` and the gtk-rs/WebKitGTK stack, and the
+  flatpak build is offline.
+- The build image needs GTK/WebKit development headers. The GNOME SDK has
+  them; the freedesktop SDK does not.
+- No `finish-args` change is needed: the manifest already has Wayland with an
+  X11 fallback and host network access for `app.tuta.com`, and WebKitGTK
+  delivers the page's notifications through the host's
+  `org.freedesktop.portal.Notification`, which every Flatpak may use.
+- The Tuta session is kept with the app's data, under
+  `~/.var/app/org.yours.mail/data/yours-mail/tuta/webview`, so it is covered
+  by the existing data directory and needs no new `--filesystem` grant.
+
 ## RPM
 
 `packaging/rpm/yours.spec` builds the workspace with
@@ -86,10 +112,13 @@ content and the GPU renderer; native packages keep the tray and talk to the
 desktop's notification server directly). It installs the binary, desktop
 entry, AppStream metadata, hicolor icons, and the dual-license tree.
 
-The executable links only `libdbus-1` beyond libc; fontconfig, FreeType,
-Wayland, X11/XCB and xkbcommon are loaded at runtime, so the spec requires them
-explicitly. `reqwest` uses rustls, so OpenSSL is not a dependency. Fedora 43+
-is the tested family; `ExclusiveArch` is x86_64 and aarch64.
+Beyond libc the executable links `libdbus-1`, GTK 3 and WebKitGTK 4.1: the
+last two are the embedded Tuta web app (`src/tuta_window.rs`). Fontconfig,
+FreeType, Wayland, X11/XCB and xkbcommon are loaded at runtime, so the spec
+requires them explicitly; `gtk3` and `webkit2gtk4.1` are named there too for
+clarity even though RPM derives the soname dependencies. `reqwest` uses
+rustls, so OpenSSL is not a dependency. Fedora 43+ is the tested family;
+`ExclusiveArch` is x86_64 and aarch64.
 
 ```bash
 git archive --prefix=yours-0.1.0-alpha.7/ \
@@ -140,6 +169,11 @@ dpkg-buildpackage -b -us -uc
 rm debian
 sudo apt install ../yours_0.1.0~alpha.7-1_*.deb
 ```
+
+The Debian `Build-Depends` also need `libgtk-3-dev` and
+`libwebkit2gtk-4.1-dev` for the embedded Tuta web app; `${shlibs:Depends}`
+adds the matching runtime libraries to `Depends`, so no explicit
+`libgtk-3-0`/`libwebkit2gtk-4.1-0` entry is needed there.
 
 `dpkg-buildpackage -b` builds the binary package without an orig tarball.
 A source upload needs `yours_0.1.0~alpha.7.orig.tar.*` because the format is

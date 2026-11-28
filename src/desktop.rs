@@ -34,6 +34,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(code) = flectar_mail::spelling::run_index_worker_if_requested() {
         std::process::exit(code);
     }
+    // The Tuta web app runs in a process of its own: its GTK/WebKitGTK event
+    // loop needs the main thread, which Slint's event loop owns here. See
+    // src/tuta_window.rs for the whole story.
+    #[cfg(linux_desktop)]
+    if let Some(code) = flectar_mail::tuta_window::run_if_requested() {
+        std::process::exit(code);
+    }
     flectar_mail::run_desktop(flectar_mail::platform::launch_context()?)
 }
 

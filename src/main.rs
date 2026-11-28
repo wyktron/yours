@@ -117,6 +117,8 @@ mod tabs;
 #[cfg(test)]
 mod tall_surface_tests;
 mod text_size;
+#[cfg(linux_desktop)]
+pub mod tuta_window;
 mod theme;
 mod ui_dispatch;
 mod ui_message;
@@ -7036,6 +7038,10 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
     #[cfg(target_os = "macos")]
     mailto_links::receive_from_macos(&app);
     notifications::ui::attach(&app, &state, &runtime, platform.notifications.clone());
+    // Tuta's account exists only in its web app, so the sidebar opens that
+    // app in a window of its own (src/tuta_window.rs).
+    #[cfg(linux_desktop)]
+    tuta_window::install(&app, &platform.paths.data_dir);
 
     // The copy-code toast: only the code it shows is copied, through Slint's
     // clipboard bridge; Open goes where a notification for that mail would.

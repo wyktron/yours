@@ -14,6 +14,7 @@ import { LayoutMetrics, MailIconPalette, MotionSettings } from "../design-system
 import { LocalMailUi } from "../local-mail.slint";
 import { SavedSearchUi } from "../saved-searches.slint";
 import { Updates } from "../updates.slint";
+import { TutaWebApp } from "../tuta-web-app.slint";
 import { TypeScale } from "../typography.slint";
 
 // The profile switcher across a sidebar, as tall as its buttons.
@@ -868,6 +869,27 @@ export component MailSidebar inherits CollapsibleWorkspaceSidebar {
                 content-y: mailbox-scroll.content-y;
                 content-height: mailbox-scroll.content-height;
                 visible-height: mailbox-scroll.visible-height;
+            }
+        }
+
+        // Tuta is not a mail account in Yours: it exists only as a web app,
+        // so the row names what it opens instead of pretending otherwise.
+        if TutaWebApp.available : VerticalLayout {
+            padding-bottom: 6px;
+            SidebarItem {
+                horizontal-stretch: 1;
+                row-height: 31px;
+                label: @tr("Tuta web app");
+                accessible-name: @tr("Open the Tuta web app in its own window");
+                scope: "";
+                icon: @image-url("../icons/lucide/outline/external-link.svg");
+                sidebar-background: root.background-color;
+                selection-background: root.selection-background;
+                accent-color: root.accent-color;
+                body-color: root.body-color;
+                muted-color: root.muted-color;
+                icon-color: root.muted-color;
+                clicked(scope) => { TutaWebApp.open(); }
             }
         }
 

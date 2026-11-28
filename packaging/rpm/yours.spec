@@ -22,10 +22,11 @@ URL:            https://flectar.com
 Source0:        %{name}-%{upstream_version}.tar.gz
 ExclusiveArch:  x86_64 aarch64
 
-# The Rust workspace and the C libraries Slint, winit and the document
-# renderer look for while linking. The executable itself links only libdbus-1
-# beyond libc; the display, font and XCB libraries are dlopen'ed, which is why
-# the runtime Requires below are explicit.
+# The Rust workspace and the C libraries Slint, winit, the document renderer
+# and the embedded Tuta web app (WebKitGTK through wry/tao) look for while
+# linking. Beyond libc the executable links libdbus-1, GTK 3 and
+# WebKitGTK 4.1; the display, font and XCB libraries are dlopen'ed, which is
+# why the runtime Requires below are explicit.
 BuildRequires:  cargo
 BuildRequires:  rust >= 1.95
 BuildRequires:  gcc
@@ -40,10 +41,14 @@ BuildRequires:  libxcb-devel
 BuildRequires:  libxkbcommon-devel
 BuildRequires:  libxkbcommon-x11-devel
 BuildRequires:  wayland-devel
+BuildRequires:  gtk3-devel
+BuildRequires:  webkit2gtk4.1-devel
 BuildRequires:  desktop-file-utils
 BuildRequires:  appstream
 
 Requires:       dbus-libs
+Requires:       gtk3
+Requires:       webkit2gtk4.1
 Requires:       fontconfig
 Requires:       freetype
 Requires:       hicolor-icon-theme

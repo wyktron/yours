@@ -1,0 +1,10 @@
+// Tuta has no IMAP account and no bridge: its mail exists only in the
+// official web app. The sidebar entry opens that web app in a window of its
+// own (src/tuta_window.rs), which is why its label says "web app".
+export global TutaWebApp {
+    // Only hosts that can embed WebKitGTK show the entry; elsewhere the
+    // sidebar leaves it out rather than offering a dead button.
+    in-out property <bool> available: false;
+    // Bring the window up, or focus the one that is already open.
+    callback open();
+}

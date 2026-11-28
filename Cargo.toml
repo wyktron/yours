@@ -216,6 +216,18 @@ wayland-backend = { version = "0.3", default-features = false, features = ["clie
 wayland-client = { version = "0.31", default-features = false }
 wayland-protocols = { version = "0.32", default-features = false, features = ["client", "staging"] }
 
+# The embedded Tuta web app (src/tuta_window.rs). Tuta has no IMAP account and
+# no bridge, so the official web app at https://app.tuta.com is the account.
+# wry renders it in the WebKitGTK already on the system, and tao owns that
+# process's window and GTK event loop. Both are Linux-only: on other hosts the
+# sidebar entry opens the web app in the default browser instead.
+wry = { version = "0.58.2", default-features = false, features = ["os-webview", "x11"] }
+tao = "0.38.0"
+gtk = "0.19.0"
+# The embedded window hands the page's notification signal to the bridge
+# in src/notify_bridge.rs instead of letting it reach the session bus.
+webkit2gtk = { version = "3.0", default-features = false }
+
 # Integrated window frames use winit window attributes and native window events.
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "ios"))'.dependencies]
 slint = { version = "1.19.0", default-features = false, features = ["backend-winit", "unstable-winit-030"] }
