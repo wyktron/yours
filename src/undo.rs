@@ -25,6 +25,8 @@ struct Pending {
     draft_id: i64,
     /// Taken back: how it ended is no news.
     undone: bool,
+    /// Its time is still ahead: quitting must leave it queued, not send it now.
+    scheduled: bool,
 }
 
 /// What the notice tells of.
@@ -103,6 +105,7 @@ pub(super) fn sending(app: &AppWindow, queued: QueueSendResult) {
             action_id: queued.action_id,
             draft_id: queued.draft_id,
             undone: false,
+            scheduled: false,
         });
         undo.show(
             app,
@@ -125,6 +128,59 @@ pub(super) fn sending(app: &AppWindow, queued: QueueSendResult) {
             });
         });
     });
+}
+
+/// A message took a send-later time: the notice names it, and the queue keeps
+/// it until then. It must not leave early when the app quits.
+pub(super) fn scheduled(app: &AppWindow, queued: QueueSendResult, at_secs: i64) {
+    with_undo(|undo| {
+        let Some(core) = undo.state.borrow().core.clone() else {
+            return;
+        };
+        undo.pending.borrow_mut().push(Pending {
+            action_id: queued.action_id,
+            draft_id: queued.draft_id,
+            undone: false,
+            scheduled: true,
+        });
+        undo.show(
+            app,
+            Shown::Send {
+                action_id: queued.action_id,
+                draft_id: queued.draft_id,
+            },
+            UiMessage::detail("Scheduled to send {}.", scheduled_at(at_secs)),
+            "undo",
+            None,
+        );
+        let action_id = queued.action_id;
+        let dispatch_at = queued.dispatch_at;
+        undo.runtime.spawn(async move {
+            // Sleep until its time rather than polling the queue for hours.
+            let wait_ms = (dispatch_at - chrono::Utc::now().timestamp_millis()).max(0);
+            tokio::time::sleep(Duration::from_millis(wait_ms as u64)).await;
+            // A phone keeps the app running until the message is out.
+            #[cfg(background_checks)]
+            let _awake = crate::platform::stay_awake();
+            let result = core.wait_for_send(action_id).await;
+            let _ = slint::invoke_from_event_loop(move || {
+                with_undo(|undo| undo.finished(action_id, result));
+            });
+        });
+    });
+}
+
+/// The local date and time a scheduled send is due, as its notice names it.
+fn scheduled_at(at_secs: i64) -> String {
+    use chrono::TimeZone;
+    chrono::Local
+        .timestamp_opt(at_secs, 0)
+        .single()
+        .map(|at| {
+            crate::date_format::current()
+                .date_time(crate::date_format::DateStyle::Medium, at.naive_local())
+        })
+        .unwrap_or_default()
 }
 
 /// Mail was just archived, moved, deleted, marked or starred: tell of it,
@@ -201,6 +257,13 @@ fn gesture_message(batch: UndoableBatch) -> UiMessage {
     }
 }
 
+/// Whether a send still waiting may leave at exit. One waiting out the undo
+/// delay does: it was meant to go now. A scheduled one does not: its time may
+/// be days away, and the queue keeps it across restarts.
+fn leaves_at_exit(pending: &Pending) -> bool {
+    !pending.undone && !pending.scheduled
+}
+
 /// The app is ending: messages still waiting out their delay leave now
 /// rather than at the next start.
 pub(super) fn send_before_exit(runtime: &tokio::runtime::Handle) {
@@ -209,7 +272,7 @@ pub(super) fn send_before_exit(runtime: &tokio::runtime::Handle) {
             .pending
             .borrow()
             .iter()
-            .filter(|pending| !pending.undone)
+            .filter(|pending| leaves_at_exit(pending))
             .map(|pending| pending.action_id)
             .collect::<Vec<_>>();
         let Some(core) = undo.state.borrow().core.clone() else {
@@ -447,5 +510,46 @@ impl Undo {
                 None,
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Pending, leaves_at_exit, scheduled_at};
+
+    fn waiting(scheduled: bool, undone: bool) -> Pending {
+        Pending {
+            action_id: 1,
+            draft_id: 2,
+            undone,
+            scheduled,
+        }
+    }
+
+    #[test]
+    fn verify_a_scheduled_send_waits_for_its_time_instead_of_leaving_at_exit() {
+        assert!(
+            leaves_at_exit(&waiting(false, false)),
+            "a send in its undo delay leaves now"
+        );
+        assert!(
+            !leaves_at_exit(&waiting(true, false)),
+            "a scheduled send waits for its own time"
+        );
+        assert!(!leaves_at_exit(&waiting(false, true)));
+        assert!(!leaves_at_exit(&waiting(true, true)));
+    }
+
+    #[test]
+    fn verify_a_scheduled_send_names_its_local_date_and_time() {
+        let label = scheduled_at(1_800_000_000);
+        assert!(label.contains("2027"), "the date is shown: {label}");
+        assert!(label.contains(':'), "the time is shown: {label}");
+        assert_eq!(
+            scheduled_at(1_800_000_000),
+            label,
+            "the same instant reads the same"
+        );
+        assert_ne!(scheduled_at(1_800_000_000), scheduled_at(1_800_003_600));
     }
 }

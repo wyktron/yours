@@ -6,11 +6,11 @@
 use super::*;
 use crate::rich_compose::{EditMark, EditState};
 use chrono::TimeZone;
+use flectar_mail_core::Scenario;
 use flectar_mail_core::models::{
     Address, AttachmentMeta, Importance, QueueSendArgs, SaveDraftArgs, SenderIdentity, Settings,
     Signature,
 };
-use flectar_mail_core::Scenario;
 use flectar_mail_core::reacher::ReacherVerdict;
 use slint::SharedString;
 #[cfg(desktop)]
@@ -818,10 +818,7 @@ impl Composers {
             let mut checked = self.address_checks.borrow_mut();
             let mut queue = self.address_check_queue.borrow_mut();
             while let Some(key) = queue.pop_front() {
-                checked.insert(
-                    key,
-                    AddressCheckState::Checked(ReacherVerdict::Unknown),
-                );
+                checked.insert(key, AddressCheckState::Checked(ReacherVerdict::Unknown));
             }
             drop(queue);
             drop(checked);
@@ -866,10 +863,9 @@ impl Composers {
                 }
             });
             if spawned.is_err() {
-                self.address_checks.borrow_mut().insert(
-                    key,
-                    AddressCheckState::Checked(ReacherVerdict::Unknown),
-                );
+                self.address_checks
+                    .borrow_mut()
+                    .insert(key, AddressCheckState::Checked(ReacherVerdict::Unknown));
                 self.address_checks_running
                     .set(self.address_checks_running.get().saturating_sub(1));
                 refresh_all_address_checks(self);
@@ -3671,7 +3667,13 @@ impl ComposeSession {
                 // main window can take the message back until it leaves.
                 Ok((queued, true)) => {
                     self.dispose();
-                    crate::undo::sending(&app, queued);
+                    // A send-later time still ahead is not the undo delay: say
+                    // when it goes, and let the queue keep it, even at quit.
+                    if scheduled > 0 {
+                        crate::undo::scheduled(&app, queued, i64::from(scheduled));
+                    } else {
+                        crate::undo::sending(&app, queued);
+                    }
                     mailto_links::open_pending_soon(&app);
                 }
                 Ok((queued, false)) => {
@@ -4131,10 +4133,8 @@ impl ComposeSession {
                     .unwrap_or_default(),
             )
         };
-        host.ui().set_notice(
-            UiMessage::plain("Asking the model for a draft…"),
-            false,
-        );
+        host.ui()
+            .set_notice(UiMessage::plain("Asking the model for a draft…"), false);
         let runtime = composers.runtime.clone();
         let task = runtime.spawn(async move {
             core.file_core()
@@ -4167,10 +4167,9 @@ impl ComposeSession {
                         false,
                     );
                 }
-                Ok(_) => host.ui().set_notice(
-                    UiMessage::plain("The model returned an empty draft."),
-                    true,
-                ),
+                Ok(_) => host
+                    .ui()
+                    .set_notice(UiMessage::plain("The model returned an empty draft."), true),
                 Err(error) => host.ui().set_notice(
                     UiMessage::detail("Could not draft a reply: {}", error),
                     true,
@@ -4863,6 +4862,58 @@ mod tests {
         }
     }
 
+    /// A setup whose composers talk to a real mail core on a temporary store,
+    /// so the send paths can run against the queue and draft tables the app uses.
+    fn setup_with_core() -> Setup {
+        let Setup {
+            app,
+            composers,
+            _runtime,
+            _dir,
+        } = setup();
+        let core = _runtime
+            .block_on(CoreMailSource::start(
+                flectar_mail_core::config::Paths::for_tests(&_dir.path().join("store")),
+                Arc::new(
+                    flectar_mail_core::accounts::credentials::DevelopmentFileCredentialStore::new(
+                        _dir.path().join("credentials.json"),
+                    ),
+                ),
+                Arc::new(flectar_mail_core::oauth::redirect::LoopbackRedirectBroker::default()),
+            ))
+            .expect("a mail core");
+        // The minimum an account needs before a draft can be saved and queued.
+        _runtime
+            .block_on(core.file_core().db.write(|conn| {
+                conn.execute(
+                    "INSERT INTO accounts (id, email, provider, auth_kind, username,
+                     incoming_host, incoming_port, smtp_host, smtp_port, created_at,
+                     mail_protocol, settings_json)
+                     VALUES (1,'me@test.dev','generic','password','me','h',993,'h',587,0,
+                     'imap','{\"connection\":{\"incomingSecurity\":\"tls\",\"smtpSecurity\":\"tls\"}}')",
+                    [],
+                )?;
+                conn.execute(
+                    "INSERT INTO folders (id, account_id, path, role) VALUES (1,1,'INBOX','inbox')",
+                    [],
+                )?;
+                Ok(())
+            }))
+            .expect("an account to send from");
+        {
+            let mut state = composers.state.borrow_mut();
+            state.core = Some(core);
+            state.using_core = true;
+        }
+        crate::undo::install(&app, &composers.state, _runtime.handle());
+        Setup {
+            app,
+            composers,
+            _runtime,
+            _dir,
+        }
+    }
+
     #[test]
     fn a_draft_an_agent_asks_to_send_opens_in_a_window_of_its_own() {
         let Setup {
@@ -5384,5 +5435,182 @@ mod tests {
             let drawn = size.height as f32 / size.width as f32;
             assert!((shown - drawn).abs() < 0.02, "shown {shown}, drawn {drawn}");
         }
+    }
+
+    /// Reacher's verdicts are the composer's chip states: the UI colours
+    /// "safe" green, "invalid" red, "risky" purple and "unknown" yellow.
+    #[test]
+    fn verify_reacher_verdicts_map_to_the_chip_states_the_ui_colours() {
+        assert_eq!(verdict_state(ReacherVerdict::Safe), "safe");
+        assert_eq!(verdict_state(ReacherVerdict::Invalid), "invalid");
+        assert_eq!(verdict_state(ReacherVerdict::Risky), "risky");
+        assert_eq!(verdict_state(ReacherVerdict::Unknown), "unknown");
+    }
+
+    /// A custom send time becomes one pending send action due at the chosen
+    /// local time, with the composer closed; the queue can take it back.
+    #[test]
+    fn verify_custom_send_time_queues_a_pending_send_that_can_be_cancelled() {
+        use chrono::Timelike;
+        let Setup {
+            app,
+            composers,
+            _runtime,
+            _dir,
+        } = setup_with_core();
+        app.invoke_open_compose("contact@victorgirbu.com".into());
+        let session = composers.in_app().expect("a composer");
+        let host = session.host().unwrap();
+        host.preferences().set_composer_preferences_ready(true);
+        host.preferences()
+            .set_composer_sender_email("me@test.dev".into());
+        let ui = host.ui();
+        ui.set_subject("Send later".into());
+        ui.set_body("Queued from a test.".into());
+
+        let at = (chrono::Local::now() + chrono::Duration::hours(6))
+            .with_second(0)
+            .unwrap()
+            .with_nanosecond(0)
+            .unwrap();
+        ui.set_schedule_date(at.format("%Y-%m-%d").to_string().into());
+        ui.set_schedule_time(at.format("%H:%M").to_string().into());
+        session.schedule_send_custom();
+
+        assert!(
+            composers.in_app().is_none(),
+            "the composer closes once the message is queued"
+        );
+        let notice = app.global::<crate::Notice>();
+        assert!(notice.get_shown(), "the main window tells of the send");
+        assert_eq!(
+            notice.get_message().key.as_str(),
+            "Scheduled to send {}.",
+            "it says the message is scheduled, not already sending"
+        );
+        assert_eq!(notice.get_action().as_str(), "undo", "it can be taken back");
+        let core = composers.core().expect("the core");
+        let (action_id, not_before, state) = _runtime
+            .block_on(core.file_core().db.read(|conn| {
+                let row = conn.query_row(
+                    "SELECT id, not_before, state FROM pending_actions
+                      WHERE kind='send' ORDER BY id DESC LIMIT 1",
+                    [],
+                    |row| {
+                        Ok((
+                            row.get::<_, i64>(0)?,
+                            row.get::<_, i64>(1)?,
+                            row.get::<_, String>(2)?,
+                        ))
+                    },
+                )?;
+                Ok(row)
+            }))
+            .expect("a queued send");
+        assert_eq!(state, "pending", "the send waits in the durable queue");
+        assert_eq!(
+            not_before,
+            at.timestamp() * 1000,
+            "the chosen local time is when it is due"
+        );
+        assert!(
+            _runtime
+                .block_on(core.cancel_send(action_id))
+                .expect("cancelling the send"),
+            "a send that has not started is still cancellable"
+        );
+        let state = _runtime
+            .block_on(core.file_core().db.read(move |conn| {
+                let state = conn.query_row(
+                    "SELECT state FROM pending_actions WHERE id=?1",
+                    [action_id],
+                    |row| row.get::<_, String>(0),
+                )?;
+                Ok(state)
+            }))
+            .expect("the send action");
+        assert_eq!(state, "cancelled");
+    }
+
+    /// "Deliver individually" fans a two-recipient message out into one draft
+    /// and one queued send per recipient, each naming only that recipient.
+    #[test]
+    fn verify_deliver_individually_queues_one_send_per_recipient() {
+        let Setup {
+            app,
+            composers,
+            _runtime,
+            _dir,
+        } = setup_with_core();
+        app.invoke_open_compose("ana@example.test, bob@example.test".into());
+        let session = composers.in_app().expect("a composer");
+        let host = session.host().unwrap();
+        host.preferences().set_composer_preferences_ready(true);
+        host.preferences()
+            .set_composer_sender_email("me@test.dev".into());
+        let ui = host.ui();
+        let send_at = (chrono::Local::now() + chrono::Duration::hours(6)).timestamp();
+        ui.set_send_at(i32::try_from(send_at).unwrap());
+        ui.set_deliver_individually(true);
+        let to = ui.get_to();
+        assert_eq!(to, "ana@example.test, bob@example.test");
+        session.save(1, &to, "", "", "Individually", "Hello both", true);
+
+        let core = composers.core().expect("the core");
+        let rows = _runtime
+            .block_on(core.file_core().db.read(|conn| {
+                let mut statement = conn.prepare(
+                    "SELECT p.id, m.to_json, m.cc_json, m.bcc_json
+                       FROM pending_actions p JOIN messages m ON m.id = p.message_id
+                      WHERE p.kind='send' AND p.state='pending' ORDER BY p.id",
+                )?;
+                let rows = statement
+                    .query_map([], |row| {
+                        Ok((
+                            row.get::<_, i64>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, String>(2)?,
+                            row.get::<_, String>(3)?,
+                        ))
+                    })?
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(rows)
+            }))
+            .expect("queued sends");
+        assert_eq!(rows.len(), 2, "one copy per To recipient");
+        let mut sent_to = Vec::new();
+        for (_, to_json, cc_json, bcc_json) in &rows {
+            let to: Vec<serde_json::Value> = serde_json::from_str(to_json).unwrap();
+            let cc: Vec<serde_json::Value> = serde_json::from_str(cc_json).unwrap();
+            let bcc: Vec<serde_json::Value> = serde_json::from_str(bcc_json).unwrap();
+            assert_eq!(to.len(), 1, "each copy names one recipient: {to_json}");
+            assert!(cc.is_empty() && bcc.is_empty(), "only To is used");
+            sent_to.push(to[0]["email"].as_str().unwrap().to_owned());
+        }
+        sent_to.sort();
+        assert_eq!(sent_to, ["ana@example.test", "bob@example.test"]);
+
+        for (action_id, ..) in &rows {
+            assert!(
+                _runtime
+                    .block_on(core.cancel_send(*action_id))
+                    .expect("cancelling a copy"),
+                "a copy that has not started is still cancellable"
+            );
+        }
+        let states = _runtime
+            .block_on(core.file_core().db.read(|conn| {
+                let mut statement =
+                    conn.prepare("SELECT state FROM pending_actions WHERE kind='send'")?;
+                let states = statement
+                    .query_map([], |row| row.get::<_, String>(0))?
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(states)
+            }))
+            .expect("the send actions");
+        assert!(
+            states.iter().all(|state| state == "cancelled"),
+            "every copy was taken back: {states:?}"
+        );
     }
 }
