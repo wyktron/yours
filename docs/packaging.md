@@ -42,24 +42,28 @@ flatpak install --user flathub \
   org.freedesktop.Sdk.Extension.rust-stable//25.08
 ```
 
-Build and install the bundle:
+Build and install the bundle. The bundle is named after the app —
+`yours.flatpak`, not `flectar-mail.flatpak`:
 
 ```bash
-./scripts/build-flatpak.sh
-flatpak install --user target/flatpak/flectar-mail.flatpak
-flatpak run org.yours.mail
-```
-
-To build by hand instead:
-
-```bash
-flatpak-builder --user --force-clean --disable-rofiles-fuse \
-  --repo target/flatpak/repo target/flatpak/build \
+# flatpak-builder is not always installed on the host; the Flathub Builder
+# app can run it and still reads and writes the checkout's .flatpak-builder
+# state directory.
+flatpak run --command=flatpak-builder org.flatpak.Builder \
+  --user --force-clean --disable-rofiles-fuse --assumeyes \
+  --repo=target/yp/repo target/yp/build \
   packaging/flatpak/org.yours.mail.yaml
 flatpak build-bundle \
   --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo \
-  target/flatpak/repo target/flatpak/flectar-mail.flatpak org.yours.mail
+  target/yp/repo target/yp/yours.flatpak org.yours.mail
+flatpak install --user -y --reinstall target/yp/yours.flatpak
+flatpak run org.yours.mail
 ```
+
+`scripts/build-flatpak.sh` is the older helper: it calls `flatpak-builder`
+from the host's PATH (so the Builder-app command above is needed on hosts
+without it) and writes `target/flatpak/flectar-mail.flatpak`; the manual
+command above is the path used for the current artifacts.
 
 The manifest's Rust build is single-job on purpose: peak memory for the app
 crate is high. `--disable-rofiles-fuse` is optional but lets the build run on
@@ -90,15 +94,35 @@ is the tested family; `ExclusiveArch` is x86_64 and aarch64.
 ```bash
 git archive --prefix=yours-0.1.0-alpha.7/ \
   -o ~/rpmbuild/SOURCES/yours-0.1.0-alpha.7.tar.gz HEAD
-rpmbuild -ba packaging/rpm/yours.spec
-sudo dnf install ~/rpmbuild/RPMS/*/yours-0.1.0~alpha.7-1*.rpm
+PATH="$HOME/.cargo/bin:$PATH" CARGO_BUILD_JOBS=8 \
+  rpmbuild -ba --nodeps packaging/rpm/yours.spec
+cp ~/rpmbuild/RPMS/x86_64/yours-0.1.0~alpha.7-1.fc45.x86_64.rpm \
+  target/packages/
 ```
 
 `sudo dnf builddep packaging/rpm/yours.spec` installs the build requirements.
+`--nodeps` skips the `BuildRequires` check for the packaging-run smoke
+build on a host that does not have the RPMs named in the spec: the 2026-11-28
+build used the rustup toolchain (cargo/rust 1.100.0) instead of the `cargo`
+and `rust` RPMs, and `libXcursor-devel`, `libxkbcommon-x11-devel` and
+`wayland-devel` were absent. Those libraries are only `dlopen`ed at runtime,
+not linked, so the build still succeeds; a proper Fedora build host should
+install the full `BuildRequires` set and drop `--nodeps`.
+
 The build needs crates.io access unless the tree is vendored (see the comment
 at the top of the spec), and needs Rust 1.95 or newer. PDF preview loads
 `libpdfium.so` from `%{_libdir}/flectar-mail` if a distribution package
 provides it; the spec does not ship the prebuilt PDFium archive.
+
+Install/run/uninstall smoke test (host-local RPM, unsigned, dependencies not
+resolved because Fedora has no `yours` repository):
+
+```bash
+sudo rpm -Uvh --nodeps --nosignature \
+  target/packages/yours-0.1.0~alpha.7-1.fc45.x86_64.rpm
+/usr/bin/yours     # run it once; use a throwaway HOME for the smoke test
+sudo rpm -e yours
+```
 
 ## Debian
 
@@ -121,6 +145,118 @@ sudo apt install ../yours_0.1.0~alpha.7-1_*.deb
 A source upload needs `yours_0.1.0~alpha.7.orig.tar.*` because the format is
 `3.0 (quilt)`. Rust 1.95 or newer is required; distributions with an older
 `rustc` must build with a newer toolchain. PDFium is handled as in the RPM.
+
+On a Fedora host there is no `dpkg-buildpackage` or `dpkg-deb`, so the
+binary package is assembled with Fedora's `dpkg` RPM extracted into the
+checkout, without root:
+
+```bash
+dnf download dpkg --destdir target/yp/tools/rpms
+mkdir -p target/yp/tools/dpkg
+( cd target/yp/tools/dpkg && \
+  rpm2cpio ../rpms/dpkg-1.23.11-2.fc45.x86_64.rpm | cpio -idm )
+
+# HEAD source export; reuse the release binary built for the RPM
+rm -rf /tmp/yp-src && mkdir -p /tmp/yp-src
+git archive HEAD | tar -x -C /tmp/yp-src
+mkdir -p /tmp/yp-src/target/release
+cp target/yp/rpm-extract/usr/bin/yours /tmp/yp-src/target/release/yours
+```
+
+`target/yp/rpm-extract` comes from
+`rpm2cpio target/packages/yours-*.rpm | cpio -idm` in that directory.
+`packaging/debian/build-deb.sh` stages the files exactly as
+`packaging/debian/rules` and `packaging/debian/install` do, writes
+`DEBIAN/control`, `DEBIAN/md5sums` and the debhelper files (`copyright`,
+gzipped `changelog.Debian.gz`), and calls `dpkg-deb --build`:
+
+```bash
+./packaging/debian/build-deb.sh /tmp/yp-src target/packages
+# equivalently, if dpkg-deb is on PATH and the staging tree already exists:
+# dpkg-deb --build --root-owner-group target/yp/deb-root \
+#   target/packages/yours_0.1.0~alpha.7-1_amd64.deb
+```
+
+The script reads the package name, version and changelog directly from
+`packaging/debian/changelog`, and finds `dpkg-deb` on `PATH` or in
+`target/yp/tools/dpkg`; `DPKGDEB=/path/to/dpkg-deb` overrides it.
+
+Install/uninstall smoke test on the Fedora host (the `Depends:` names are
+Debian names, hence `--force-depends`):
+
+```bash
+sudo dnf install -y dpkg
+sudo dpkg -i --force-depends \
+  target/packages/yours_0.1.0~alpha.7-1_amd64.deb
+/usr/bin/yours     # run it once; use a throwaway HOME for the smoke test
+sudo dpkg -r yours
+sudo dnf remove -y dpkg
+rm -rf /var/lib/dpkg   # created by dpkg at install time, not by the RPM
+```
+
+## Artifacts built on 2026-11-28
+
+Built from HEAD `bdde9ef` ("settings: pick AI models from the endpoint's
+list") on Fedora 45 with rustc/cargo 1.100.0. `target/` is git-ignored, so
+these artifacts are not committed.
+
+| Artifact | Size | SHA-256 |
+| --- | --- | --- |
+| `target/yp/yours.flatpak` | 43,425,952 B (41.4 MiB) | `3ba14f2d0e1f49771da8752b81b2fce7c275b3e50e21512871b006e245c32da2` |
+| `target/packages/yours-0.1.0~alpha.7-1.fc45.x86_64.rpm` | 47,771,680 B (45.6 MiB) | `7cc5d1eb59d81ef35e60082a7f190dae67122860f501dda7866803b6d01c90af` |
+| `target/packages/yours_0.1.0~alpha.7-1_amd64.deb` | 44,529,296 B (42.5 MiB) | `5e36e9c8bca00488f3d7ab64576e828f09ae8ec4748dbee4efc91a84fe593499` |
+
+The Flatpak app commit is `350df5f3408602496a76243685304d707a39c16e09999e1264f784fc53612acd`;
+it replaces the previous local install (`6ea45fd5`, 2026-11-25) in place.
+
+Verification performed for this build:
+
+- **Flatpak** — `flatpak install --user -y --reinstall
+  target/yp/yours.flatpak`, then launched under Xvfb with
+  `flatpak run --socket=x11 --env=FLECTAR_RENDERER=cpu org.yours.mail`:
+  window opened at 1320x800, Settings > About showed
+  `Version 0.1.0-alpha.7`, and Settings > General rendered the first card
+  "What this app needs" (address checks, AI, speech). The user install was
+  left in place: its sandbox data directory is separate from the native
+  `~/.local/share/yours-mail` profile, so it does not conflict with a
+  native/dev binary.
+- **RPM** — `rpm -Uvh --nodeps --nosignature ...`, then `/usr/bin/yours`
+  launched once (window shown) with a throwaway HOME, then `rpm -e yours`.
+- **DEB** — `dpkg -i --force-depends ...`, then `/usr/bin/yours` launched
+  once (window shown) with a throwaway HOME, then `dpkg -r yours`, `dnf
+  remove -y dpkg` and removal of the `/var/lib/dpkg` database that
+  `dpkg` created.
+
+Headless smoke tests need a throwaway profile: the app asks to set an app
+password on first launch. Never set or change the password in the user's own
+profile for a packaging check; on the Flatpak side that profile is
+`~/.var/app/org.yours.mail/data`.
+
+## Regenerating inputs on each release
+
+The three packages share the commit but not their generated inputs. Refresh
+these whenever the tree changes:
+
+- **Version bump** — `Cargo.toml`, `%global upstream_version`/`Version`/
+  `%changelog` in `packaging/rpm/yours.spec`, and
+  `packaging/debian/changelog` must all name the same version.
+- **Vendored crates** — when `Cargo.lock` changes, regenerate
+  `packaging/flatpak/cargo-sources.json` with
+  `flatpak-cargo-generator -d Cargo.lock -o packaging/flatpak/cargo-sources.json`.
+  For an offline native build, run `cargo vendor vendor/`, add the source
+  replacement to `.cargo/config.toml` and build with
+  `CARGO_NET_OFFLINE=true`; the Flatpak generator output is not a vendor
+  directory for rpmbuild.
+- **RPM source tarball** — regenerate with
+  `git archive --prefix=yours-<version>/ -o ~/rpmbuild/SOURCES/yours-<version>.tar.gz HEAD`;
+  the prefix must match `%{name}-%{upstream_version}` used by `%autosetup`.
+- **PDFium** — the Flatpak manifest pins the two PDFium archive URLs and
+  SHA-256 values from `scripts/stage-pdfium.py`; bump both together. Native
+  packages do not ship PDFium and load it from `%{_libdir}/flectar-mail`.
+- **Rebuild all three artifacts**, rerun the smoke tests above, and update
+  the sizes and SHA-256 values in this section. `scripts/test-release.py`
+  checks the manifest/checksums and `scripts/check-release.sh` covers the
+  release tarballs.
 
 ## Known sandbox caveats
 
