@@ -1,0 +1,148 @@
+// The Tuta tab.
+//
+// Tuta's account exists only as the official web app, which Yours keeps
+// running in a background process (src/tuta_window.rs) so its notifications
+// keep being read aloud. This tab shows that web view through WebKitGTK's
+// snapshot API: frames arrive from the child process about once a second.
+//
+// It is a live picture, not an embed. On Wayland a client cannot reparent
+// another client's surface into its own window (no cross-client subsurface or
+// xdg-foreign reparent), WebKitGTK has no offscreen render API, and Slint's
+// winit backend exposes no native parent a GTK widget could be placed in. The
+// window therefore stays for clicks and typing; the note below says so.
+import { AppTheme, LayoutMetrics } from "../design-system.slint";
+import { TypeScale } from "../typography.slint";
+import { Button } from "../components/button.slint";
+import { TutaWebApp } from "../tuta-web-app.slint";
+
+export component TutaWebAppView inherits Rectangle {
+    // Leave the tab and go back to mail.
+    callback back();
+    // Show the interactive web app window.
+    callback show-window();
+
+    background: AppTheme.page-bg;
+
+    VerticalLayout {
+        padding: 0px;
+        spacing: 0px;
+
+        // A tab-shaped header, on the same row height as the workspace titles.
+        Rectangle {
+            height: LayoutMetrics.touch-target + 10px;
+            background: AppTheme.surface;
+
+            HorizontalLayout {
+                padding-left: LayoutMetrics.compact-inset;
+                padding-right: LayoutMetrics.compact-inset;
+                spacing: 10px;
+
+                Image {
+                    width: 20px;
+                    height: 20px;
+                    source: @image-url("../icons/lucide/outline/mail.svg");
+                    image-fit: contain;
+                }
+
+                Text {
+                    text: @tr("Tuta web app");
+                    color: AppTheme.title;
+                    font-size: TypeScale.title-small;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+
+                Text {
+                    text: @tr("Background · notifications read aloud");
+                    color: AppTheme.muted;
+                    font-size: TypeScale.caption;
+                    vertical-alignment: center;
+                }
+
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+
+                Button {
+                    text: @tr("Open interactive window");
+                    horizontal-stretch: 0;
+                    clicked => { root.show-window(); }
+                }
+
+                Button {
+                    text: @tr("Back to mail");
+                    horizontal-stretch: 0;
+                    clicked => { root.back(); }
+                }
+            }
+        }
+
+        Rectangle {
+            height: 30px;
+            background: AppTheme.accent-pale;
+
+            HorizontalLayout {
+                padding-left: LayoutMetrics.compact-inset;
+                padding-right: LayoutMetrics.compact-inset;
+
+                Text {
+                    text: @tr("Live snapshot, refreshed about once a second. It is not interactive: open the interactive window to click or type in Tuta.");
+                    color: AppTheme.secondary;
+                    font-size: TypeScale.caption;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                }
+            }
+        }
+
+        // The web view's picture. Letterboxed on a dark bed, like the window's
+        // own page, until the first frame arrives.
+        Rectangle {
+            vertical-stretch: 1;
+            background: #141516;
+            clip: true;
+
+            if TutaWebApp.has-frame : Image {
+                source: TutaWebApp.frame;
+                image-fit: contain;
+                width: parent.width;
+                height: parent.height;
+            }
+
+            if !TutaWebApp.has-frame : VerticalLayout {
+                alignment: center;
+                spacing: 6px;
+
+                Text {
+                    text: @tr("Starting the Tuta web app…");
+                    color: AppTheme.title;
+                    font-size: TypeScale.body;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: @tr("It stays running in the background so its notifications are read aloud. Open the interactive window to click or type.");
+                    color: AppTheme.muted;
+                    font-size: TypeScale.caption;
+                    horizontal-alignment: center;
+                }
+            }
+
+            Rectangle {
+                y: parent.height - 26px;
+                height: 26px;
+                width: parent.width;
+                background: #00000099;
+
+                Text {
+                    x: LayoutMetrics.compact-inset;
+                    width: parent.width - 2 * LayoutMetrics.compact-inset;
+                    text: @tr("Tuta is running in the background. Closing its window does not stop it.");
+                    color: white;
+                    font-size: TypeScale.micro;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+}

@@ -13,6 +13,7 @@ export { DefaultEmailApp } from "default-email-app.slint";
 export { SystemNotifications } from "system-notifications.slint";
 export { Updates } from "updates.slint";
 export { TutaWebApp } from "tuta-web-app.slint";
+import { TutaWebApp } from "tuta-web-app.slint";
 export { AgentAccess, AgentAccount, AgentActivityEntry, AgentFolder } from "agent-access.slint";
 export { Notice } from "notice.slint";
 export { Unsubscribe } from "unsubscribe.slint";
@@ -98,6 +99,7 @@ export { FilesUi, FileRow, OperationRow } from "views/files-view.slint";
 import { FilesView, FilesUi } from "views/files-view.slint";
 import { ContactsView } from "views/contacts-view.slint";
 import { OnboardingView } from "views/onboarding-view.slint";
+import { TutaWebAppView } from "views/tuta-view.slint";
 
 // Rust view-models call this global for the date vocabulary and status text
 // that must be materialized before it enters a Slint model. Keeping the
@@ -1435,6 +1437,9 @@ export component AppWindow inherits Window {
         if root.active_view != "mail" { MailAttachments.command("close", ""); }
         root.product-changed(root.active_view);
         TabsUi.navigated();
+        // The Tuta tab is painted from the background web app's frames, and
+        // only asks for them while it is showing.
+        TutaWebApp.live-view(root.active_view == "tuta");
     }
     in-out property <string> settings_tab: "General";
     // Set by the host when first-use consent can be withdrawn from About.
@@ -2382,6 +2387,24 @@ export component AppWindow inherits Window {
                 list-pane-width <=> root.workspace_list_pane_width;
                 account-model: root.connected_accounts;
                 list-pane-width-committed(width) => { root.save_workspace_list_pane_width(width); }
+            }
+        }
+
+        // Tuta has no mail account in Yours: its mail is the web app, which
+        // runs in the background so its notifications keep being read aloud.
+        // This tab is the live picture of that web app; the window itself
+        // stays available for clicking and typing.
+        if root.active_view == "tuta" : WorkspaceFrame {
+            compact: root.compact-layout;
+            reserve-compact-navigation: root.compact-primary-nav-visible;
+            available-width: parent.width;
+            available-height: parent.height;
+
+            TutaWebAppView {
+                width: parent.width;
+                height: parent.height;
+                back => { root.active_view = "mail"; }
+                show-window => { TutaWebApp.show-window(); }
             }
         }
 

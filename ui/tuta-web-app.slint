@@ -1,10 +1,21 @@
 // Tuta has no IMAP account and no bridge: its mail exists only in the
-// official web app. The sidebar entry opens that web app in a window of its
-// own (src/tuta_window.rs), which is why its label says "web app".
+// official web app. Yours keeps that web app running in the background
+// (src/tuta_window.rs) so its notifications are read aloud even when no
+// window is on screen, and the sidebar opens it as a tab inside the window.
 export global TutaWebApp {
     // Only hosts that can embed WebKitGTK show the entry; elsewhere the
     // sidebar leaves it out rather than offering a dead button.
     in-out property <bool> available: false;
-    // Bring the window up, or focus the one that is already open.
+    // The web view's latest snapshot, sent by the background process. This is
+    // a picture of the page, not the page itself: Wayland cannot reparent one
+    // client's surface into another, so clicking and typing need the window.
+    in-out property <image> frame;
+    in-out property <bool> has-frame: false;
+    // Open the tab (the background process is already running).
     callback open();
+    // Show the interactive window, or bring it back after it hid to the
+    // background.
+    callback show-window();
+    // The tab is showing or was left: frames are only produced while it is.
+    callback live-view(bool);
 }

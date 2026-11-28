@@ -227,6 +227,9 @@ gtk = "0.19.0"
 # The embedded window hands the page's notification signal to the bridge
 # in src/notify_bridge.rs instead of letting it reach the session bus.
 webkit2gtk = { version = "3.0", default-features = false }
+# Snapshot frames for the Tuta tab are encoded as PNG in the web app process
+# (src/tuta_window.rs). This enables the already-present cairo-rs' PNG writer.
+cairo-rs = { version = "0.22", features = ["png"] }
 
 # Integrated window frames use winit window attributes and native window events.
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "ios"))'.dependencies]
