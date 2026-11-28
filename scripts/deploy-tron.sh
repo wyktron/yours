@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+#
+# DEPRECATED 2026-11-28. tron is the owner's working machine and is off-limits
+# to agents: do not start, restart, screenshot or deploy anything there. onyx is
+# the development, test and display host now; use scripts/show-onyx.sh (or
+# scripts/build-and-show.sh) on onyx instead.
+#
+# This script survives only for a deliberate tron deploy that the owner has
+# explicitly asked for. Do not run it on your own initiative.
 # deploy-tron.sh — put the release built on onyx onto tron's screen.
 #
 # Run on tron (the display node):
@@ -18,6 +26,13 @@
 # ~/.local/share/yours-mail all stay exactly as they are. Only one binary is
 # replaced and the process is restarted.
 set -euo pipefail
+
+cat >&2 <<'WARN'
+deploy-tron.sh is DEPRECATED.
+  tron is the owner's working machine and is off-limits to agents: never open,
+  restart, screenshot or deploy anything there unless the owner explicitly asks.
+  Normal development runs on onyx: scripts/build-and-show.sh (build + run on onyx).
+WARN
 
 HOST="${ONYX_HOST:-onyx}"
 REMOTE_DIR="${ONYX_DIR:-flectar-build}"
@@ -63,9 +78,14 @@ fi
 : > "$LOG"
 (
   cd "$TRON_REPO"
+  # XAUTHORITY is the session's XWayland cookie: Yours starts on the X11
+  # backend so the Tuta tab can embed the web app, and the X server refuses a
+  # client without it. The desktop session exports it, but this launcher does
+  # not inherit that environment, so pass the cookie KWin wrote for the session.
   env \
     DISPLAY=:0 \
     WAYLAND_DISPLAY=wayland-1 \
+    XAUTHORITY="$(ls /run/user/1000/xauth_* 2>/dev/null | head -1)" \
     XDG_RUNTIME_DIR=/run/user/1000 \
     DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
     setsid nohup "$LOCAL_BIN" >>"$LOG" 2>&1 </dev/null &
