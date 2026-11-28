@@ -2389,6 +2389,7 @@ dependencies = [
  "blitz-paint",
  "blitz-traits",
  "block2 0.6.2",
+ "cairo-rs",
  "cc",
  "cfg_aliases",
  "chrono",
