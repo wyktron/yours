@@ -2914,16 +2914,22 @@ pub struct Settings {
     /// the list. Off by default: it reads mail through the configured model.
     #[serde(default)]
     pub ai_phishing_enabled: bool,
-    /// Ask Have I Been Pwned whether senders of new mail appear in known data
+    /// Ask a breach provider whether senders of new mail appear in known data
     /// breaches, and mark those rows with a red skull. On by default; the
-    /// lookup needs `hibp_api_key` saved in the credential store.
+    /// keyless XposedOrNot provider answers unless an HIBP key is saved.
     #[serde(default = "default_true")]
     pub breach_scan_enabled: bool,
-    /// The HIBP API key as a draft between Settings and the core. It is never
-    /// written to this blob: the key itself lives in the platform credential
-    /// store under the app's own account (Slot::HibpApiKey).
+    /// The optional HIBP API key as a draft between Settings and the core.
+    /// It is never written to this blob: the key itself lives in the platform
+    /// credential store under the app's own account (Slot::HibpApiKey). With
+    /// no key the scan uses keyless XposedOrNot.
     #[serde(default, skip_serializing, skip_deserializing)]
     pub hibp_api_key: String,
+    /// Whether the one-time hint "the breach scan is idle for a missing key"
+    /// has been raised. Once shown it is never raised again, so a missing key
+    /// is stated in Settings and the services card instead of on every message.
+    #[serde(default)]
+    pub breach_hint_shown: bool,
     /// Compound workflows matched by the AI. The model only returns rule ids;
     /// every mailbox mutation comes from this explicit, user-owned allow-list.
     #[serde(default)]
@@ -3267,6 +3273,7 @@ impl Default for Settings {
             ai_phishing_enabled: false,
             breach_scan_enabled: true,
             hibp_api_key: String::new(),
+            breach_hint_shown: false,
             google_client_id: String::new(),
             google_client_secret: String::new(),
             ms_client_id: String::new(),

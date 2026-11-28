@@ -16,6 +16,8 @@ mod auto_replies;
 #[cfg(desktop)]
 mod autostart;
 mod block_sender;
+#[cfg(not(feature = "flatpak"))]
+mod breach_fixture;
 mod browser;
 pub use browser::ExternalUrlOpener;
 mod calendar;
@@ -5230,6 +5232,15 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                     apply_local_mail(&app, &startup_state, local_mail);
                     refresh_rows_only(&app, &startup_state, &startup_runtime);
                     refresh_list_metadata(&app, &startup_state);
+                    // Not part of a normal run: only FLECTAR_BREACH_FIXTURE
+                    // asks for the demo skull, and Flatpak compiles it out.
+                    #[cfg(not(feature = "flatpak"))]
+                    breach_fixture::install(
+                        &startup_runtime,
+                        &app,
+                        &startup_state,
+                        core.file_core(),
+                    );
                     app.set_startup_hydrated(true);
                     app.set_startup_ready(true);
                     mailto_links::open_pending_soon(&app);
@@ -5256,6 +5267,7 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                         Arc::clone(&startup_summary_stream),
                         UiWake::new(app.as_weak(), |app| app.invoke_drain_summary_updates()),
                         code_toasts,
+                        app.as_weak(),
                     );
                     notifications::spawn_dispatcher(
                         &startup_runtime,

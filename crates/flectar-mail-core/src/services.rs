@@ -390,6 +390,37 @@ impl AiStatus {
     }
 }
 
+/// What the breach scan can do right now. XposedOrNot is keyless, so having
+/// no key is the normal, working state; a stored HIBP key switches providers.
+/// Amber is reserved for an actual provider failure, not for a missing key.
+pub fn breach_status(
+    enabled: bool,
+    key_present: bool,
+    last_error: Option<&str>,
+) -> ServiceStatus {
+    if !enabled {
+        return ServiceStatus::not_configured("Known breaches: off");
+    }
+    if let Some(error) = last_error {
+        let error = error.trim();
+        let detail = if error.is_empty() {
+            "Breach scan is on, but the last check failed.".to_owned()
+        } else {
+            format!("Breach scan is on, but the last check failed: {error}")
+        };
+        return ServiceStatus {
+            state: ServiceState::Degraded,
+            detail: detail.chars().take(MAX_DETAIL_CHARS).collect(),
+        };
+    }
+    if key_present {
+        return ServiceStatus::connected(
+            "Breach scan is on - Have I Been Pwned (key stored)",
+        );
+    }
+    ServiceStatus::connected("Breach scan is on - XposedOrNot (keyless)")
+}
+
 /// Everything the first-run guide and the Settings card need.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServicesReport {
@@ -398,14 +429,21 @@ pub struct ServicesReport {
     pub reacher_enabled: bool,
     pub ai: AiStatus,
     pub speech: SpeechStatus,
+    /// The known-breach lookup: XposedOrNot keyless by default, HIBP when a
+    /// key is stored, or amber when the provider could not be reached.
+    pub breach: ServiceStatus,
+    /// The Settings switch, independent of whether a key is stored.
+    pub breach_enabled: bool,
 }
 
-/// Probe all three services. Settings decide what is configured; nothing here
+/// Probe all four services. Settings decide what is configured; nothing here
 /// changes stored state.
 pub async fn probe(
     settings: &Settings,
     ai_api_key: &str,
     tts_config: &TtsConfig,
+    hibp_key_present: bool,
+    breach_last_error: Option<&str>,
 ) -> ServicesReport {
     let reacher = if settings.reacher_enabled {
         probe_reacher(&settings.reacher_url).await
@@ -423,6 +461,12 @@ pub async fn probe(
         reacher_enabled: settings.reacher_enabled,
         ai,
         speech,
+        breach: breach_status(
+            settings.breach_scan_enabled,
+            hibp_key_present,
+            breach_last_error,
+        ),
+        breach_enabled: settings.breach_scan_enabled,
     }
 }
 
@@ -1025,8 +1069,24 @@ impl crate::Core {
         )
         .await
         .unwrap_or_default();
+        let hibp_key_present = crate::accounts::credentials::load_async(
+            self.credentials.clone(),
+            0,
+            crate::accounts::credentials::Slot::HibpApiKey,
+        )
+        .await
+        .map(|key| !key.trim().is_empty())
+        .unwrap_or(false);
         let tts_config = self.tts_config_from(&settings).await;
-        let report = probe(&settings, &api_key, &tts_config).await;
+        let breach_last_error = crate::breaches::last_error();
+        let report = probe(
+            &settings,
+            &api_key,
+            &tts_config,
+            hibp_key_present,
+            breach_last_error.as_deref(),
+        )
+        .await;
         // Remember the model list so AI calls can refuse a model the endpoint
         // does not serve. An endpoint that gave no readable list records None,
         // which lets calls through rather than guessing.
@@ -1060,6 +1120,13 @@ impl crate::Core {
                 .unwrap_or("-"),
             report.speech.player.map(AudioPlayer::binary).unwrap_or("-"),
             report.reacher.state.as_str(),
+        );
+        eprintln!(
+            "service probe: breach={} enabled={} key_present={} detail={:?}",
+            report.breach.state.as_str(),
+            report.breach_enabled,
+            hibp_key_present,
+            report.breach.detail,
         );
         for model in &report.ai.models {
             eprintln!(
@@ -1367,7 +1434,7 @@ mod tests {
             ai_model_intelligent: "qwen2.5vl:7b".into(),
             ..Settings::default()
         };
-        let report = probe(&settings, "", &TtsConfig::default()).await;
+        let report = probe(&settings, "", &TtsConfig::default(), false, None).await;
         server.join().expect("fake server finished");
         assert_eq!(
             report.ai.available_models,
@@ -1385,6 +1452,57 @@ mod tests {
         assert!(!report.ai.scenario_usable(Scenario::Draft));
         assert!(!report.ai.scenario_usable(Scenario::Ask));
         assert!(report.ai.scenario_usable(Scenario::Summarize));
+    }
+
+    /// The services card states the keyless provider instead of hiding the
+    /// feature, and reserves amber for a real provider failure.
+    #[test]
+    fn the_breach_card_names_the_keyless_provider_and_only_fails_amber() {
+        let keyless = breach_status(true, false, None);
+        assert_eq!(keyless.state, ServiceState::Connected);
+        assert_eq!(
+            keyless.detail,
+            "Breach scan is on - XposedOrNot (keyless)"
+        );
+
+        let keyed = breach_status(true, true, None);
+        assert_eq!(keyed.state, ServiceState::Connected);
+        assert!(keyed.detail.contains("Have I Been Pwned"));
+
+        let failed = breach_status(true, false, Some("XposedOrNot is unreachable"));
+        assert_eq!(failed.state, ServiceState::Degraded);
+        assert!(failed.detail.contains("last check failed"));
+        assert!(failed.detail.contains("XposedOrNot is unreachable"));
+
+        let off = breach_status(false, true, None);
+        assert_eq!(off.state, ServiceState::NotConfigured);
+        assert_eq!(off.detail, "Known breaches: off");
+    }
+
+    #[tokio::test]
+    async fn the_report_carries_the_keyless_breach_scan_and_a_provider_error() {
+        let settings = Settings {
+            reacher_enabled: false,
+            ai_base_url: closed_port(),
+            breach_scan_enabled: true,
+            ..Settings::default()
+        };
+        let report = probe(&settings, "", &TtsConfig::default(), false, None).await;
+        assert_eq!(report.breach.state, ServiceState::Connected);
+        assert!(report.breach_enabled);
+        assert!(report.breach.detail.contains("XposedOrNot"));
+
+        // A hard failure turns the same row amber and names the reason.
+        let report = probe(
+            &settings,
+            "",
+            &TtsConfig::default(),
+            false,
+            Some("XposedOrNot is unreachable"),
+        )
+        .await;
+        assert_eq!(report.breach.state, ServiceState::Degraded);
+        assert!(report.breach.detail.contains("unreachable"));
     }
 
     #[test]

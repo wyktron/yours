@@ -34,8 +34,8 @@ pub enum Slot {
     /// App-level text-to-speech API keys, one JSON object per engine, stored
     /// under account id 0 as they belong to no account.
     TtsApiKey,
-    /// App-level Have I Been Pwned API key, stored under account id 0. The
-    /// breach check asks HIBP about senders with it.
+    /// Optional app-level Have I Been Pwned API key, stored under account id
+    /// 0. When present the breach check prefers HIBP over keyless XposedOrNot.
     HibpApiKey,
     /// App password of an account's one CalDAV server, from before an
     /// account could sync several. `caldav::task::move_secret` re-files it

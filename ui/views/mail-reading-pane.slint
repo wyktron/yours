@@ -243,7 +243,7 @@ component ThreadMessageHeader inherits Rectangle {
                     ? @tr("Sender authenticated by Microsoft")
                     : @tr("Sender domain authenticated with DMARC and DKIM");
     }
-    // A red skull beside the sender when Have I Been Pwned knows a breach
+    // A red skull beside the sender when a breach provider knows a breach
     // with this address in it. Clicking it opens the breach list.
     breach-anchor := TouchArea {
         visible: root.breaches.length > 0 && !root.outgoing;

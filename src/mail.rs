@@ -91,7 +91,7 @@ pub struct MailMessage {
     pub has_replied: bool,
     pub high_importance: bool,
     /// Known data breaches the displayed sender address appears in, from the
-    /// cached HIBP verdict. Empty when the address has none or was not
+    /// cached breach verdict. Empty when the address has none or was not
     /// checked. The list and the reader paint a skull for a non-empty list.
     pub breaches: Vec<flectar_mail_core::breaches::Breach>,
     /// The AI's phishing judgement: "phishing", "suspicious", "clean", or
@@ -4424,7 +4424,7 @@ fn detail_to_conversation_message(
     Some(projected)
 }
 
-/// One cached breach as the Slint models show it: display date (HIBP sends
+/// One cached breach as the Slint models show it: display date (providers send
 /// an ISO stamp), joined data classes and the record count.
 pub(crate) fn breach_rows(
     breaches: &[flectar_mail_core::breaches::Breach],

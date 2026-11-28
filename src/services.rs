@@ -109,6 +109,11 @@ fn publish(app: &AppWindow, report: &ServicesReport) {
     services.set_reacher_state(report.reacher.state.as_str().into());
     publish_ai(&services, &report.ai);
     publish_speech(&services, &report.speech);
+    // The breach switch can be on while the paid lookup has no key: say that
+    // instead of leaving the card silent, so no skull is not mistaken for
+    // "nothing found".
+    services.set_breach_state(report.breach.state.as_str().into());
+    services.set_breach_detail(report.breach.detail.clone().into());
     // The Tuta bridge is a shell service, not one the core probe can reach:
     // its own status says whether the session bus lets it listen.
     crate::notify_bridge::publish(app);
@@ -314,6 +319,8 @@ fn publish_unavailable(app: &AppWindow) {
     services.set_speech_detail(String::new().into());
     services.set_speech_selected(String::new().into());
     services.set_speech_using(String::new().into());
+    services.set_breach_state("not-configured".into());
+    services.set_breach_detail(String::new().into());
     // The bridge's own state is independent of the core: report the truth.
     crate::notify_bridge::publish(app);
     // The configured tiers stay visible; only the served list is unknown.

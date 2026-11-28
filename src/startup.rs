@@ -1116,6 +1116,7 @@ pub(crate) fn spawn_core_event_listener(
     summary: Arc<Mutex<SummaryStream>>,
     summary_wake: UiWake,
     code_toasts: crate::verification_toast::CodeToasts,
+    app: slint::Weak<AppWindow>,
 ) {
     let mut events = core.subscribe_events();
     // New mail is spoken from the core's own arrival event, not from the
@@ -1165,19 +1166,67 @@ pub(crate) fn spawn_core_event_listener(
                     // the UI by itself.
                     announcements.mail_arrived(thread_ids.clone());
                     code_toasts.arrived(thread_ids.clone());
-                    // Sender breach checks call HIBP, which must never hold
-                    // mail up: a separate task owns the lookups and the cache
-                    // write, and the MailUpdated it emits refreshes the rows
-                    // that get a skull.
+                    // Sender breach checks call the breach provider, which
+                    // must never hold mail up: a separate task owns the
+                    // lookups and the cache write, and the MailUpdated it
+                    // emits refreshes the rows that get a skull.
                     if let Some(core) = stores.upgrade() {
                         let thread_ids = thread_ids.clone();
+                        let app = app.clone();
                         tokio::spawn(async move {
                             match core.check_sender_breaches(thread_ids).await {
-                                Ok(0) => {}
-                                Ok(checked) => tracing::info!(
-                                    checked,
-                                    "sender breach check: looked up senders"
-                                ),
+                                Ok(outcome) => {
+                                    if outcome.checked > 0 {
+                                        tracing::info!(
+                                            checked = outcome.checked,
+                                            provider = outcome.provider.as_str(),
+                                            "sender breach check: looked up senders"
+                                        );
+                                    }
+                                    // Nothing was checked and nothing failed (the scan
+                                    // is off, or every sender was cached): the probe's
+                                    // state is already right, so leave it alone.
+                                    if outcome.checked == 0 && outcome.hard_error.is_none() {
+                                        return;
+                                    }
+                                    let state = if outcome.hard_error.is_some() {
+                                        "degraded"
+                                    } else {
+                                        "connected"
+                                    };
+                                    let detail = match (&outcome.hard_error, outcome.provider) {
+                                        (Some(error), provider) => format!(
+                                            "Breach scan is on, but the last check failed: {error} ({})",
+                                            provider.label()
+                                        ),
+                                        (None, flectar_mail_core::breaches::Provider::HaveIBeenPwned) => {
+                                            "Breach scan is on - Have I Been Pwned (key stored)".to_owned()
+                                        }
+                                        (None, flectar_mail_core::breaches::Provider::XposedOrNot) => {
+                                            "Breach scan is on - XposedOrNot (keyless)".to_owned()
+                                        }
+                                    };
+                                    let weak = app.clone();
+                                    let _ = slint::invoke_from_event_loop(move || {
+                                        if let Some(app) = weak.upgrade() {
+                                            let services = app.global::<crate::AppServices>();
+                                            services.set_breach_state(state.into());
+                                            services.set_breach_detail(detail.into());
+                                        }
+                                    });
+                                    // The notice is for a hard failure only, and
+                                    // the stored flag keeps it to one showing.
+                                    if outcome.hard_error.is_some()
+                                        && core.take_breach_hint().await.unwrap_or(false)
+                                    {
+                                        let weak = app.clone();
+                                        let _ = slint::invoke_from_event_loop(move || {
+                                            if let Some(app) = weak.upgrade() {
+                                                crate::undo::breach_hint(&app);
+                                            }
+                                        });
+                                    }
+                                }
                                 Err(error) => tracing::warn!(
                                     %error,
                                     "sender breach check failed"

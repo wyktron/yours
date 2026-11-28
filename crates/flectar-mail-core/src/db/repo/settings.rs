@@ -78,6 +78,8 @@ mod tests {
         assert_eq!(d.workspace_layout, "default");
         assert_eq!(d.compose_font, "default");
         assert_eq!(d.compose_text_size, "normal");
+        // The breach hint is owed until the app has raised it once.
+        assert!(!d.breach_hint_shown);
         assert_eq!(d.calendar_week_start, "monday");
         assert_eq!(d.theme_preset, "default");
         assert_eq!(
@@ -139,6 +141,7 @@ mod tests {
         s.active_mail_profile = Some("work".into());
         s.spelling_enabled = false;
         s.spelling_languages = Some(vec!["en_GB".into(), "de_DE".into()]);
+        s.breach_hint_shown = true;
         set(&c, &s).unwrap();
 
         let back = get(&c).unwrap();
@@ -167,6 +170,7 @@ mod tests {
         assert_eq!(back.active_mail_profile.as_deref(), Some("work"));
         assert!(!back.spelling_enabled);
         assert_eq!(back.spelling_languages, s.spelling_languages);
+        assert!(back.breach_hint_shown);
         assert_eq!(
             back.signature_defaults
                 .get("1")

@@ -8625,31 +8625,55 @@ impl Core {
         self.db.read(|conn| repo::breaches::all_known(conn)).await
     }
 
-    /// Ask HIBP about the senders of newly arrived mail and cache the
-    /// verdicts. Runs on the caller's task: the UI spawns it off the mail
-    /// actor, so mail never waits for the network. An address checked within
-    /// the week is not asked again, and a rate limit or a rejected key ends
-    /// the pass instead of hammering HIBP. Returns how many senders were
-    /// checked.
-    pub async fn check_sender_breaches(&self, thread_ids: Vec<i64>) -> Result<usize> {
-        let settings = self.db.read(|conn| repo::settings::get(conn)).await?;
-        if !settings.breach_scan_enabled {
-            return Ok(0);
+    /// Insert one clearly labelled demo breach for `address`, so the skull and
+    /// its popup can be seen offline. Only the shell's FLECTAR_BREACH_FIXTURE
+    /// gate calls this; a normal run never does, and the Flatpak build
+    /// compiles the gate out.
+    pub async fn insert_demo_breach(&self, address: &str) -> Result<()> {
+        let address = address.trim().to_owned();
+        if !breaches::should_check_address(&address) {
+            return Err(crate::error::CoreError::Other(format!(
+                "{address:?} is not a sender address"
+            )));
         }
+        // The words show in the popup exactly as written, so a screenshot or
+        // a curious click cannot mistake this for a real provider answer.
+        let demo = breaches::Breach {
+            name: "DEMO: not a real breach".to_owned(),
+            title: "DEMO breach data (no provider lookup was made)".to_owned(),
+            domain: "demo.invalid".to_owned(),
+            breach_date: "2026-01-01".to_owned(),
+            pwn_count: 1,
+            data_classes: vec!["Demo data - no breach provider was contacted".to_owned()],
+        };
+        let checked_at = now_ms();
+        self.db
+            .write(move |conn| repo::breaches::put(conn, &address, checked_at, &[demo]))
+            .await
+    }
+
+    /// Ask the breach provider about the senders of newly arrived mail and
+    /// cache the verdicts. XposedOrNot answers by default, keyless; a stored
+    /// HIBP key opts into the paid HIBP endpoint. Runs on the caller's task:
+    /// the UI spawns it off the mail actor, so mail never waits for the
+    /// network. An address checked within the week is not asked again, and a
+    /// rate limit ends the pass instead of hammering the provider.
+    pub async fn check_sender_breaches(
+        &self,
+        thread_ids: Vec<i64>,
+    ) -> Result<breaches::CheckOutcome> {
+        let settings = self.db.read(|conn| repo::settings::get(conn)).await?;
         let api_key = credentials::load_async(self.credentials.clone(), 0, Slot::HibpApiKey)
             .await
             .unwrap_or_default();
-        if api_key.trim().is_empty() {
-            // No key is a configuration state, not a failure: stay silent and
-            // say it once in the log rather than on every arrival.
-            use std::sync::atomic::{AtomicBool, Ordering};
-            static NO_KEY_LOGGED: AtomicBool = AtomicBool::new(false);
-            if !NO_KEY_LOGGED.swap(true, Ordering::Relaxed) {
-                tracing::info!(
-                    "sender breach check: no HIBP API key saved; skipping sender checks"
-                );
-            }
-            return Ok(0);
+        let provider = breaches::select_provider(!api_key.trim().is_empty());
+        let outcome = |checked, hard_error| breaches::CheckOutcome {
+            checked,
+            provider,
+            hard_error,
+        };
+        if !settings.breach_scan_enabled {
+            return Ok(outcome(0, None));
         }
         let ids = thread_ids.clone();
         let addresses = self
@@ -8657,9 +8681,10 @@ impl Core {
             .read(move |conn| repo::breaches::addresses_for_threads(conn, &ids))
             .await?;
         if addresses.is_empty() {
-            return Ok(0);
+            return Ok(outcome(0, None));
         }
         let mut checked = 0usize;
+        let mut hard_error = None;
         for address in addresses {
             let now = now_ms();
             let lookup_address = address.clone();
@@ -8670,7 +8695,13 @@ impl Core {
             if !breaches::should_check_sender(true, &address, cached.is_some()) {
                 continue;
             }
-            match breaches::lookup(&address, &api_key).await {
+            let found = match provider {
+                breaches::Provider::XposedOrNot => breaches::lookup_xon(&address).await,
+                breaches::Provider::HaveIBeenPwned => {
+                    breaches::lookup(&address, &api_key).await
+                }
+            };
+            match found {
                 Ok(found) => {
                     let list = match found {
                         breaches::Lookup::Breaches(found) => found,
@@ -8684,20 +8715,40 @@ impl Core {
                         })
                         .await?;
                     checked += 1;
+                    breaches::clear_error();
                 }
                 Err(breaches::LookupError::RateLimited { .. }) => {
+                    // Soft: the next arrival can try again, and no hint is
+                    // owed because the provider is up.
                     tracing::warn!(
                         %address,
-                        "sender breach check: HIBP rate limit; stopping this pass"
+                        provider = provider.as_str(),
+                        "sender breach check: provider rate limit; stopping this pass"
                     );
                     break;
                 }
                 Err(error @ breaches::LookupError::Unauthorized { .. }) => {
-                    tracing::warn!(%address, %error, "sender breach check: key rejected");
+                    tracing::warn!(
+                        %address,
+                        provider = provider.as_str(),
+                        %error,
+                        "sender breach check: provider rejected the key"
+                    );
+                    hard_error = Some(error.message());
+                    breaches::note_error(&error.message());
                     break;
                 }
                 Err(error) => {
-                    tracing::warn!(%address, %error, "sender breach check failed");
+                    tracing::warn!(
+                        %address,
+                        provider = provider.as_str(),
+                        %error,
+                        "sender breach check failed"
+                    );
+                    let message = error.message();
+                    breaches::note_error(&message);
+                    hard_error = Some(message);
+                    break;
                 }
             }
         }
@@ -8706,7 +8757,7 @@ impl Core {
                 thread_ids: thread_ids.clone(),
             });
         }
-        Ok(checked)
+        Ok(outcome(checked, hard_error))
     }
 
     /// Save the Have I Been Pwned API key in the platform credential store.
@@ -8731,6 +8782,22 @@ impl Core {
             .await
             .map(|key| !key.trim().is_empty())
             .unwrap_or(false)
+    }
+
+    /// The one-time hint for a hard breach-provider failure (unreachable or
+    /// refused). Returns true only for the caller that first finds it due,
+    /// and marks it shown so no later arrival or restart repeats it.
+    pub async fn take_breach_hint(&self) -> Result<bool> {
+        let mut settings = self.db.read(|conn| repo::settings::get(conn)).await?;
+        if !breaches::hint_due(
+            settings.breach_scan_enabled,
+            settings.breach_hint_shown,
+        ) {
+            return Ok(false);
+        }
+        settings.breach_hint_shown = true;
+        self.set_settings(settings).await?;
+        Ok(true)
     }
 
     pub async fn ai_summarize(&self, thread_id: i64) -> Result<crate::models::AiThreadSummary> {
@@ -16351,5 +16418,55 @@ mod answer_route_tests {
             route(Some(read_only), "TENTATIVE"),
             AnswerRoute::Mail { store: false }
         );
+    }
+}
+
+/// The demo skull and the one-time missing-key hint, against a real store.
+#[cfg(test)]
+mod breach_state_tests {
+    use super::*;
+
+    async fn start_test_core(paths: &Paths) -> Core {
+        Core::start_mail_ui_with_credentials(
+            paths.clone(),
+            Arc::new(credentials::DevelopmentFileCredentialStore::new(
+                paths.data_dir.join("test-credentials.json"),
+            )),
+        )
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn demo_breach_data_is_labelled_and_needs_a_real_address() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = Paths::for_tests(temp.path());
+        let core = start_test_core(&paths).await;
+        // A typo must not create a row the popup could show as a breach.
+        assert!(core.insert_demo_breach("not-an-address").await.is_err());
+        assert!(core.sender_breaches().await.unwrap().is_empty());
+
+        core.insert_demo_breach(" Person@Example.COM ").await.unwrap();
+        let known = core.sender_breaches().await.unwrap();
+        assert_eq!(known.len(), 1);
+        assert_eq!(known[0].0, "person@example.com");
+        assert_eq!(known[0].1.len(), 1);
+        assert!(
+            known[0].1[0].title.contains("DEMO"),
+            "the popup must say the data is demo: {:?}",
+            known[0].1[0]
+        );
+    }
+
+    #[tokio::test]
+    async fn the_hard_error_hint_is_taken_exactly_once() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = Paths::for_tests(temp.path());
+        let core = start_test_core(&paths).await;
+        // The scan is on by default, so a real failure owes the hint once.
+        assert!(core.take_breach_hint().await.unwrap());
+        // Taking it stored the flag, so no message or restart repeats it.
+        assert!(core.get_settings().await.unwrap().breach_hint_shown);
+        assert!(!core.take_breach_hint().await.unwrap());
     }
 }

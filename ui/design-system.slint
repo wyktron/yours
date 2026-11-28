@@ -72,6 +72,10 @@ export global AppServices {
     in-out property <string> ai-detail: "";
     // One line per configured model: "<id> (instant): served|missing · <features>".
     in-out property <string> ai-models: "";
+    // Known data breaches for a sender: "connected" while XposedOrNot (keyless)
+    // or a stored HIBP key answers, "degraded" for a real provider failure.
+    in-out property <string> breach-state: "checking";
+    in-out property <string> breach-detail: "";
     in-out property <string> speech-state: "checking";
     // "Selected engine X is not available here; using Y." when something falls back.
     in-out property <string> speech-detail: "";
@@ -90,6 +94,8 @@ export global AppServices {
     out property <bool> ai-available: root.ai-state == "connected" || root.ai-state == "degraded";
     // Read-aloud can speak with some engine, the chosen one or a fallback.
     out property <bool> speech-available: root.speech-state == "connected" || root.speech-state == "degraded";
+    // The breach lookup can run: it is on and its provider answered.
+    out property <bool> breach-available: root.breach-state == "connected";
     // Settings > General asks for a fresh probe; the open button jumps to the
     // AI settings page that owns the endpoint and key.
     callback check-again();

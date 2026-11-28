@@ -1,5 +1,6 @@
 //! Breach verdicts cached per sender address, so a sender is asked about
-//! once a week rather than on every arrival (and within HIBP's rate limit).
+//! once a week rather than on every arrival, and the provider's rate limit is
+//! never exceeded by a busy inbox.
 
 use rusqlite::{Connection, OptionalExtension, params};
 
@@ -21,7 +22,7 @@ fn normalize(address: &str) -> String {
 }
 
 /// The verdict for this address, when one was stored within the TTL.
-/// A stale entry reads as a miss so the caller asks HIBP again.
+/// A stale entry reads as a miss so the caller asks the provider again.
 pub fn get(conn: &Connection, address: &str, now: i64) -> Result<Option<CachedBreaches>> {
     let address = normalize(address);
     if address.is_empty() {

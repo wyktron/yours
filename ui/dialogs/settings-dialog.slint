@@ -1353,6 +1353,39 @@ export component SettingsDialog inherits Rectangle {
                                     }
 
                                     Rectangle { height: 1px; background: root.border-subtle; }
+                                    // Known breaches is never omitted: green while the keyless
+                                    // provider answers, amber only for a real failure, because
+                                    // no skull is not the same as no breach.
+                                    HorizontalBox {
+                                        spacing: 10px;
+                                        Rectangle { width: 4px; border-radius: 2px; background: root.service-status-color(AppServices.breach-state); }
+                                        VerticalBox {
+                                            horizontal-stretch: 1;
+                                            min-width: 0px;
+                                            spacing: 2px;
+                                            Text { text: @tr("Known breaches"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                            Text {
+                                                visible: AppServices.breach-detail != "";
+                                                text: AppServices.breach-detail;
+                                                color: root.service-status-color(AppServices.breach-state);
+                                                font-size: TypeScale.caption;
+                                                wrap: word-wrap;
+                                            }
+                                            Text {
+                                                text: AppServices.breach-state == "degraded"
+                                                    ? @tr("The last check could not reach the provider; Settings > General shows why.")
+                                                    : AppServices.breach-state == "connected"
+                                                    ? @tr("Senders of new mail are marked with a red skull when they appear in a known breach. No key is needed.")
+                                                    : @tr("Senders are not checked for known breaches.");
+                                                color: root.faint-text;
+                                                font-size: TypeScale.caption;
+                                                wrap: word-wrap;
+                                            }
+                                        }
+                                        Text { text: root.service-status-label(AppServices.breach-state); color: root.service-status-color(AppServices.breach-state); font-size: TypeScale.caption; font-weight: 600; vertical-alignment: top; }
+                                    }
+
+                                    Rectangle { height: 1px; background: root.border-subtle; }
                                     HorizontalBox {
                                         spacing: 10px;
                                         Rectangle { width: 4px; border-radius: 2px; background: root.service-status-color(AppServices.speech-state); }
@@ -2446,24 +2479,47 @@ export component SettingsDialog inherits Rectangle {
                                     SettingsSwitchRow {
                                         compact: root.compact;
                                         title: @tr("Check senders for known breaches");
-                                        description: @tr("Asks Have I Been Pwned whether the sender of new mail appears in a data breach, and marks their rows with a red skull. Needs an API key from haveibeenpwned.com.");
+                                        description: @tr("Asks XposedOrNot, which needs no key or account, whether the sender of new mail appears in a data breach, and marks their rows with a red skull. Only the sender address is sent.");
                                         checked: root.breach_scan_enabled;
                                         title-color: root.body-text;
                                         description-color: root.faint-text;
                                         toggled(checked) => { root.save_breach_scan(checked); }
                                     }
-                                    Text { text: @tr("Have I Been Pwned API key"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                    // Green while the provider answers. XposedOrNot is
+                                    // keyless, so a missing HIBP key is not a problem; amber
+                                    // is only for an actual failure, named by the probe.
+                                    if root.breach_scan_enabled && AppServices.breach-state == "degraded" : Text {
+                                        text: AppServices.breach-detail == ""
+                                            ? @tr("Breach scan is on, but the last check failed.")
+                                            : AppServices.breach-detail;
+                                        color: root.service-status-color("degraded");
+                                        font-size: TypeScale.caption;
+                                        font-weight: 600;
+                                        wrap: word-wrap;
+                                    }
+                                    if root.breach_scan_enabled && AppServices.breach-state != "degraded" : Text {
+                                        text: root.hibp_key_saved
+                                            ? @tr("Breach scan is on - Have I Been Pwned (key stored).")
+                                            : @tr("Breach scan is on - XposedOrNot (keyless).");
+                                        color: root.service-status-color("connected");
+                                        font-size: TypeScale.caption;
+                                        font-weight: 600;
+                                        wrap: word-wrap;
+                                    }
+                                    Text { text: @tr("Have I Been Pwned API key (optional)"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
                                     HorizontalBox {
                                         spacing: 8px;
                                         LineEdit {
                                             horizontal-stretch: 1;
                                             text <=> root.hibp_key_draft;
                                             input-type: password;
-                                            placeholder-text: @tr("Paste the API key from your haveibeenpwned.com account");
+                                            placeholder-text: @tr("Optional: a paid HIBP key switches the check from XposedOrNot to HIBP");
                                         }
                                         Button { text: @tr("Save key"); clicked => { root.save_hibp_key(root.hibp_key_draft); } }
                                     }
-                                    Text {
+                                    // With the switch on the status line above already says whether
+                                    // a key is stored; this caption is for the switched-off case.
+                                    if !root.breach_scan_enabled : Text {
                                         text: root.hibp_key_saved ? @tr("A key is saved.") : @tr("No key is saved, so senders are not checked.");
                                         color: root.faint-text;
                                         font-size: TypeScale.caption;
@@ -3109,11 +3165,16 @@ export component SettingsDialog inherits Rectangle {
                                     }
                                     if root.oauth_in_progress : Button {
                                         height: 52px;
+                                        // Sized to its label: the stretching provider buttons
+                                        // beside it squeezed these to their minimum width, and
+                                        // the words spilled past the button.
+                                        width: max(120px, self.content-width);
                                         text: @tr("Cancel sign-in");
                                         clicked => { root.cancel_oauth(); }
                                     }
                                     Button {
                                         height: 44px;
+                                        width: max(140px, self.content-width);
                                         text: @tr("Sign-in settings");
                                         clicked => { root.open-signin-settings(); }
                                     }

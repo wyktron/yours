@@ -1,0 +1,77 @@
+{
+ "BreachMetrics": {
+  "risk": [
+   {
+    "risk_label": "Critical",
+    "risk_score": 100
+   }
+  ],
+  "passwords_strength": [
+   {
+    "EasyToCrack": 50,
+    "PlainText": 22,
+    "StrongHash": 50,
+    "Unknown": 94
+   }
+  ]
+ },
+ "BreachesSummary": {
+  "site": "Collection-1;WHMCS;MCBans;KomplettFritid;Win7VistaForum;OGusers-2020;PayAsuGym;Yahoo;Coinmama;PPCGeeks;BitcoinTalk;XKCD;BTC-E;TrueFire;Reincubate;TravelOklahoma;GPSUnderground;Sonicbids;Sphero;Stratfor;Imavex;OwnedCore;Petflow;Bolt;Sitepoint;Ledger;Artsy;LazadaRedmart;Elance;GeniusU;Wedmegood;Havenly;Diet;AnimeGame;SlideTeam;GameSalad;Bookcrossing;Payhere;Nihonomaru;StarTribune;Glofox;Patreon;Factual;Morele.net;Funimation;Duolingo;Audi;Bonobos;Xsplit;Coinmarketcap;Mpgh;LiveAuctioneers;GoGames;Dunzo;Zoomcar;FlexBooker;Bookmate;Avvo;Swvl;Peatix;Gaadi;MalindoAir;Minted;MemeChat;Roll20;StrongholdKingdoms;Ticketfly;Gemini;Yatra;Scentbird;Appen;ToonDoo;GameSprite;EatStreet;Wakanim;StockX;CashCrate;Lifeboat;HeroesofNewerth;Truthfinder;Teespring;WeHeartIt;HomeChef;Zacks;Jefit;Bitly;Wishbone;ArmorGames;JobandTalent;InstantCheckmate;Bukalapak;Promo;500px;ClearvoiceSurveys;Epik;Zomato;Ixigo;Disqus;EyeEm;8tracks;CDEK;Parkmobile;R2games;Animoto;GFAN;Wanelo;Cafepress;BigBasket;Mathway;Livejournal;HauteLook;Poshmark;Last.fm;ShareThis;Houzz;Imesh;Dropbox;Luxottica;Nitro;Dailymotion;MyHeritage;Canva;MyFitnessPal;Adobe;LinkedIn;Dubsmash;Zynga;Twitter-Scraped;Cit0day;Wattpad;AntiPublicCombo;ExploitIN;Verifications;Gemplex;JoyGames;OMGPOP;Chess;SoarGames;Kaneva;000webhost;Chegg;VK;LimeVPN;Roblox;7k7k;Apollo;Tumblr;NetEase;Apollo;Pemiblanc;Eye4fraud;Ticketcounter;ClickASnap;KitchenPal;ATT-Speculated;SwordFantasy;GSMHosting;GiantTiger;LeSlipFrancais;WashingtonStateFoodWorkerCard;PostMillennial;CouponMom;NeimanMarcus;HeritageFoundation;Trello;BreachForum;Condo;Tracelo;AnimeLeague;Ticketek;SchenkYou;Welhof;Zacks-2024;1Win;Twitter;Shein;Naz.API;Dodonew;MyVidster-2025;WIRED;Instagram;SoundCloud;Betterment;CarGurus;TheSquare;WebHostingTalk;Aura;SongTrivia2;TLDRtech;Amtrak;McGrawHill;ADT;Baydoner;MarcusMillichap;Charter;Addi;Ameriprise;ZenBusiness;7-Eleven;AlienStealerLogs;WoFlow;Sysco;GlendaleCommunityCollege;ACTMobile;Paidwork;Alcon;RingCentral;BrinksHome;OzHairAndBeauty;Questel;Carhartt;Lumenis;Sharecare;ManchesterAirportsGroup;McKesson;Neogen"
+ },
+ "ExposedBreaches": {
+  "breaches_details": [
+   {
+    "breach": "Neogen",
+    "details": "Neogen, a food and animal safety company, was allegedly breached by the ShinyHunters group in August 2026, with data later published online exposing 445k unique email addresses from corporate mailing lists, employee records, and other business contacts.",
+    "domain": "neogen.com",
+    "industry": "Manufacturing",
+    "logo": "https://xposedornot.com/static/logos/Neogen.png",
+    "password_risk": "unknown",
+    "references": "https://cybernews.com/security/shinyhunters-neogen-breach-food-safety/",
+    "searchable": "Yes",
+    "verified": "Yes",
+    "xposed_data": "Email addresses;Names;Phone numbers;Physical addresses;Employers;Job titles",
+    "xposed_date": "2026",
+    "xposed_records": 445899,
+    "added": "2026-11-05T02:17:59+00:00"
+   },
+   {
+    "breach": "McKesson",
+    "details": "McKesson, a healthcare and pharmaceutical company, was targeted by the ShinyHunters group in August 2026, with data later published online exposing 6.8M unique email addresses along with other personal and corporate information relating to patients, staff, healthcare provider contacts, and marketing recipients.",
+    "domain": "mckesson.com",
+    "industry": "Health Care",
+    "logo": "https://xposedornot.com/static/logos/Mckesson.png",
+    "password_risk": "unknown",
+    "references": "",
+    "searchable": "Yes",
+    "verified": "Yes",
+    "xposed_data": "Email addresses;Names;Phone numbers;Physical addresses;Dates of birth;Genders",
+    "xposed_date": "2026",
+    "xposed_records": 6832822,
+    "added": "2026-10-02T12:15:46+00:00"
+   },
+   {
+    "breach": "ManchesterAirportsGroup",
+    "details": "Manchester Airports Group (MAG), an airport operator, was compromised in August 2026, with data later published by the FulcrumSec group exposing email addresses and phone numbers relating to 8.4M customers along with vehicle registrations, parking history, Fast Track purchases, and lounge bookings.",
+    "domain": "magairports.com",
+    "industry": "Transport",
+    "logo": "https://xposedornot.com/static/logos/ManchesterAirportsGroup.png",
+    "password_risk": "unknown",
+    "references": "",
+    "searchable": "Yes",
+    "verified": "Yes",
+    "xposed_data": "Email addresses;Names;Phone numbers;IP addresses;Vehicle registration numbers;Geographic locations;Browser user agents",
+    "xposed_date": "2026",
+    "xposed_records": 8379476,
+    "added": "2026-09-03T07:41:36+00:00"
+   }
+  ]
+ },
+ "ExposedPastes": null,
+ "PasteMetrics": null,
+ "PastesSummary": {
+  "cnt": 0,
+  "domain": "",
+  "tmpstmp": ""
+ }
+}

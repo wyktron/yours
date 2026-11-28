@@ -888,9 +888,9 @@ pub(super) fn register_settings_preference_callbacks(
         }
     });
 
-    // Sender breach check: the switch, and the Have I Been Pwned API key that
-    // the lookup needs. The key lives in the credential store, never in the
-    // settings blob, like the AI key.
+    // Sender breach check: the switch, and the optional Have I Been Pwned key
+    // that switches the lookup away from keyless XposedOrNot. The key lives in
+    // the credential store, never in the settings blob, like the AI key.
     let app_weak = app.as_weak();
     let state_for_breach_scan = Rc::clone(state);
     let runtime_for_breach_scan = runtime.clone();
@@ -903,6 +903,9 @@ pub(super) fn register_settings_preference_callbacks(
         }) {
             Some(Ok(())) => {
                 app.set_breach_scan_enabled(checked);
+                // The services card shows the breach scan, and no key is a
+                // state it names rather than hides; re-probe after the switch.
+                crate::services::refresh(&app, &state_for_breach_scan, &runtime_for_breach_scan);
                 app.set_sync_status(UiMessage::plain("Sender breach check saved."));
             }
             Some(Err(error)) => app.set_sync_status(UiMessage::detail(
@@ -930,6 +933,9 @@ pub(super) fn register_settings_preference_callbacks(
         match result {
             Ok(()) => {
                 app.set_hibp_key_saved(!value.trim().is_empty());
+                // A key just stored turns the idle state green in Settings and
+                // on the services card without waiting for a restart.
+                crate::services::refresh(&app, &state_for_hibp_key, &runtime_for_hibp_key);
                 app.set_sync_status(UiMessage::plain("Have I Been Pwned key saved."));
             }
             Err(error) => app.set_sync_status(UiMessage::detail(

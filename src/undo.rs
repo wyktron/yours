@@ -15,6 +15,9 @@ const SENT_NOTICE_FOR: Duration = Duration::from_secs(4);
 const GESTURE_NOTICE_FOR: Duration = Duration::from_secs(10);
 /// How long a notice that something could not be undone stays.
 const ANSWER_NOTICE_FOR: Duration = Duration::from_secs(4);
+/// How long the one-time missing-key breach hint stays. Its x dismisses it
+/// sooner; the stored flag is what keeps it from ever returning.
+const BREACH_HINT_FOR: Duration = Duration::from_secs(20);
 /// At exit, how long messages still in their delay may take to leave, so
 /// that they don't wait for the next start.
 const EXIT_SEND_LIMIT: Duration = Duration::from_secs(10);
@@ -234,6 +237,26 @@ pub(super) fn tell(app: &AppWindow, message: UiMessage) {
     with_undo(|undo| undo.show(app, Shown::Note, message, "", Some(ANSWER_NOTICE_FOR)));
 }
 
+/// The one-time hint that the breach scan could not reach its provider. Its
+/// button opens Settings > General, where the switch and optional HIBP key
+/// live; the x dismisses it. The caller has already stored the shown flag, so
+/// it never repeats.
+pub(super) fn breach_hint(app: &AppWindow) {
+    with_undo(|undo| {
+        undo.show(
+            app,
+            Shown::Note,
+            // A literal: the Slint dispatcher owns the wording and its
+            // translation, like every other UiMessage key.
+            UiMessage::plain(
+                "Breach scan is on, but the breach provider could not be reached - check your connection.",
+            ),
+            "breach-key",
+            Some(BREACH_HINT_FOR),
+        );
+    });
+}
+
 /// What the notice says of a batch.
 fn gesture_message(batch: UndoableBatch) -> UiMessage {
     let count = batch.count;
@@ -364,6 +387,12 @@ impl Undo {
             ("open-draft", Shown::Send { draft_id, .. }) => {
                 self.hide_notice();
                 composer::reopen_draft(draft_id);
+            }
+            // The missing-key hint's button: open the page that owns the key.
+            ("breach-key", Shown::Note) => {
+                self.hide_notice();
+                app.set_settings_tab("General".into());
+                app.invoke_open_settings();
             }
             _ => {}
         }

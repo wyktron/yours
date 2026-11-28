@@ -6,7 +6,8 @@ import { SenderBreaches } from "../sender-breaches.slint";
 
 // Lists the known data breaches the open/clicked sender's address appears
 // in: breach title, domain, date, and what the breach exposed. Data comes
-// from Have I Been Pwned, which the attribution line credits.
+// from the breach provider (XposedOrNot by default, HIBP with a key), which
+// the attribution line credits.
 export component BreachDialog inherits Rectangle {
     private property <bool> narrow: panel.width < 360px;
     private property <int> total: SenderBreaches.breaches.length;
@@ -161,7 +162,7 @@ export component BreachDialog inherits Rectangle {
                     spacing: 10px;
                     alignment: end;
                     Text {
-                        text: @tr("Breach data from Have I Been Pwned (haveibeenpwned.com)");
+                        text: @tr("Breach data from XposedOrNot (xposedornot.com), or Have I Been Pwned (haveibeenpwned.com) when a key is stored");
                         color: AppTheme.muted;
                         font-size: TypeScale.caption;
                         overflow: elide;

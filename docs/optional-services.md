@@ -9,9 +9,10 @@ of the app** and is **not installed by any package**:
 | Summary, reply drafts, phishing screen | Any OpenAI-compatible endpoint (Ollama by default) | `http://127.0.0.1:11434/v1` |
 | Read aloud and spoken new-mail announcements | Kokoro, Piper, eSpeak NG, Edge TTS, ElevenLabs or a custom speech endpoint | Kokoro `http://127.0.0.1:8766` |
 
-A fourth feature, the sender breach skull, calls **Have I Been Pwned's paid
-API**. It is not a local service and cannot work without the account's API
-key: see [Have I Been Pwned](#have-i-been-pwned-sender-breach-skull).
+A fourth feature, the sender breach skull, calls a hosted breach service.
+It works with no key or account through **XposedOrNot (Community Edition)**;
+a paid HIBP key is optional: see
+[Breaches](#sender-breach-skull).
 
 At startup, and whenever **Settings > General > What this app needs > Check
 again** is pressed, Yours probes all three with short timeouts. A missing
@@ -97,34 +98,29 @@ Edge TTS needs the `edge-tts` command, and ElevenLabs needs a key; both send
 the message text online. Choose them under **Settings > General > Read aloud**.
 No speech engine means the app stays silent until one is installed.
 
-## Have I Been Pwned (sender breach skull)
+## Sender breach skull
 
-When new mail arrives, Yours can ask [Have I Been Pwned](https://haveibeenpwned.com)
-whether the sender's address appears in a known data breach. A sender with
-breaches gets a small **red skull** beside their name in the mail list and in
-the reader header; hovering it says how many breaches, and clicking it opens
-a popup listing each breach's title, domain, date and exposed data classes.
-The popup credits Have I Been Pwned.
+When new mail arrives, Yours asks a breach service whether the sender's
+address appears in a known data breach. A sender with breaches gets a small
+**red skull** beside their name in the mail list and in the reader header;
+hovering it says how many breaches, and clicking it opens a popup listing each
+breach's title, domain, date and exposed data classes.
 
-The lookup is the `breachedaccount` endpoint of HIBP's **paid API**. It needs
-an API key tied to a paid HIBP subscription; the free tier does not include
-it. Yours never asks HIBP anything without a key:
+The default provider is **[XposedOrNot](https://xposedornot.com), Community
+Edition**, which needs **no API key and no account**. Only the sender's email
+address is sent; no mail content or credential leaves the machine. Requests
+are paced to its two-per-second community limit, time out after 6 seconds,
+honour `429 Retry-After`, and never delay mail. A verdict is cached per
+address for **seven days**, including the "no breach" answer.
 
-- Save the key under **Settings > General > Sender breach check**. It is kept
-  in the platform credential store like the AI key, never in the mail
-  database or settings blob.
-- The **Check senders for known breaches** switch (on by default) turns the
-  whole feature off. With no key saved, the check is skipped silently: no
-  requests, no skulls, no dialogs; the log records it once.
-- A verdict is cached per address for **seven days**, including the 404 for a
-  sender with no known breach, so a busy inbox makes about one request per
-  new sender per week and stays inside HIBP's rate limit (roughly one request
-  per 1.5 seconds). A `429` backs off instead of retrying in a loop, and mail
-  never waits for the lookup: it runs on its own task after arrival.
-
-HIBP returns `401 Access denied` for a missing, malformed or unsubscribed key.
-Yours logs that status and leaves the feature off; it never invents a verdict
-or marks a sender without an answer.
+A **paid Have I Been Pwned key is optional**: save one under **Settings >
+General > Sender breach check** to switch the scan to HIBP's paid
+`breachedaccount` endpoint. The key lives in the platform credential store,
+like the AI key, never in the mail database or settings blob. The switch (on by
+default) turns the whole feature off; Settings and **What this app needs** show
+the provider state, and amber appears only for an actual failure.
+[Breaches](breaches.md) describes both providers, the privacy limits, the
+one-time failure hint, and the offline demo fixture.
 
 ## Flatpak
 
