@@ -5,18 +5,24 @@
 //! store opens, an on-demand run from Settings, and the few static flags the
 //! composer, read-aloud and phishing screen read without touching the UI.
 //!
+//! The same run lists the models the AI endpoint serves. Settings turns that
+//! list into the AI model pickers, so a configured model the endpoint does not
+//! serve can be replaced by one it does, without typing an id from memory.
+//!
 //! Network work is spawned on the app runtime after the settings snapshot is
 //! read, so it is never on the UI thread and never holds the database lock.
 
 use super::*;
 use flectar_mail_core::Scenario;
+use flectar_mail_core::models::Settings;
 use flectar_mail_core::services::{
-    AiModelStatus, AiStatus, ServiceState, ServicesReport, SpeechStatus,
+    AiModelStatus, AiStatus, AiTier, AiTierModels, ServiceState, ServicesReport, SpeechStatus,
 };
 use std::sync::Mutex;
 
-/// The model list the endpoint returned last, newest first in time. The
-/// Settings page shows it under the model field.
+/// The model list the endpoint returned last. Kept across a probe that did not
+/// answer, so the pickers keep offering what was there rather than going
+/// blank on a transient outage.
 static AI_CATALOG: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
 /// AI usability per feature, as last probed. A pointer, not a flag: each AI
@@ -32,11 +38,11 @@ pub(crate) fn register(
     runtime: &tokio::runtime::Handle,
 ) {
     let weak = app.as_weak();
-    let state = Rc::clone(state);
-    let runtime = runtime.clone();
+    let state_for_check = Rc::clone(state);
+    let runtime_for_check = runtime.clone();
     app.global::<AppServices>().on_check_again(move || {
         if let Some(app) = weak.upgrade() {
-            refresh(&app, &state, &runtime);
+            refresh(&app, &state_for_check, &runtime_for_check);
         }
     });
 
@@ -48,10 +54,22 @@ pub(crate) fn register(
         app.set_settings_tab("Agents".into());
         app.invoke_open_settings();
     });
+
+    // The AI section's own refresh, so a model picked in another window or a
+    // server that just changed its list can be re-read without leaving it.
+    let weak = app.as_weak();
+    let state_for_refresh = Rc::clone(&state);
+    let runtime_for_refresh = runtime.clone();
+    app.global::<AiModels>().on_refresh(move || {
+        if let Some(app) = weak.upgrade() {
+            refresh(&app, &state_for_refresh, &runtime_for_refresh);
+        }
+    });
 }
 
 /// Probe now. Safe to call from startup, from a settings save, or from the
-/// card's Check again button; a newer run simply replaces an older answer.
+/// card's Check again / Refresh models buttons; a newer run simply replaces
+/// an older answer.
 pub(crate) fn refresh(
     app: &AppWindow,
     state: &Rc<RefCell<InboxState>>,
@@ -59,10 +77,10 @@ pub(crate) fn refresh(
 ) {
     let services = app.global::<AppServices>();
     services.set_checking(true);
+    // Keep the last list and the configured tiers visible while the probe
+    // runs, so the pickers do not go blank.
     let catalog = ai_catalog();
-    if !catalog.is_empty() {
-        services.set_ai_catalog(catalog.into());
-    }
+    publish_ai_tiers(app, &tier_models_from_ui(app), &catalog, false);
     let Some(core) = state.borrow().core.as_ref().map(|core| core.file_core()) else {
         publish_unavailable(app);
         return;
@@ -70,22 +88,11 @@ pub(crate) fn refresh(
     let weak = app.as_weak();
     runtime.spawn(async move {
         let report = core.probe_services().await;
-        // The probe just recorded what the endpoint serves; show it in
-        // Settings so a missing model can be picked from what is there.
-        let listed = match &report {
-            Ok(report) if report.ai.answers() => core.ai_list_models().await.ok(),
-            _ => None,
-        };
-        let _ = weak.upgrade_in_event_loop(move |app| {
-            if let Some(models) = listed {
-                publish_ai_catalog(&app, models);
-            }
-            match report {
-                Ok(report) => publish(&app, &report),
-                Err(error) => {
-                    tracing::warn!(%error, "optional service probe could not read settings");
-                    publish_unavailable(&app);
-                }
+        let _ = weak.upgrade_in_event_loop(move |app| match report {
+            Ok(report) => publish(&app, &report),
+            Err(error) => {
+                tracing::warn!(%error, "optional service probe could not read settings");
+                publish_unavailable(&app);
             }
         });
     });
@@ -102,6 +109,9 @@ fn publish(app: &AppWindow, report: &ServicesReport) {
     services.set_reacher_state(report.reacher.state.as_str().into());
     publish_ai(&services, &report.ai);
     publish_speech(&services, &report.speech);
+    // The same report carries the model list, so the pickers need no second
+    // request to the endpoint.
+    publish_ai_picker(app, &report.ai);
 
     crate::composer::set_address_checks_available(report.reacher.state == ServiceState::Connected);
     // Read-aloud speaks whenever an engine can, fallback included; the card
@@ -162,14 +172,129 @@ fn publish_speech(services: &AppServices, speech: &SpeechStatus) {
     services.set_speech_using(using.into());
 }
 
-/// Remember and show the ids the endpoint serves, so Settings can offer them
-/// and the AI section can say why a configured model does not work.
-fn publish_ai_catalog(app: &AppWindow, models: Vec<String>) {
-    if let Ok(mut slot) = AI_CATALOG.lock() {
-        *slot = models.clone();
+/// Fill the AI model pickers from the probe's answer: every model the endpoint
+/// listed, what each tier uses now, and whether that model is served.
+fn publish_ai_picker(app: &AppWindow, ai: &AiStatus) {
+    // An endpoint that did not answer keeps the last known list rather than
+    // pretending it serves nothing; one that answered with no models reports
+    // exactly that, and manual entry stays available.
+    let catalog = if ai.answers() {
+        if let Ok(mut slot) = AI_CATALOG.lock() {
+            *slot = ai.available_models.clone();
+        }
+        ai.available_models.clone()
+    } else {
+        ai_catalog()
+    };
+    publish_ai_tiers(app, &ai.tier_models, &catalog, ai.answers());
+}
+
+/// Show what Settings is configured to use before the first probe lands, so
+/// the pickers are never blank for a configured setup.
+pub(crate) fn publish_ai_tier_models(app: &AppWindow, settings: &Settings) {
+    let catalog = ai_catalog();
+    publish_ai_tiers(app, &AiTierModels::from_settings(settings), &catalog, false);
+}
+
+/// Show a model just picked in Settings, before the re-probe returns, and
+/// re-shape the dropdowns around it.
+pub(crate) fn publish_ai_pick(app: &AppWindow, tier: Option<AiTier>, model: &str) {
+    let mut tiers = tier_models_from_ui(app);
+    match tier {
+        Some(tier) => tiers.set(tier, model),
+        None => {
+            tiers.instant = model.trim().to_owned();
+            tiers.cheap = model.trim().to_owned();
+            tiers.intelligent = model.trim().to_owned();
+        }
     }
-    app.global::<AppServices>()
-        .set_ai_catalog(models.join("\n").into());
+    let listed = app.global::<AiModels>().get_listed();
+    publish_ai_tiers(app, &tiers, &ai_catalog(), listed);
+}
+
+/// The tiers as the pickers show them now, used when only the list changes.
+fn tier_models_from_ui(app: &AppWindow) -> AiTierModels {
+    let ui = app.global::<AiModels>();
+    AiTierModels {
+        instant: ui.get_instant().to_string(),
+        cheap: ui.get_cheap().to_string(),
+        intelligent: ui.get_intelligent().to_string(),
+    }
+}
+
+/// Show a catalog and the configured tiers in the pickers. Choices are
+/// published before the values: a ComboBox clamps its selection to its model,
+/// so the configured model must already be in the list when it arrives.
+fn publish_ai_tiers(app: &AppWindow, tiers: &AiTierModels, catalog: &[String], listed: bool) {
+    let ui = app.global::<AiModels>();
+    ui.set_available(string_model(catalog));
+    ui.set_listed(listed);
+    let mut intelligent_choices = Vec::new();
+    for tier in AiTier::ALL {
+        let choices = tier_choices(catalog, tiers.get(tier));
+        if tier == AiTier::Intelligent {
+            intelligent_choices = choices.clone();
+        }
+        set_tier_choices(&ui, tier, &choices);
+    }
+    ui.set_all_choices(string_model(&intelligent_choices));
+    for tier in AiTier::ALL {
+        let current = tiers.get(tier);
+        set_tier_model(&ui, tier, current);
+        set_tier_served(
+            &ui,
+            tier,
+            !current.is_empty() && catalog.iter().any(|model| model == current),
+        );
+    }
+}
+
+/// The dropdown list for one tier: every served model in the probe's sorted
+/// order, with the configured model in front when the endpoint does not serve
+/// it, so the box shows the model to change (marked in the caption) instead of
+/// going blank.
+fn tier_choices(catalog: &[String], current: &str) -> Vec<String> {
+    let mut choices = Vec::with_capacity(catalog.len() + 1);
+    if !current.is_empty() && !catalog.iter().any(|model| model == current) {
+        choices.push(current.to_owned());
+    }
+    choices.extend(catalog.iter().cloned());
+    choices
+}
+
+fn string_model(values: &[String]) -> slint::ModelRc<slint::SharedString> {
+    slint::ModelRc::new(slint::VecModel::from(
+        values
+            .iter()
+            .map(|value| slint::SharedString::from(value.as_str()))
+            .collect::<Vec<_>>(),
+    ))
+}
+
+fn set_tier_choices(ui: &AiModels, tier: AiTier, choices: &[String]) {
+    let choices = string_model(choices);
+    match tier {
+        AiTier::Instant => ui.set_instant_choices(choices),
+        AiTier::Cheap => ui.set_cheap_choices(choices),
+        AiTier::Intelligent => ui.set_intelligent_choices(choices),
+    }
+}
+
+fn set_tier_model(ui: &AiModels, tier: AiTier, model: &str) {
+    let model = slint::SharedString::from(model);
+    match tier {
+        AiTier::Instant => ui.set_instant(model),
+        AiTier::Cheap => ui.set_cheap(model),
+        AiTier::Intelligent => ui.set_intelligent(model),
+    }
+}
+
+fn set_tier_served(ui: &AiModels, tier: AiTier, served: bool) {
+    match tier {
+        AiTier::Instant => ui.set_instant_served(served),
+        AiTier::Cheap => ui.set_cheap_served(served),
+        AiTier::Intelligent => ui.set_intelligent_served(served),
+    }
 }
 
 fn publish_unavailable(app: &AppWindow) {
@@ -186,18 +311,22 @@ fn publish_unavailable(app: &AppWindow) {
     services.set_speech_detail(String::new().into());
     services.set_speech_selected(String::new().into());
     services.set_speech_using(String::new().into());
+    // The configured tiers stay visible; only the served list is unknown.
+    let tiers = tier_models_from_ui(app);
+    let catalog = ai_catalog();
+    publish_ai_tiers(app, &tiers, &catalog, false);
     crate::composer::set_address_checks_available(false);
     crate::speech::set_availability(false, None);
 }
 
-/// The models the endpoint served the last time it was asked, as one per
-/// line. Empty when it never answered or listed nothing.
-pub(crate) fn ai_catalog() -> String {
+/// The models the endpoint served the last time it was asked. Empty when it
+/// never answered or listed nothing.
+pub(crate) fn ai_catalog() -> Vec<String> {
     let guard = match AI_CATALOG.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     };
-    guard.join("\n")
+    guard.clone()
 }
 
 pub(crate) fn security_screen_unavailable() -> bool {

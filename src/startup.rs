@@ -1329,7 +1329,9 @@ pub(crate) fn apply_settings(app: &AppWindow, settings: &Settings) {
     let tts_config = crate::speech::config_from_settings(settings);
     apply_tts(app, settings, &tts_config);
     app.set_ai_phishing(settings.ai_phishing_enabled);
-    app.set_ai_model(settings.ai_model_intelligent.clone().into());
+    // The AI model pickers show the configured tier models until the probe
+    // lands with the endpoint's own list.
+    crate::services::publish_ai_tier_models(app, settings);
     app.set_ai_endpoint(settings.ai_base_url.clone().into());
     crate::apply_language(app, &settings.language);
     app.set_custom_oauth_configured(

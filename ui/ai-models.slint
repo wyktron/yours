@@ -1,0 +1,34 @@
+// Settings -> AI agents: the model pickers. The services probe lists the model
+// ids the endpoint serves and checks every configured tier against them; these
+// properties are what the page offers, and picking one saves it through the
+// normal settings controller, which re-probes so the status line follows.
+
+export global AiModels {
+    // The ids the endpoint listed last, sorted and deduplicated. Empty when it
+    // listed none, or has not answered yet.
+    in property <[string]> available: [];
+    // The endpoint answered with a model list (which may be empty), so the page
+    // says "no models" instead of showing an old list as if it were current.
+    in property <bool> listed: false;
+    // What each tier is set to now, and whether the endpoint serves it.
+    in-out property <string> instant: "";
+    in-out property <string> cheap: "";
+    in-out property <string> intelligent: "";
+    in property <bool> instant-served: false;
+    in property <bool> cheap-served: false;
+    in property <bool> intelligent-served: false;
+    // One dropdown list per tier: the served models, with the configured model
+    // first when the endpoint does not serve it, so the box shows the model to
+    // change rather than a blank.
+    in property <[string]> instant-choices: [];
+    in property <[string]> cheap-choices: [];
+    in property <[string]> intelligent-choices: [];
+    // The one-model-for-every-feature picker, which follows the intelligent
+    // tier.
+    in property <[string]> all-choices: [];
+    // Save a picked model for one tier ("instant", "cheap", "intelligent"), or
+    // for every tier when the tier is "all".
+    callback pick(string, string);
+    // Ask for a fresh probe without leaving the page.
+    callback refresh();
+}

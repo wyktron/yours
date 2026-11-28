@@ -7,6 +7,7 @@
 
 use super::*;
 use flectar_mail_core::models::CustomTheme;
+use flectar_mail_core::services::AiTier;
 
 fn apply_account_presentation_settings(
     app: &AppWindow,
@@ -840,29 +841,45 @@ pub(super) fn register_settings_preference_callbacks(
         let Some(app) = app_weak.upgrade() else {
             return;
         };
-        if save_tts_setting(&app, &state_for_ai, &runtime_for_ai, |settings| {
+        if save_ai_setting(&app, &state_for_ai, &runtime_for_ai, |settings| {
             settings.ai_phishing_enabled = checked;
         }) {
             app.set_ai_phishing(checked);
         }
     });
 
+    // Settings > AI agents picks a model from the endpoint's own list. One
+    // tier changes, or "all" sets the three at once; either way the services
+    // probe runs again so the status line says connected or degraded for the
+    // new models at once.
     let app_weak = app.as_weak();
-    let state_for_ai_model = Rc::clone(state);
-    let runtime_for_ai_model = runtime.clone();
-    app.on_save_ai_model(move |value| {
+    let state_for_ai_pick = Rc::clone(state);
+    let runtime_for_ai_pick = runtime.clone();
+    app.global::<AiModels>().on_pick(move |tier, model| {
         let Some(app) = app_weak.upgrade() else {
             return;
         };
-        let model = value.to_string();
-        if save_tts_setting(&app, &state_for_ai_model, &runtime_for_ai_model, |settings| {
-            settings.ai_model_instant = model.clone();
-            settings.ai_model_cheap = model.clone();
-            settings.ai_model_intelligent = model.clone();
-        }) {
-            app.set_ai_model(value);
-            crate::services::refresh(&app, &state_for_ai_model, &runtime_for_ai_model);
-        }
+        let tier = match tier.as_str() {
+            "all" => None,
+            "instant" => Some(AiTier::Instant),
+            "cheap" => Some(AiTier::Cheap),
+            "intelligent" => Some(AiTier::Intelligent),
+            other => {
+                tracing::warn!(tier = %other, "unknown AI model tier picked in Settings");
+                return;
+            }
+        };
+        save_ai_model_pick(
+            &app,
+            &state_for_ai_pick,
+            &runtime_for_ai_pick,
+            tier,
+            model.as_str(),
+        );
+        // Re-probe either way: after a successful pick this updates the state
+        // and the detail line; after a failed one it restores the stored
+        // models instead of leaving the dropdown showing something unsaved.
+        crate::services::refresh(&app, &state_for_ai_pick, &runtime_for_ai_pick);
     });
 
     let app_weak = app.as_weak();
@@ -873,7 +890,7 @@ pub(super) fn register_settings_preference_callbacks(
             return;
         };
         let endpoint = value.to_string();
-        if save_tts_setting(
+        if save_ai_setting(
             &app,
             &state_for_ai_endpoint,
             &runtime_for_ai_endpoint,
@@ -1702,29 +1719,88 @@ fn save_tts_setting(
     runtime: &tokio::runtime::Handle,
     change: impl FnOnce(&mut flectar_mail_core::models::Settings),
 ) -> bool {
-    let Some(core) = state.borrow().core.as_ref().map(|core| core.file_core()) else {
-        return false;
-    };
-    let result = runtime.block_on(async move {
-        let mut settings = core.get_settings().await.map_err(|error| error.to_string())?;
-        change(&mut settings);
-        core.set_settings(settings)
-            .await
-            .map_err(|error| error.to_string())
-    });
-    match result {
-        Ok(()) => {
+    match write_settings(state, runtime, change) {
+        Some(Ok(())) => {
             app.set_sync_status(UiMessage::plain("Read-aloud settings saved."));
             true
         }
-        Err(error) => {
+        Some(Err(error)) => {
             app.set_sync_status(UiMessage::detail(
                 "Could not save the read-aloud settings: {}",
                 error,
             ));
             false
         }
+        None => false,
     }
+}
+
+/// Persist an AI setting; the status line speaks about AI, not read-aloud.
+fn save_ai_setting(
+    app: &AppWindow,
+    state: &Rc<RefCell<InboxState>>,
+    runtime: &tokio::runtime::Handle,
+    change: impl FnOnce(&mut flectar_mail_core::models::Settings),
+) -> bool {
+    match write_settings(state, runtime, change) {
+        Some(Ok(())) => {
+            app.set_sync_status(UiMessage::plain("AI settings saved."));
+            true
+        }
+        Some(Err(error)) => {
+            app.set_sync_status(UiMessage::detail("Could not save AI settings: {}", error));
+            false
+        }
+        None => false,
+    }
+}
+
+/// Write one setting through the core. `None` means there is no core yet;
+/// otherwise the write's result, so the caller says what happened in its own
+/// words. A failed write leaves the UI as it was, so Settings never shows
+/// something that was not stored.
+fn write_settings(
+    state: &Rc<RefCell<InboxState>>,
+    runtime: &tokio::runtime::Handle,
+    change: impl FnOnce(&mut flectar_mail_core::models::Settings),
+) -> Option<std::result::Result<(), String>> {
+    let core = state.borrow().core.as_ref().map(|core| core.file_core())?;
+    Some(runtime.block_on(async move {
+        let mut settings = core.get_settings().await.map_err(|error| error.to_string())?;
+        change(&mut settings);
+        core.set_settings(settings)
+            .await
+            .map_err(|error| error.to_string())
+    }))
+}
+
+/// Persist a model picked in Settings > AI agents: one tier, or every tier
+/// when the pick came from the shared picker. The caller re-probes afterwards
+/// so the status line reflects the new models. Returns whether it was stored.
+fn save_ai_model_pick(
+    app: &AppWindow,
+    state: &Rc<RefCell<InboxState>>,
+    runtime: &tokio::runtime::Handle,
+    tier: Option<AiTier>,
+    model: &str,
+) -> bool {
+    let model = model.trim().to_owned();
+    if model.is_empty() {
+        return false;
+    }
+    let saved = save_ai_setting(app, state, runtime, |settings| match tier {
+        Some(tier) => tier.set_model(settings, &model),
+        None => {
+            settings.ai_model_instant = model.clone();
+            settings.ai_model_cheap = model.clone();
+            settings.ai_model_intelligent = model.clone();
+        }
+    });
+    if saved {
+        // Show the pick before the probe returns, so the dropdown keeps it.
+        crate::services::publish_ai_pick(app, tier, &model);
+    }
+    saved
 }
 
 /// Reloads the engine's stored key and live voice list, then shows what the
@@ -1794,5 +1870,79 @@ mod tests {
         app.invoke_close_settings();
         slint::platform::update_timers_and_animations();
         assert_eq!(theme.get_custom_light_primary(), chosen);
+    }
+
+    /// The two pick paths: a per-tier pick stores that tier alone, and the
+    /// shared "every feature" pick stores all three, through the same settings
+    /// write the rest of Settings uses.
+    #[test]
+    fn picking_a_model_persists_the_tiers_it_covers() {
+        use flectar_mail_core::accounts::credentials::DevelopmentFileCredentialStore;
+        use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
+        struct Headless(Rc<MinimalSoftwareWindow>);
+        impl slint::platform::Platform for Headless {
+            fn create_window_adapter(
+                &self,
+            ) -> Result<Rc<dyn slint::platform::WindowAdapter>, slint::PlatformError> {
+                Ok(self.0.clone())
+            }
+        }
+        let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+        slint::platform::set_platform(Box::new(Headless(window))).unwrap();
+        let app = AppWindow::new().unwrap();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let core = runtime
+            .block_on(CoreMailSource::start(
+                flectar_mail_core::config::Paths::for_tests(dir.path()),
+                Arc::new(DevelopmentFileCredentialStore::new(
+                    dir.path().join("credentials.json"),
+                )),
+                Arc::new(flectar_mail_core::oauth::redirect::LoopbackRedirectBroker::default()),
+            ))
+            .unwrap();
+        let (favicons, _) = bounded_ui_channel();
+        let (avatars, _) = bounded_ui_channel();
+        let mut state = InboxState::empty(
+            None,
+            UiSender::new(favicons, UiWake::new(app.as_weak(), |_| {})),
+            None,
+            UiSender::new(avatars, UiWake::new(app.as_weak(), |_| {})),
+            false,
+            false,
+            WarmStartCacheWriter::spawn(runtime.handle(), dir.path().join("warm.json")),
+        );
+        state.core = Some(core.clone());
+        let state = Rc::new(RefCell::new(state));
+        let stored = || runtime.block_on(core.file_core().get_settings()).unwrap();
+
+        // A pick for one tier changes only that tier.
+        assert!(save_ai_model_pick(
+            &app,
+            &state,
+            runtime.handle(),
+            Some(AiTier::Instant),
+            "qwen3.5:9b",
+        ));
+        let settings = stored();
+        assert_eq!(settings.ai_model_instant, "qwen3.5:9b");
+        assert_ne!(settings.ai_model_cheap, "qwen3.5:9b");
+        assert_ne!(settings.ai_model_intelligent, "qwen3.5:9b");
+
+        // The shared picker sets every tier.
+        assert!(save_ai_model_pick(
+            &app,
+            &state,
+            runtime.handle(),
+            None,
+            "glm-ocr:latest",
+        ));
+        let settings = stored();
+        assert_eq!(settings.ai_model_instant, "glm-ocr:latest");
+        assert_eq!(settings.ai_model_cheap, "glm-ocr:latest");
+        assert_eq!(settings.ai_model_intelligent, "glm-ocr:latest");
     }
 }

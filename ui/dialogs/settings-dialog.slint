@@ -8,6 +8,7 @@ import { DefaultEmailApp } from "../default-email-app.slint";
 import { SystemNotifications } from "../system-notifications.slint";
 import { Updates } from "../updates.slint";
 import { AgentAccess } from "../agent-access.slint";
+import { AiModels } from "../ai-models.slint";
 import { AgentAccessPage } from "../components/agent-access-page.slint";
 import { AppIconPicker } from "../components/app-icon-picker.slint";
 import { MessageColors } from "../message-colors.slint";
@@ -25,7 +26,7 @@ import { IconButton, LineEdit, RadioButton, Switch } from "../components/control
 import { CopyableDiagnostic } from "../components/copyable-diagnostic.slint";
 import { FocusVisibleScope } from "../components/focus-visible-scope.slint";
 import { ProviderButton } from "../components/provider-button.slint";
-import { FormField, SettingsCard, SettingsLinkRow, SettingsNavItem, SettingsSelectRow, SettingsSwitchRow, ShortcutRow, ShortcutSection } from "../components/settings-components.slint";
+import { FormField, SettingsCard, SettingsLinkRow, SettingsNavItem, SettingsSelect, SettingsSelectRow, SettingsSwitchRow, ShortcutRow, ShortcutSection } from "../components/settings-components.slint";
 import { Shortcuts } from "../shortcuts.slint";
 import { KeyboardKeys } from "../components/kbd.slint";
 import { TabsUi } from "../components/workspace-navigation.slint";
@@ -125,6 +126,92 @@ component SettingsSearch inherits Rectangle {
         hover-background: root.hover-background;
         tooltip-text: @tr("Clear settings search");
         clicked => { root.query = ""; root.edited(""); }
+    }
+}
+
+
+// One AI tier's model: a dropdown of the ids the endpoint serves, with the
+// configured model still shown when the endpoint does not serve it, and a
+// hand-typed id for an endpoint whose list is missing or wrong.
+component AiModelPicker inherits VerticalBox {
+    in property <string> title;
+    in property <string> description;
+    // "all", "instant", "cheap" or "intelligent", handed back with the pick.
+    in property <string> tier;
+    in property <[string]> choices;
+    // The model this tier uses now; two-way so the dropdown reports a pick.
+    in-out property <string> current;
+    // The endpoint answered and listed its models.
+    in property <bool> listed: false;
+    // It answered, but listed none: manual entry is the only way.
+    in property <bool> catalog-empty: false;
+    // True when the endpoint does not serve the configured model.
+    in property <bool> served: true;
+    in property <color> body-text;
+    in property <color> faint-text;
+    in property <color> warning-text;
+    // The hand-typed fallback, hidden until Other… is clicked.
+    in-out property <bool> typing: false;
+    in-out property <string> typed: "";
+
+    width: 100%;
+    spacing: 6px;
+
+    VerticalBox {
+        spacing: 2px;
+        Text {
+            text: root.title;
+            color: root.body-text;
+            font-size: TypeScale.body;
+            font-weight: 600;
+            wrap: word-wrap;
+        }
+        if root.description != "" : Text {
+            text: root.description;
+            color: root.faint-text;
+            font-size: TypeScale.caption;
+            wrap: word-wrap;
+        }
+    }
+    HorizontalBox {
+        spacing: 8px;
+        SettingsSelect {
+            horizontal-stretch: 1;
+            choices: root.choices;
+            current-value <=> root.current;
+            selection-changed(index, value) => { AiModels.pick(root.tier, value); }
+        }
+        Button {
+            text: root.typing ? @tr("Cancel") : @tr("Other…");
+            clicked => {
+                root.typing = !root.typing;
+                if root.typing { root.typed = root.current; }
+            }
+        }
+    }
+    if root.typing : HorizontalBox {
+        spacing: 8px;
+        LineEdit {
+            horizontal-stretch: 1;
+            text <=> root.typed;
+            placeholder-text: @tr("Exact model id");
+        }
+        Button {
+            text: @tr("Use model");
+            clicked => { AiModels.pick(root.tier, root.typed); root.typing = false; }
+        }
+    }
+    if root.catalog-empty : Text {
+        text: @tr("The endpoint listed no models. Type the id of a model it serves with Other…");
+        color: root.warning-text;
+        font-size: TypeScale.caption;
+        wrap: word-wrap;
+    }
+    if root.listed && !root.catalog-empty && !root.served && root.current != "" : Text {
+        text: @tr("{} (not served). Pick a model this endpoint serves, or type its id with Other…", root.current);
+        color: root.warning-text;
+        font-size: TypeScale.caption;
+        wrap: word-wrap;
     }
 }
 
@@ -416,14 +503,13 @@ export component SettingsDialog inherits Rectangle {
     callback save_tts_model(string);
     callback save_tts_announce(bool);
     callback preview_tts_voice();
-    // AI assistant: the model, where it runs, and the phishing screen.
+    // AI assistant: the models (picked in the AiModels global from the probe's
+    // list), where they run, and the phishing screen.
     in-out property <bool> ai_phishing: false;
     in property <bool> ai_key_saved: false;
-    in-out property <string> ai_model: "";
     in-out property <string> ai_endpoint: "";
     in-out property <string> ai_key_draft: "";
     callback save_ai_phishing(bool);
-    callback save_ai_model(string);
     callback save_ai_endpoint(string);
     callback save_ai_key(string);
     in property <string> time_format_sample: "13:30";
@@ -3675,30 +3761,85 @@ export component SettingsDialog inherits Rectangle {
                                             clicked => { AppServices.check-again(); }
                                         }
                                     }
-                                    Text { text: @tr("Model"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
                                     HorizontalBox {
                                         spacing: 8px;
-                                        LineEdit {
+                                        Text {
                                             horizontal-stretch: 1;
-                                            text <=> root.ai_model;
-                                            placeholder-text: "llama3.2";
+                                            text: @tr("AI models");
+                                            color: root.body-text;
+                                            font-size: TypeScale.body;
+                                            font-weight: 600;
+                                            wrap: word-wrap;
                                         }
-                                        Button { text: @tr("Save"); clicked => { root.save_ai_model(root.ai_model); } }
+                                        Button {
+                                            text: AppServices.checking ? @tr("Checking…") : @tr("Refresh models");
+                                            enabled: !AppServices.checking;
+                                            clicked => { AiModels.refresh(); }
+                                        }
                                     }
-                                    // An endpoint that answers 200 can still serve other
-                                    // models; list what it actually has so the field can
-                                    // name one of them.
-                                    Text {
-                                        visible: AppServices.ai-models != "";
-                                        text: AppServices.ai-models;
-                                        color: root.faint-text;
-                                        font-size: TypeScale.caption;
-                                        wrap: word-wrap;
+                                    // The probe lists the models the endpoint serves;
+                                    // each tier is a pick from that list, and a model
+                                    // it does not serve stays visible so it is clear
+                                    // what to change. Other… keeps a hand-typed id
+                                    // possible for an unreadable or incomplete list.
+                                    AiModelPicker {
+                                        tier: "all";
+                                        title: @tr("Model for every feature");
+                                        description: @tr("One model for sorting, summaries, drafts, read-aloud and the phishing screen. Pick per tier below to use different ones.");
+                                        choices: AiModels.all-choices;
+                                        current <=> AiModels.intelligent;
+                                        listed: AiModels.listed;
+                                        catalog-empty: AiModels.listed && AiModels.available.length == 0;
+                                        served: AiModels.intelligent-served;
+                                        body-text: root.body-text;
+                                        faint-text: root.faint-text;
+                                        warning-text: AppTheme.destructive;
                                     }
+                                    AiModelPicker {
+                                        tier: "instant";
+                                        title: @tr("Instant model");
+                                        description: @tr("Phishing checks, quick replies and summaries: it runs on every message.");
+                                        choices: AiModels.instant-choices;
+                                        current <=> AiModels.instant;
+                                        listed: AiModels.listed;
+                                        catalog-empty: AiModels.listed && AiModels.available.length == 0;
+                                        served: AiModels.instant-served;
+                                        body-text: root.body-text;
+                                        faint-text: root.faint-text;
+                                        warning-text: AppTheme.destructive;
+                                    }
+                                    AiModelPicker {
+                                        tier: "cheap";
+                                        title: @tr("Cheap model");
+                                        description: @tr("Read-aloud and the lighter jobs that can wait.");
+                                        choices: AiModels.cheap-choices;
+                                        current <=> AiModels.cheap;
+                                        listed: AiModels.listed;
+                                        catalog-empty: AiModels.listed && AiModels.available.length == 0;
+                                        served: AiModels.cheap-served;
+                                        body-text: root.body-text;
+                                        faint-text: root.faint-text;
+                                        warning-text: AppTheme.destructive;
+                                    }
+                                    AiModelPicker {
+                                        tier: "intelligent";
+                                        title: @tr("Intelligent model");
+                                        description: @tr("Ask and Draft, where a slower, better answer is worth it.");
+                                        choices: AiModels.intelligent-choices;
+                                        current <=> AiModels.intelligent;
+                                        listed: AiModels.listed;
+                                        catalog-empty: AiModels.listed && AiModels.available.length == 0;
+                                        served: AiModels.intelligent-served;
+                                        body-text: root.body-text;
+                                        faint-text: root.faint-text;
+                                        warning-text: AppTheme.destructive;
+                                    }
+                                    // What the last probe decided, so a pick shows its
+                                    // effect (connected or degraded) at once.
                                     Text {
-                                        visible: AppServices.ai-catalog != "";
-                                        text: AppServices.ai-catalog;
-                                        color: root.faint-text;
+                                        visible: AppServices.ai-detail != "";
+                                        text: AppServices.ai-detail;
+                                        color: AppServices.ai-state == "degraded" || AppServices.ai-state == "unreachable" ? #b42318 : root.faint-text;
                                         font-size: TypeScale.caption;
                                         wrap: word-wrap;
                                     }

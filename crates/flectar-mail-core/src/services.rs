@@ -220,12 +220,25 @@ impl AiTier {
         }
     }
 
+    /// Every tier, in the order Settings lists them.
+    pub const ALL: [Self; 3] = [Self::Instant, Self::Cheap, Self::Intelligent];
+
     /// The model id these Settings use for the tier.
     pub fn model(self, settings: &Settings) -> &str {
         match self {
             Self::Instant => &settings.ai_model_instant,
             Self::Cheap => &settings.ai_model_cheap,
             Self::Intelligent => &settings.ai_model_intelligent,
+        }
+    }
+
+    /// Point the tier at a model, as a pick in Settings > AI agents does.
+    pub fn set_model(self, settings: &mut Settings, model: &str) {
+        let model = model.trim().to_owned();
+        match self {
+            Self::Instant => settings.ai_model_instant = model,
+            Self::Cheap => settings.ai_model_cheap = model,
+            Self::Intelligent => settings.ai_model_intelligent = model,
         }
     }
 }
@@ -275,6 +288,43 @@ pub fn scenario_name(scenario: Scenario) -> &'static str {
     }
 }
 
+/// The model each tier is configured to use. It travels in the services
+/// report so Settings can show a picker for every tier, including a tier no
+/// feature happens to route to.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AiTierModels {
+    pub instant: String,
+    pub cheap: String,
+    pub intelligent: String,
+}
+
+impl AiTierModels {
+    pub fn from_settings(settings: &Settings) -> Self {
+        Self {
+            instant: settings.ai_model_instant.trim().to_owned(),
+            cheap: settings.ai_model_cheap.trim().to_owned(),
+            intelligent: settings.ai_model_intelligent.trim().to_owned(),
+        }
+    }
+
+    pub fn get(&self, tier: AiTier) -> &str {
+        match tier {
+            AiTier::Instant => &self.instant,
+            AiTier::Cheap => &self.cheap,
+            AiTier::Intelligent => &self.intelligent,
+        }
+    }
+
+    pub fn set(&mut self, tier: AiTier, model: impl Into<String>) {
+        let model = model.into().trim().to_owned();
+        match tier {
+            AiTier::Instant => self.instant = model,
+            AiTier::Cheap => self.cheap = model,
+            AiTier::Intelligent => self.intelligent = model,
+        }
+    }
+}
+
 /// What the AI endpoint can actually do for these settings.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AiStatus {
@@ -286,8 +336,11 @@ pub struct AiStatus {
     pub detail: String,
     /// Every configured model, in tier order, with the features that need it.
     pub models: Vec<AiModelStatus>,
-    /// Model ids the endpoint listed, when it would list them.
+    /// Model ids the endpoint listed, when it would list them. Sorted and
+    /// deduplicated: Settings offers them as the model pickers' choices.
     pub available_models: Vec<String>,
+    /// What each tier is set to use, straight from Settings.
+    pub tier_models: AiTierModels,
 }
 
 impl AiStatus {
@@ -332,6 +385,7 @@ impl AiStatus {
             detail: detail.into(),
             models: Vec::new(),
             available_models: Vec::new(),
+            tier_models: AiTierModels::default(),
         }
     }
 }
@@ -359,10 +413,11 @@ pub async fn probe(
         ServiceStatus::not_configured("Address checks are turned off.")
     };
     let configured = AiConfiguredModels::from_settings(settings);
-    let (ai, speech) = tokio::join!(
+    let (mut ai, speech) = tokio::join!(
         probe_ai(&settings.ai_base_url, ai_api_key, &configured),
         probe_speech(tts_config)
     );
+    ai.tier_models = AiTierModels::from_settings(settings);
     ServicesReport {
         reacher,
         reacher_enabled: settings.reacher_enabled,
@@ -519,7 +574,16 @@ pub async fn probe_ai(base_url: &str, api_key: &str, configured: &AiConfiguredMo
 
 /// Decide the AI state from the ids the endpoint listed. The one place the
 /// "connected / degraded" rule lives, so the OpenAI and Ollama shapes agree.
-fn decide_ai(configured: &AiConfiguredModels, available: Vec<String>, source: &str) -> AiStatus {
+fn decide_ai(
+    configured: &AiConfiguredModels,
+    mut available: Vec<String>,
+    source: &str,
+) -> AiStatus {
+    // Callers hand over the ids in whatever order the endpoint listed them;
+    // the report carries them sorted and deduplicated, because Settings shows
+    // exactly this vector as the model pickers' choices.
+    available.sort();
+    available.dedup();
     let listed: std::collections::HashSet<&str> = available.iter().map(|id| id.trim()).collect();
     let mut models: Vec<AiModelStatus> = configured
         .models
@@ -575,6 +639,7 @@ fn decide_ai(configured: &AiConfiguredModels, available: Vec<String>, source: &s
         detail: truncate(detail),
         models,
         available_models: available,
+        tier_models: AiTierModels::default(),
     }
 }
 
@@ -908,7 +973,7 @@ pub fn ai_status_for(settings: &Settings) -> AiStatus {
     let base = settings.ai_base_url.trim().trim_end_matches('/');
     let configured = AiConfiguredModels::from_settings(settings);
     let listing = AI_LISTING.lock().ok().and_then(|slot| slot.clone());
-    match listing {
+    let mut status = match listing {
         Some(listing) if listing.base_url == base => match listing.available {
             Some(available) => decide_ai(&configured, available, "the models endpoint"),
             // The endpoint answered, but not with a list: nothing to check.
@@ -939,7 +1004,9 @@ pub fn ai_status_for(settings: &Settings) -> AiStatus {
                 .collect();
             decide_ai(&configured, available, "the models endpoint")
         }
-    }
+    };
+    status.tier_models = AiTierModels::from_settings(settings);
+    status
 }
 
 impl crate::Core {
@@ -991,11 +1058,7 @@ impl crate::Core {
                 .as_ref()
                 .map(|(engine, _)| engine.id())
                 .unwrap_or("-"),
-            report
-                .speech
-                .player
-                .map(AudioPlayer::binary)
-                .unwrap_or("-"),
+            report.speech.player.map(AudioPlayer::binary).unwrap_or("-"),
             report.reacher.state.as_str(),
         );
         for model in &report.ai.models {
@@ -1287,6 +1350,43 @@ mod tests {
         record_ai_listing("", None);
     }
 
+    /// The report Settings renders from: the ids the endpoint listed, sorted
+    /// and deduplicated, plus what each tier is configured to use. The pickers
+    /// offer this vector as-is.
+    #[tokio::test]
+    async fn the_report_carries_the_served_models_sorted_and_deduplicated() {
+        let (url, server) = fake_server(
+            "200 OK",
+            r#"{"models":[{"name":"qwen3.5:9b"},{"name":"glm-ocr:latest"},{"name":"qwen3.5:9b"}]}"#,
+        );
+        let settings = Settings {
+            reacher_enabled: false,
+            ai_base_url: url,
+            ai_model_instant: "qwen3.5:9b".into(),
+            ai_model_cheap: "glm-ocr:latest".into(),
+            ai_model_intelligent: "qwen2.5vl:7b".into(),
+            ..Settings::default()
+        };
+        let report = probe(&settings, "", &TtsConfig::default()).await;
+        server.join().expect("fake server finished");
+        assert_eq!(
+            report.ai.available_models,
+            vec!["glm-ocr:latest".to_owned(), "qwen3.5:9b".to_owned()]
+        );
+        assert_eq!(report.ai.tier_models.get(AiTier::Instant), "qwen3.5:9b");
+        assert_eq!(report.ai.tier_models.get(AiTier::Cheap), "glm-ocr:latest");
+        assert_eq!(
+            report.ai.tier_models.get(AiTier::Intelligent),
+            "qwen2.5vl:7b"
+        );
+        // Ask and Draft run on the intelligent model (not served) while
+        // Summarize runs on the served instant one: the reason the report
+        // carries both the configured tiers and the served list.
+        assert!(!report.ai.scenario_usable(Scenario::Draft));
+        assert!(!report.ai.scenario_usable(Scenario::Ask));
+        assert!(report.ai.scenario_usable(Scenario::Summarize));
+    }
+
     #[test]
     fn model_list_parsing_accepts_openai_ollama_and_bare_arrays() {
         assert_eq!(
@@ -1476,7 +1576,10 @@ mod tests {
         );
 
         let pulse = FakePath::new(&["ffplay", "paplay"]);
-        assert_eq!(AudioPlayer::detect_in(pulse.os()), Some(AudioPlayer::Paplay));
+        assert_eq!(
+            AudioPlayer::detect_in(pulse.os()),
+            Some(AudioPlayer::Paplay)
+        );
 
         // PipeWire wins when it is there, whatever else is installed.
         let pipewire = FakePath::new(&["aplay", "paplay", "pw-play"]);
@@ -1496,11 +1599,7 @@ mod tests {
             AudioPlayer::Ffplay.flags(),
             &["-nodisp", "-autoexit", "-loglevel", "quiet"]
         );
-        for player in [
-            AudioPlayer::PwPlay,
-            AudioPlayer::Paplay,
-            AudioPlayer::Aplay,
-        ] {
+        for player in [AudioPlayer::PwPlay, AudioPlayer::Paplay, AudioPlayer::Aplay] {
             assert!(
                 player.flags().is_empty(),
                 "{} needs no flags",

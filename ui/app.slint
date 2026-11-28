@@ -40,6 +40,7 @@ import { ActivitySpinner } from "components/activity-spinner.slint";
 import { SpaceTile, Starfield } from "components/starfield.slint";
 import { InterfaceText, TypeScale } from "typography.slint";
 export { AppServices, AppTheme, MotionSettings, ThemeUtilities } from "design-system.slint";
+export { AiModels } from "ai-models.slint";
 export { InterfaceText } from "typography.slint";
 import { AppTheme, LayoutMetrics, MotionSettings } from "design-system.slint";
 import { Button } from "components/button.slint";
@@ -443,6 +444,8 @@ export global I18n {
         if (key == "Read aloud failed: {}") { return @tr("Read aloud failed: {}" => "Read aloud failed: {}", argument); }
         if (key == "AI key saved.") { return @tr("AI key saved."); }
         if (key == "Could not save the AI key: {}") { return @tr("Could not save the AI key: {}" => "Could not save the AI key: {}", argument); }
+        if (key == "AI settings saved.") { return @tr("AI settings saved."); }
+        if (key == "Could not save AI settings: {}") { return @tr("Could not save AI settings: {}", argument); }
         if (key == "Could not save the read-aloud key: {}") { return @tr("Could not save the read-aloud key: {}" => "Could not save the read-aloud key: {}", argument); }
         if (key == "Could not save time format: {}") { return @tr("Could not save time format: {}", argument); }
         if (key == "Sidebar icon style updated for this session.") { return @tr("Sidebar icon style updated for this session."); }
@@ -1081,7 +1084,6 @@ export component AppWindow inherits Window {
     callback save_tts_announce(bool);
     callback preview_tts_voice();
     callback save_ai_phishing(bool);
-    callback save_ai_model(string);
     callback save_ai_endpoint(string);
     callback save_ai_key(string);
     callback save_sidebar_icon_style(bool);
@@ -1490,7 +1492,6 @@ export component AppWindow inherits Window {
     // AI assistant: the model, where it runs, and the phishing screen.
     in-out property <bool> ai_phishing: false;
     in property <bool> ai_key_saved: false;
-    in-out property <string> ai_model: "";
     in-out property <string> ai_endpoint: "";
     in-out property <string> ai_key_draft: "";
     in property <string> time_format_sample: "13:30";
@@ -2459,7 +2460,6 @@ export component AppWindow inherits Window {
             tts-model <=> root.tts-model;
             ai_phishing <=> root.ai_phishing;
             ai_key_saved: root.ai_key_saved;
-            ai_model <=> root.ai_model;
             ai_endpoint <=> root.ai_endpoint;
             ai_key_draft <=> root.ai_key_draft;
             time_format_sample: root.time_format_sample;
@@ -2584,7 +2584,6 @@ export component AppWindow inherits Window {
             save_tts_announce(checked) => { root.save_tts_announce(checked); }
             preview_tts_voice() => { root.preview_tts_voice(); }
             save_ai_phishing(checked) => { root.save_ai_phishing(checked); }
-            save_ai_model(value) => { root.save_ai_model(value); }
             save_ai_endpoint(value) => { root.save_ai_endpoint(value); }
             save_ai_key(value) => { root.save_ai_key(value); }
             save_sidebar_icon_style(monochrome) => { root.save_sidebar_icon_style(monochrome); }
