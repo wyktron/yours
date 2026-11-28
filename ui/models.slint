@@ -136,6 +136,17 @@ export struct ListAttachment {
     previewable: bool,
 }
 
+// One data breach a sender's address appears in, as HIBP describes it and
+// as the skull's popup lists it. Dates are already formatted for display.
+export struct SenderBreach {
+    name: string,
+    title: string,
+    domain: string,
+    date: string,
+    data_classes: string,
+    records: int,
+}
+
 export struct EmailRow {
     id: int,
     account_id: int,
@@ -161,6 +172,9 @@ export struct EmailRow {
     high_importance: bool,
     // The AI's phishing judgement: "phishing", "suspicious", or empty.
     security: string,
+    // Known breaches the sender's address appears in. A red skull sits by
+    // the sender when this is not empty, and lists these when clicked.
+    breaches: [SenderBreach],
     message_count: int,
     label_summary: string,
     labels: [MailLabelRow],
@@ -582,6 +596,9 @@ export global EmailReader {
     in-out property <[ReaderItem]> items;
     in-out property <string> authored-text;
     in-out property <bool> use-authored-text: false;
+    // Known breaches the open message's sender address appears in; the
+    // reader header paints the skull from this.
+    in-out property <[SenderBreach]> breaches: [];
     // The AI's phishing judgement on the open conversation: "phishing",
     // "suspicious", "clean", or empty. The reader explains it in a banner.
     in-out property <string> security: "";

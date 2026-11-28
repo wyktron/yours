@@ -1,0 +1,23 @@
+// The breach details behind the red skull in the mail list and the reader:
+// which breaches the sender's address appears in, from Have I Been Pwned.
+// The dialog is src/breaches.rs on the Rust side only for the lookup; the
+// rows themselves carry everything it shows.
+import { SenderBreach } from "models.slint";
+
+export global SenderBreaches {
+    // The popup is open.
+    in-out property <bool> visible: false;
+    // Whose address it describes, as the list/reader shows it.
+    in-out property <string> address: "";
+    // The breaches, newest information HIBP gives first.
+    in-out property <[SenderBreach]> breaches: [];
+
+    callback close();
+
+    // The list row and the reader header call this when the skull is clicked.
+    public function show(address: string, breaches: [SenderBreach]) {
+        root.address = address;
+        root.breaches = breaches;
+        root.visible = true;
+    }
+}

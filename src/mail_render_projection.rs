@@ -131,6 +131,7 @@ pub(super) fn clear_reader_projection(app: &AppWindow) {
     reader.set_security_reason("".into());
     reader.set_security_model("".into());
     reader.set_security_checked("".into());
+    reader.set_breaches(ModelRc::default());
     reader.set_body_pending(false);
     reader.set_reader_mode(false);
     reader.set_find_open(false);
@@ -181,6 +182,9 @@ pub(super) fn apply_email(
     let reader = app.global::<EmailReader>();
     // The reader's "Always load images" choice follows this From address.
     reader.set_sender_address(email.address.clone().into());
+    reader.set_breaches(ModelRc::new(VecModel::from(crate::mail::breach_rows(
+        &email.breaches,
+    ))));
     reader.set_sender_images_trusted(sender_trusted);
     // The reader explains the AI's judgement on this row; the list only tints
     // it. The date follows the reader's language like every other date.

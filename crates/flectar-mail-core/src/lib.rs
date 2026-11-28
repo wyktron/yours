@@ -7,6 +7,7 @@ pub mod agents;
 pub mod ai;
 mod auto_replies;
 pub mod autolabel;
+pub mod breaches;
 pub mod caldav;
 pub mod calendar;
 pub mod carddav;
@@ -8616,6 +8617,120 @@ impl Core {
             });
         }
         Ok(judged)
+    }
+
+    /// Pending breach verdicts, by sender address, so the mail list and the
+    /// reader can paint a skull without a query per row.
+    pub async fn sender_breaches(&self) -> Result<Vec<(String, Vec<breaches::Breach>)>> {
+        self.db.read(|conn| repo::breaches::all_known(conn)).await
+    }
+
+    /// Ask HIBP about the senders of newly arrived mail and cache the
+    /// verdicts. Runs on the caller's task: the UI spawns it off the mail
+    /// actor, so mail never waits for the network. An address checked within
+    /// the week is not asked again, and a rate limit or a rejected key ends
+    /// the pass instead of hammering HIBP. Returns how many senders were
+    /// checked.
+    pub async fn check_sender_breaches(&self, thread_ids: Vec<i64>) -> Result<usize> {
+        let settings = self.db.read(|conn| repo::settings::get(conn)).await?;
+        if !settings.breach_scan_enabled {
+            return Ok(0);
+        }
+        let api_key = credentials::load_async(self.credentials.clone(), 0, Slot::HibpApiKey)
+            .await
+            .unwrap_or_default();
+        if api_key.trim().is_empty() {
+            // No key is a configuration state, not a failure: stay silent and
+            // say it once in the log rather than on every arrival.
+            use std::sync::atomic::{AtomicBool, Ordering};
+            static NO_KEY_LOGGED: AtomicBool = AtomicBool::new(false);
+            if !NO_KEY_LOGGED.swap(true, Ordering::Relaxed) {
+                tracing::info!(
+                    "sender breach check: no HIBP API key saved; skipping sender checks"
+                );
+            }
+            return Ok(0);
+        }
+        let ids = thread_ids.clone();
+        let addresses = self
+            .db
+            .read(move |conn| repo::breaches::addresses_for_threads(conn, &ids))
+            .await?;
+        if addresses.is_empty() {
+            return Ok(0);
+        }
+        let mut checked = 0usize;
+        for address in addresses {
+            let now = now_ms();
+            let lookup_address = address.clone();
+            let cached = self
+                .db
+                .read(move |conn| repo::breaches::get(conn, &lookup_address, now))
+                .await?;
+            if !breaches::should_check_sender(true, &address, cached.is_some()) {
+                continue;
+            }
+            match breaches::lookup(&address, &api_key).await {
+                Ok(found) => {
+                    let list = match found {
+                        breaches::Lookup::Breaches(found) => found,
+                        breaches::Lookup::None => Vec::new(),
+                    };
+                    let checked_at = now_ms();
+                    let put_address = address.clone();
+                    self.db
+                        .write(move |conn| {
+                            repo::breaches::put(conn, &put_address, checked_at, &list)
+                        })
+                        .await?;
+                    checked += 1;
+                }
+                Err(breaches::LookupError::RateLimited { .. }) => {
+                    tracing::warn!(
+                        %address,
+                        "sender breach check: HIBP rate limit; stopping this pass"
+                    );
+                    break;
+                }
+                Err(error @ breaches::LookupError::Unauthorized { .. }) => {
+                    tracing::warn!(%address, %error, "sender breach check: key rejected");
+                    break;
+                }
+                Err(error) => {
+                    tracing::warn!(%address, %error, "sender breach check failed");
+                }
+            }
+        }
+        if checked > 0 {
+            self.bus.emit(CoreEvent::MailUpdated {
+                thread_ids: thread_ids.clone(),
+            });
+        }
+        Ok(checked)
+    }
+
+    /// Save the Have I Been Pwned API key in the platform credential store.
+    /// An empty key removes it.
+    pub async fn set_hibp_key(&self, api_key: &str) -> Result<()> {
+        let api_key = api_key.trim();
+        if api_key.is_empty() {
+            return credentials::delete_async(self.credentials.clone(), 0, Slot::HibpApiKey).await;
+        }
+        credentials::store_async(
+            self.credentials.clone(),
+            0,
+            Slot::HibpApiKey,
+            api_key.to_owned(),
+        )
+        .await
+    }
+
+    /// Whether an HIBP API key is already in the keyring.
+    pub async fn hibp_key_saved(&self) -> bool {
+        credentials::load_async(self.credentials.clone(), 0, Slot::HibpApiKey)
+            .await
+            .map(|key| !key.trim().is_empty())
+            .unwrap_or(false)
     }
 
     pub async fn ai_summarize(&self, thread_id: i64) -> Result<crate::models::AiThreadSummary> {

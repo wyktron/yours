@@ -1,0 +1,179 @@
+import { VerticalBox, HorizontalBox, ScrollView } from "std-widgets.slint";
+import { AppTheme } from "../design-system.slint";
+import { Button } from "../components/button.slint";
+import { TypeScale } from "../typography.slint";
+import { SenderBreaches } from "../sender-breaches.slint";
+
+// Lists the known data breaches the open/clicked sender's address appears
+// in: breach title, domain, date, and what the breach exposed. Data comes
+// from Have I Been Pwned, which the attribution line credits.
+export component BreachDialog inherits Rectangle {
+    private property <bool> narrow: panel.width < 360px;
+    private property <int> total: SenderBreaches.breaches.length;
+    private property <int> shown: min(root.total, 8);
+    private property <string> title: @tr("Known breaches");
+
+    visible: SenderBreaches.visible;
+    background: #00000088;
+    z: 16000;
+    accessible-role: groupbox;
+    accessible-label: root.title;
+
+    function close() {
+        SenderBreaches.close();
+    }
+
+    changed visible => {
+        if (self.visible) {
+            dialog-focus.focus();
+        }
+    }
+
+    // Consume pointer input over the scrim.
+    TouchArea { }
+
+    panel := Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: min(520px, parent.width - 32px);
+        height: min(min(460px, parent.height - 32px), 200px + root.shown * 98px);
+        border-radius: 12px;
+        border-width: 1px;
+        border-color: AppTheme.border;
+        background: AppTheme.surface;
+        drop-shadow-blur: 24px;
+        drop-shadow-offset-y: 8px;
+        drop-shadow-color: #00000055;
+
+        dialog-focus := FocusScope {
+            key-pressed(event) => {
+                if event.text == Key.Escape {
+                    root.close();
+                    return accept;
+                }
+                reject
+            }
+
+            dialog-content := VerticalBox {
+                padding-top: 20px;
+                padding-right: 20px;
+                padding-bottom: 18px;
+                padding-left: 20px;
+                spacing: 12px;
+
+                HorizontalBox {
+                    height: max(42px, dialog-heading.preferred-height + 16px);
+                    padding: 0px;
+                    spacing: 12px;
+
+                    Rectangle {
+                        width: 42px;
+                        height: 42px;
+                        border-radius: 21px;
+                        background: AppTheme.destructive.transparentize(0.86);
+                        Image {
+                            x: 11px;
+                            y: 11px;
+                            width: 20px;
+                            height: 20px;
+                            source: @image-url("../icons/lucide/outline/skull.svg");
+                            colorize: AppTheme.destructive;
+                        }
+                    }
+
+                    VerticalBox {
+                        vertical-stretch: 1;
+                        spacing: 2px;
+                        alignment: center;
+                        dialog-heading := Text {
+                            text: root.title;
+                            color: AppTheme.heading;
+                            font-size: TypeScale.title;
+                            font-weight: 700;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: @tr("{} is in {} known breach(es).", SenderBreaches.address, root.total);
+                            color: AppTheme.body;
+                            font-size: TypeScale.secondary;
+                            overflow: elide;
+                        }
+                    }
+                }
+
+                VerticalBox {
+                    spacing: 8px;
+                    vertical-stretch: 1;
+                    for breach[i] in SenderBreaches.breaches : Rectangle {
+                        visible: i < 8;
+                        height: 90px;
+                        clip: true;
+                            border-radius: 8px;
+                            border-width: 1px;
+                            border-color: AppTheme.border;
+                            background: AppTheme.control-bg;
+
+                            breach-content := VerticalBox {
+                                x: 10px;
+                                y: 8px;
+                                width: parent.width - 20px;
+                                spacing: 2px;
+                                HorizontalBox {
+                                    spacing: 8px;
+                                    Text {
+                                        text: breach.title == "" ? breach.name : breach.title;
+                                        color: AppTheme.heading;
+                                        font-size: TypeScale.body;
+                                        font-weight: 700;
+                                        overflow: elide;
+                                        horizontal-stretch: 1;
+                                    }
+                                    Text {
+                                        text: breach.domain;
+                                        color: AppTheme.body;
+                                        font-size: TypeScale.caption;
+                                        overflow: elide;
+                                    }
+                                }
+                                Text {
+                                    text: breach.date + " · " + @tr("{} accounts", breach.records);
+                                    color: AppTheme.body;
+                                    font-size: TypeScale.caption;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: breach.data-classes;
+                                    color: AppTheme.muted;
+                                    font-size: TypeScale.caption;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+                    }
+
+                if root.total > root.shown : Text {
+                    text: @tr("and {} more", root.total - root.shown);
+                    color: AppTheme.body;
+                    font-size: TypeScale.caption;
+                }
+
+                HorizontalBox {
+                    spacing: 10px;
+                    alignment: end;
+                    Text {
+                        text: @tr("Breach data from Have I Been Pwned (haveibeenpwned.com)");
+                        color: AppTheme.muted;
+                        font-size: TypeScale.caption;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                        vertical-alignment: center;
+                    }
+                    Button {
+                        text: @tr("Close");
+                        clicked => { root.close(); }
+                    }
+                }
+            }
+        }
+    }
+}

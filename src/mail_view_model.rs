@@ -1025,6 +1025,7 @@ pub(super) fn same_email_row(a: &EmailRow, b: &EmailRow) -> bool {
         && a.has_attachments == b.has_attachments
         && a.has_replied == b.has_replied
         && a.message_count == b.message_count
+        && a.breaches.row_count() == b.breaches.row_count()
         && a.label_summary == b.label_summary
         && a.account_uses_labels == b.account_uses_labels
         && a.verification_code == b.verification_code
@@ -1081,6 +1082,7 @@ pub(super) fn make_rows<M: std::borrow::Borrow<MailMessage>>(
                 has_replied: email.has_replied,
                 high_importance: email.high_importance,
                 security: email.security.clone().into(),
+                breaches: ModelRc::new(VecModel::from(crate::mail::breach_rows(&email.breaches))),
                 message_count: i32::try_from(email.message_count)
                     .unwrap_or(i32::MAX)
                     .max(1),
@@ -2003,6 +2005,7 @@ mod tests {
             has_replied: false,
             high_importance: false,
             security: String::new(),
+            breaches: Vec::new(),
             security_reason: String::new(),
             security_model: String::new(),
             security_checked_at: None,

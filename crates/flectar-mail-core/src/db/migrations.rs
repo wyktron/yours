@@ -70,6 +70,7 @@ const MIGRATIONS: &[Migration] = &[
     Migration::Plain(include_str!("migrations/051_message_security.sql")),
     Migration::Plain(include_str!("migrations/052_account_calendar_only.sql")),
     Migration::Plain(include_str!("migrations/053_trusted_image_senders.sql")),
+    Migration::Plain(include_str!("migrations/054_sender_breaches.sql")),
 ];
 pub const LATEST_VERSION: i64 = MIGRATIONS.len() as i64;
 
@@ -401,6 +402,7 @@ mod tests {
             "pop3_uidls",
             "returned_receipts",
             "route_cache",
+            "sender_breaches",
             "sender_identities",
             "server_rules",
             "snippets",

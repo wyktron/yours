@@ -34,6 +34,9 @@ pub enum Slot {
     /// App-level text-to-speech API keys, one JSON object per engine, stored
     /// under account id 0 as they belong to no account.
     TtsApiKey,
+    /// App-level Have I Been Pwned API key, stored under account id 0. The
+    /// breach check asks HIBP about senders with it.
+    HibpApiKey,
     /// App password of an account's one CalDAV server, from before an
     /// account could sync several. `caldav::task::move_secret` re-files it
     /// under its connection.
@@ -61,6 +64,7 @@ impl Slot {
             Slot::OAuthBundle => "oauth_bundle".into(),
             Slot::AiApiKey => "ai_api_key".into(),
             Slot::TtsApiKey => "tts_api_key".into(),
+            Slot::HibpApiKey => "hibp_api_key".into(),
             Slot::AccountCaldavPassword => "caldav_password".into(),
             Slot::CaldavPassword(connection_id) => {
                 format!("caldav_password:{connection_id}").into()

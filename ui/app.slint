@@ -68,7 +68,9 @@ import { Notice } from "notice.slint";
 import { UnsubscribeDialog } from "dialogs/unsubscribe-dialog.slint";
 import { Unsubscribe } from "unsubscribe.slint";
 import { BlockSenderDialog } from "dialogs/block-sender-dialog.slint";
+import { BreachDialog } from "dialogs/breach-dialog.slint";
 import { BlockSender } from "block-sender.slint";
+import { SenderBreaches } from "sender-breaches.slint";
 import { BoundComposer, ComposerUi } from "components/composer-ui.slint";
 import { ComposerText } from "components/composer-fields.slint";
 export { ComposerUi } from "components/composer-ui.slint";
@@ -445,6 +447,10 @@ export global I18n {
         if (key == "Read aloud failed: {}") { return @tr("Read aloud failed: {}" => "Read aloud failed: {}", argument); }
         if (key == "AI key saved.") { return @tr("AI key saved."); }
         if (key == "Could not save the AI key: {}") { return @tr("Could not save the AI key: {}" => "Could not save the AI key: {}", argument); }
+        if (key == "Sender breach check saved.") { return @tr("Sender breach check saved."); }
+        if (key == "Could not save the sender breach check: {}") { return @tr("Could not save the sender breach check: {}" => "Could not save the sender breach check: {}", argument); }
+        if (key == "Have I Been Pwned key saved.") { return @tr("Have I Been Pwned key saved."); }
+        if (key == "Could not save the Have I Been Pwned key: {}") { return @tr("Could not save the Have I Been Pwned key: {}" => "Could not save the Have I Been Pwned key: {}", argument); }
         if (key == "AI settings saved.") { return @tr("AI settings saved."); }
         if (key == "Could not save AI settings: {}") { return @tr("Could not save AI settings: {}", argument); }
         if (key == "Could not save the read-aloud key: {}") { return @tr("Could not save the read-aloud key: {}" => "Could not save the read-aloud key: {}", argument); }
@@ -1086,6 +1092,8 @@ export component AppWindow inherits Window {
     callback save_tts_announce(bool);
     callback preview_tts_voice();
     callback save_ai_phishing(bool);
+    callback save_breach_scan(bool);
+    callback save_hibp_key(string);
     callback save_ai_endpoint(string);
     callback save_ai_key(string);
     callback save_sidebar_icon_style(bool);
@@ -1497,6 +1505,10 @@ export component AppWindow inherits Window {
     in-out property <string> tts-model: "";
     // AI assistant: the model, where it runs, and the phishing screen.
     in-out property <bool> ai_phishing: false;
+    // Sender breach check: the switch, the key's presence, and the key draft.
+    in-out property <bool> breach_scan_enabled: true;
+    in property <bool> hibp_key_saved: false;
+    in-out property <string> hibp_key_draft: "";
     in property <bool> ai_key_saved: false;
     in-out property <string> ai_endpoint: "";
     in-out property <string> ai_key_draft: "";
@@ -2469,6 +2481,9 @@ export component AppWindow inherits Window {
             tts-endpoint <=> root.tts-endpoint;
             tts-model <=> root.tts-model;
             ai_phishing <=> root.ai_phishing;
+            breach_scan_enabled <=> root.breach_scan_enabled;
+            hibp_key_saved: root.hibp_key_saved;
+            hibp_key_draft <=> root.hibp_key_draft;
             ai_key_saved: root.ai_key_saved;
             ai_endpoint <=> root.ai_endpoint;
             ai_key_draft <=> root.ai_key_draft;
@@ -2596,6 +2611,8 @@ export component AppWindow inherits Window {
             save_tts_announce(checked) => { root.save_tts_announce(checked); }
             preview_tts_voice() => { root.preview_tts_voice(); }
             save_ai_phishing(checked) => { root.save_ai_phishing(checked); }
+            save_breach_scan(checked) => { root.save_breach_scan(checked); }
+            save_hibp_key(value) => { root.save_hibp_key(value); }
             save_ai_endpoint(value) => { root.save_ai_endpoint(value); }
             save_ai_key(value) => { root.save_ai_key(value); }
             save_sidebar_icon_style(monochrome) => { root.save_sidebar_icon_style(monochrome); }
@@ -2842,6 +2859,14 @@ export component AppWindow inherits Window {
     }
 
     if BlockSender.stage != "" : BlockSenderDialog {
+        x: root.content-x;
+        y: root.content-y;
+        width: root.content-width;
+        height: root.content-height;
+        z: 16000;
+    }
+
+    if SenderBreaches.visible : BreachDialog {
         x: root.content-x;
         y: root.content-y;
         width: root.content-width;

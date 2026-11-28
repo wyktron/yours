@@ -506,6 +506,12 @@ export component SettingsDialog inherits Rectangle {
     // AI assistant: the models (picked in the AiModels global from the probe's
     // list), where they run, and the phishing screen.
     in-out property <bool> ai_phishing: false;
+    // Ask Have I Been Pwned about senders of new mail, with the key below.
+    in-out property <bool> breach_scan_enabled: true;
+    in property <bool> hibp_key_saved: false;
+    in-out property <string> hibp_key_draft: "";
+    callback save_breach_scan(bool);
+    callback save_hibp_key(string);
     in property <bool> ai_key_saved: false;
     in-out property <string> ai_endpoint: "";
     in-out property <string> ai_key_draft: "";
@@ -2417,6 +2423,51 @@ export component SettingsDialog inherits Rectangle {
                                             text: @tr("Change password…");
                                             clicked => { root.change_app_password(); }
                                         }
+                                    }
+                                }
+                            }
+
+
+                            Text {
+                                text: @tr("Sender breach check");
+                                color: root.title-color;
+                                font-size: TypeScale.subtitle;
+                                font-weight: 600;
+                            }
+                            Rectangle {
+                                height: self.preferred-height;
+                                background: root.surface;
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: root.border-subtle;
+                                VerticalBox {
+                                    padding: 16px;
+                                    spacing: 8px;
+                                    SettingsSwitchRow {
+                                        compact: root.compact;
+                                        title: @tr("Check senders for known breaches");
+                                        description: @tr("Asks Have I Been Pwned whether the sender of new mail appears in a data breach, and marks their rows with a red skull. Needs an API key from haveibeenpwned.com.");
+                                        checked: root.breach_scan_enabled;
+                                        title-color: root.body-text;
+                                        description-color: root.faint-text;
+                                        toggled(checked) => { root.save_breach_scan(checked); }
+                                    }
+                                    Text { text: @tr("Have I Been Pwned API key"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                    HorizontalBox {
+                                        spacing: 8px;
+                                        LineEdit {
+                                            horizontal-stretch: 1;
+                                            text <=> root.hibp_key_draft;
+                                            input-type: password;
+                                            placeholder-text: @tr("Paste the API key from your haveibeenpwned.com account");
+                                        }
+                                        Button { text: @tr("Save key"); clicked => { root.save_hibp_key(root.hibp_key_draft); } }
+                                    }
+                                    Text {
+                                        text: root.hibp_key_saved ? @tr("A key is saved.") : @tr("No key is saved, so senders are not checked.");
+                                        color: root.faint-text;
+                                        font-size: TypeScale.caption;
+                                        wrap: word-wrap;
                                     }
                                 }
                             }

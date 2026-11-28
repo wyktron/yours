@@ -1,6 +1,6 @@
 import { InfiniteScrollController } from "../components/infinite-scroll-controller.slint";
 import { HorizontalBox, ListView, VerticalBox } from "std-widgets.slint";
-import { EmailRow, ListAttachment, MailAttachments, MailDragApi, MailListEntry, MailListNavigation, MailNavigationTarget } from "../models.slint";
+import { EmailRow, ListAttachment, MailAttachments, MailDragApi, MailListEntry, MailListNavigation, MailNavigationTarget, SenderBreach } from "../models.slint";
 import { Avatar } from "../components/avatar.slint";
 import { Button } from "../components/button.slint";
 import { FloatingActionButton, SelectionCheckBox, ToolbarIconButton } from "../components/controls.slint";
@@ -16,6 +16,7 @@ import { TabsUi } from "../components/workspace-navigation.slint";
 import { Shortcuts } from "../shortcuts.slint";
 import { LocalMailUi } from "../local-mail.slint";
 import { SavedSearchUi } from "../saved-searches.slint";
+import { SenderBreaches } from "../sender-breaches.slint";
 import { ServerSearchUi } from "../server-search.slint";
 import { ActivitySpinner } from "../components/activity-spinner.slint";
 import { PullToRefresh } from "../components/pull-to-refresh.slint";
@@ -1483,7 +1484,52 @@ export component MailListPane inherits FocusScope {
                                                     border-radius: 3px;
                                                     background: root.accent;
                                                     accessible-role: none;
+                                                }                                                // A red skull after the sender when Have I Been Pwned
+                                                // knows a breach with this address in it. Hovering says
+                                                // how many; clicking lists them.
+                                                breach-anchor := TouchArea {
+                                                    visible: mail-data.breaches.length > 0;
+                                                    x: min(sender-title.preferred-width + (mail-data.unread ? 18px : 8px), sender-title.width - 20px);
+                                                    y: root.dense ? (44px - 16px) / 2 : (root.sender-line - 16px) / 2;
+                                                    width: 16px;
+                                                    height: 16px;
+                                                    mouse-cursor: pointer;
+                                                    clicked => { SenderBreaches.show(mail-data.address, mail-data.breaches); }
+                                                    accessible-role: button;
+                                                    accessible-label: @tr("{} known breaches", mail-data.breaches.length);
+                                                    Image {
+                                                        x: 1px;
+                                                        y: 1px;
+                                                        width: 14px;
+                                                        height: 14px;
+                                                        source: @image-url("../icons/lucide/outline/skull.svg");
+                                                        colorize: AppTheme.destructive;
+                                                        image-fit: contain;
+                                                        accessible-role: none;
+                                                    }
                                                 }
+                                                if breach-anchor.visible && breach-anchor.has-hover : Rectangle {
+                                                    x: min(breach-anchor.x + 20px, max(0px, parent.width - 160px));
+                                                    y: 0px;
+                                                    width: 150px;
+                                                    height: 22px;
+                                                    border-radius: 5px;
+                                                    border-width: 1px;
+                                                    border-color: AppTheme.border;
+                                                    background: AppTheme.surface;
+                                                    z: 10;
+                                                    Text {
+                                                        x: 6px;
+                                                        width: parent.width - 12px;
+                                                        height: parent.height;
+                                                        text: @tr("{} known breaches", mail-data.breaches.length);
+                                                        color: root.heading;
+                                                        font-size: TypeScale.caption;
+                                                        vertical-alignment: center;
+                                                        overflow: elide;
+                                                    }
+                                                }
+
                                                 subject-label := Text {
                                                     x: root.dense ? message-content.dense-subject-x : 0px;
                                                     y: root.dense ? 0px : root.sender-line + root.line-gap;

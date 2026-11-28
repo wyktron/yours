@@ -90,6 +90,10 @@ pub struct MailMessage {
     pub attachments: Vec<flectar_mail_core::models::AttachmentMeta>,
     pub has_replied: bool,
     pub high_importance: bool,
+    /// Known data breaches the displayed sender address appears in, from the
+    /// cached HIBP verdict. Empty when the address has none or was not
+    /// checked. The list and the reader paint a skull for a non-empty list.
+    pub breaches: Vec<flectar_mail_core::breaches::Breach>,
     /// The AI's phishing judgement: "phishing", "suspicious", "clean", or
     /// empty when nothing looked wrong.
     pub security: String,
@@ -1045,6 +1049,27 @@ impl CoreMailSource {
         })
     }
 
+    /// Attach the cached breach verdicts for each row's displayed sender, so
+    /// the list and reader can paint the skull without a query per row. A
+    /// missing or stale cache simply leaves the rows unmarked.
+    async fn attach_sender_breaches(&self, messages: &mut [MailMessage]) {
+        if messages.is_empty() {
+            return;
+        }
+        let Ok(known) = self.core.sender_breaches().await else {
+            return;
+        };
+        if known.is_empty() {
+            return;
+        }
+        let known: std::collections::HashMap<String, Vec<flectar_mail_core::breaches::Breach>> =
+            known.into_iter().collect();
+        for message in messages {
+            let address = message.address.trim().to_ascii_lowercase();
+            message.breaches = known.get(&address).cloned().unwrap_or_default();
+        }
+    }
+
     async fn load_page_with_context(
         &self,
         context: PageLoadContext<'_>,
@@ -1122,6 +1147,7 @@ impl CoreMailSource {
             if backward {
                 messages.reverse();
             }
+            self.attach_sender_breaches(&mut messages).await;
             return Ok(MailPage {
                 account_revision: self.account_revision(),
                 order,
@@ -1214,6 +1240,7 @@ impl CoreMailSource {
         if backward {
             messages.reverse();
         }
+        self.attach_sender_breaches(&mut messages).await;
 
         Ok(MailPage {
             account_revision: self.account_revision(),
@@ -4107,6 +4134,7 @@ fn summary_to_message(
         has_replied: thread.has_replied,
         high_importance: thread.high_importance,
         security: thread.security.clone(),
+        breaches: Vec::new(),
         security_reason: thread.security_reason.clone(),
         security_model: thread.security_model.clone(),
         security_checked_at: thread.security_checked_at,
@@ -4223,6 +4251,7 @@ fn message_summary_to_message(
         has_replied: message.has_replied,
         high_importance: message.high_importance,
         security: message.security.clone(),
+        breaches: Vec::new(),
         security_reason: message.security_reason.clone(),
         security_model: message.security_model.clone(),
         security_checked_at: message.security_checked_at,
@@ -4340,6 +4369,7 @@ fn detail_to_message(row: &MailMessage, message: &MessageDetail, body_loaded: bo
         has_replied: row.has_replied,
         high_importance: row.high_importance,
         security: row.security.clone(),
+        breaches: row.breaches.clone(),
         // A conversation's messages are not judged one by one: the open
         // message carries the strongest verdict on the conversation, which is
         // also the tint the list row shows.
@@ -4392,6 +4422,34 @@ fn detail_to_conversation_message(
     projected.message_count = 1;
     projected.is_outgoing = message.is_outgoing;
     Some(projected)
+}
+
+/// One cached breach as the Slint models show it: display date (HIBP sends
+/// an ISO stamp), joined data classes and the record count.
+pub(crate) fn breach_rows(
+    breaches: &[flectar_mail_core::breaches::Breach],
+) -> Vec<crate::SenderBreach> {
+    breaches
+        .iter()
+        .map(|breach| crate::SenderBreach {
+            name: breach.name.clone().into(),
+            title: if breach.title.trim().is_empty() {
+                breach.name.clone()
+            } else {
+                breach.title.clone()
+            }
+            .into(),
+            domain: breach.domain.clone().into(),
+            date: breach.breach_date.chars().take(10).collect::<String>().into(),
+            data_classes: if breach.data_classes.is_empty() {
+                "—".to_owned()
+            } else {
+                breach.data_classes.join(", ")
+            }
+            .into(),
+            records: i32::try_from(breach.pwn_count).unwrap_or(i32::MAX),
+        })
+        .collect()
 }
 
 /// The day the AI judged a message, in the reader's language, for the

@@ -2,7 +2,7 @@ import { AccountMailPreferences } from "../components/account-mail-preferences.s
 import { ActionMenu, ActionMenuEntry } from "../components/action-menu.slint";
 import { ZoomControls } from "../components/zoom-controls.slint";
 import { CheckBox, HorizontalBox, ListView, ScrollView, VerticalBox } from "std-widgets.slint";
-import { MailAttachments, EmailReader, EmailLink, EmailTile, MailLabelRow, ThreadMessageRow } from "../models.slint";
+import { MailAttachments, EmailReader, EmailLink, EmailTile, MailLabelRow, SenderBreach, ThreadMessageRow } from "../models.slint";
 import { Avatar } from "../components/avatar.slint";
 import { Button } from "../components/button.slint";
 import { IconButton, LineEdit, TextEdit, ToolbarIconButton } from "../components/controls.slint";
@@ -23,6 +23,7 @@ import { LocalMailUi } from "../local-mail.slint";
 import { Unsubscribe } from "../unsubscribe.slint";
 import { ReadReceipts, ReceiptRequestBar, ReturnedReceiptList } from "../read-receipts.slint";
 import { BlockSender } from "../block-sender.slint";
+import { SenderBreaches } from "../sender-breaches.slint";
 import { MailRules } from "../rules.slint";
 import { Invitation } from "../invitation.slint";
 import { InvitationCard } from "../components/invitation-card.slint";
@@ -170,6 +171,8 @@ component ThreadMessageHeader inherits Rectangle {
     in property <bool> selected: false;
     in property <bool> thread-interactive: false;
     in property <string> sender-verification: "";
+    // Known breaches of the sender's address; clicking the skull lists them.
+    in property <[SenderBreach]> breaches: [];
     in property <bool> show-avatar: true;
     in property <color> accent;
     in property <color> accent-soft;
@@ -239,6 +242,51 @@ component ThreadMessageHeader inherits Rectangle {
                 : root.sender-verification == "microsoft"
                     ? @tr("Sender authenticated by Microsoft")
                     : @tr("Sender domain authenticated with DMARC and DKIM");
+    }
+    // A red skull beside the sender when Have I Been Pwned knows a breach
+    // with this address in it. Clicking it opens the breach list.
+    breach-anchor := TouchArea {
+        visible: root.breaches.length > 0 && !root.outgoing;
+        x: min(sender-label.x + sender-label.preferred-width + 6px,
+               parent.width - (root.sender-verification != "" ? 144px : 122px));
+        y: sender-label.y + (sender-label.height - 16px) / 2;
+        width: 16px;
+        height: 16px;
+        mouse-cursor: pointer;
+        clicked => { SenderBreaches.show(root.address, root.breaches); }
+        accessible-role: button;
+        accessible-label: root.breaches.length == 1 ? @tr("{} known breach", root.breaches.length) : @tr("{} known breaches", root.breaches.length);
+        Image {
+            x: 1px;
+            y: 1px;
+            width: 14px;
+            height: 14px;
+            source: @image-url("../icons/lucide/outline/skull.svg");
+            colorize: AppTheme.destructive;
+            image-fit: contain;
+            accessible-role: none;
+        }
+    }
+    if root.breaches.length > 0 && breach-anchor.has-hover && !root.outgoing : Rectangle {
+        x: min(breach-anchor.x + 20px, max(0px, parent.width - 160px));
+        y: 0px;
+        width: 150px;
+        height: 22px;
+        border-radius: 5px;
+        border-width: 1px;
+        border-color: AppTheme.border;
+        background: AppTheme.surface;
+        z: 10;
+        Text {
+            x: 6px;
+            width: parent.width - 12px;
+            height: parent.height;
+            text: @tr("{} known breaches", root.breaches.length);
+            color: AppTheme.heading;
+            font-size: TypeScale.caption;
+            vertical-alignment: center;
+            overflow: elide;
+        }
     }
     Text {
         x: parent.width - 82px;
@@ -1377,6 +1425,7 @@ export component MailReadingPane inherits FocusScope {
                                     selected: true;
                                     thread-interactive: false;
                                     sender-verification: root.selected_sender_verification;
+                                    breaches: EmailReader.breaches;
                                     show-avatar: root.show-avatars;
                                     accent: root.accent;
                                     accent-soft: root.accent-soft;
@@ -1408,6 +1457,7 @@ export component MailReadingPane inherits FocusScope {
                                     selected: row.selected;
                                     thread-interactive: root.thread-messages.length > 1;
                                     sender-verification: row.selected ? root.selected_sender_verification : "";
+                                    breaches: row.selected ? EmailReader.breaches : [];
                                     show-avatar: root.show-avatars;
                                     accent: root.accent;
                                     accent-soft: root.accent-soft;

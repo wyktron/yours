@@ -888,6 +888,67 @@ pub(super) fn register_settings_preference_callbacks(
         }
     });
 
+    // Sender breach check: the switch, and the Have I Been Pwned API key that
+    // the lookup needs. The key lives in the credential store, never in the
+    // settings blob, like the AI key.
+    let app_weak = app.as_weak();
+    let state_for_breach_scan = Rc::clone(state);
+    let runtime_for_breach_scan = runtime.clone();
+    app.on_save_breach_scan(move |checked| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        match write_settings(&state_for_breach_scan, &runtime_for_breach_scan, |settings| {
+            settings.breach_scan_enabled = checked;
+        }) {
+            Some(Ok(())) => {
+                app.set_breach_scan_enabled(checked);
+                app.set_sync_status(UiMessage::plain("Sender breach check saved."));
+            }
+            Some(Err(error)) => app.set_sync_status(UiMessage::detail(
+                "Could not save the sender breach check: {}",
+                error,
+            )),
+            None => {}
+        }
+    });
+
+    let app_weak = app.as_weak();
+    let state_for_hibp_key = Rc::clone(state);
+    let runtime_for_hibp_key = runtime.clone();
+    app.on_save_hibp_key(move |value| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        let Some(core) = state_for_hibp_key.borrow().core.as_ref().map(|core| core.file_core()) else {
+            return;
+        };
+        let key = value.to_string();
+        let result = runtime_for_hibp_key.block_on(async move {
+            core.set_hibp_key(&key).await.map_err(|error| error.to_string())
+        });
+        match result {
+            Ok(()) => {
+                app.set_hibp_key_saved(!value.trim().is_empty());
+                app.set_sync_status(UiMessage::plain("Have I Been Pwned key saved."));
+            }
+            Err(error) => app.set_sync_status(UiMessage::detail(
+                "Could not save the Have I Been Pwned key: {}",
+                error,
+            )),
+        }
+    });
+
+    // The saved key's presence is shown when Settings opens, so the row does
+    // not claim no key while one is in the keyring.
+    if let Some(core) = state.borrow().core.as_ref().map(|core| core.file_core()) {
+        let weak = app.as_weak();
+        runtime.spawn(async move {
+            let saved = core.hibp_key_saved().await;
+            let _ = weak.upgrade_in_event_loop(move |app| app.set_hibp_key_saved(saved));
+        });
+    }
+
     // Settings > AI agents picks a model from the endpoint's own list. One
     // tier changes, or "all" sets the three at once; either way the services
     // probe runs again so the status line says connected or degraded for the

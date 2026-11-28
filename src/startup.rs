@@ -84,6 +84,10 @@ pub(crate) struct WarmStartMessage {
     pub(crate) security_model: String,
     #[serde(default)]
     pub(crate) security_checked_at: Option<i64>,
+    /// Known breaches of the sender address, so a warm start keeps the skull
+    /// before the mail store answers.
+    #[serde(default)]
+    pub(crate) breaches: Vec<flectar_mail_core::breaches::Breach>,
     #[serde(default)]
     pub(crate) labels: Vec<i64>,
     pub(crate) sender_verification: String,
@@ -118,7 +122,7 @@ impl From<&mail::MailMessage> for WarmStartMessage {
             has_replied: message.has_replied,
             high_importance: message.high_importance,
             security: message.security.clone(),
-            breaches: Vec::new(),
+            breaches: message.breaches.clone(),
             security_reason: message.security_reason.clone(),
             security_model: message.security_model.clone(),
             security_checked_at: message.security_checked_at,
@@ -154,7 +158,7 @@ impl From<WarmStartMessage> for mail::MailMessage {
             has_replied: message.has_replied,
             high_importance: message.high_importance,
             security: message.security,
-            breaches: Vec::new(),
+            breaches: message.breaches,
             security_reason: message.security_reason,
             security_model: message.security_model,
             security_checked_at: message.security_checked_at,
@@ -1160,7 +1164,27 @@ pub(crate) fn spawn_core_event_listener(
                     // the copy-code toast need this event, so it does not wake
                     // the UI by itself.
                     announcements.mail_arrived(thread_ids.clone());
-                    code_toasts.arrived(thread_ids);
+                    code_toasts.arrived(thread_ids.clone());
+                    // Sender breach checks call HIBP, which must never hold
+                    // mail up: a separate task owns the lookups and the cache
+                    // write, and the MailUpdated it emits refreshes the rows
+                    // that get a skull.
+                    if let Some(core) = stores.upgrade() {
+                        let thread_ids = thread_ids.clone();
+                        tokio::spawn(async move {
+                            match core.check_sender_breaches(thread_ids).await {
+                                Ok(0) => {}
+                                Ok(checked) => tracing::info!(
+                                    checked,
+                                    "sender breach check: looked up senders"
+                                ),
+                                Err(error) => tracing::warn!(
+                                    %error,
+                                    "sender breach check failed"
+                                ),
+                            }
+                        });
+                    }
                     false
                 }
                 Ok(CoreEvent::AccountState {
@@ -1331,6 +1355,7 @@ pub(crate) fn apply_settings(app: &AppWindow, settings: &Settings) {
     let tts_config = crate::speech::config_from_settings(settings);
     apply_tts(app, settings, &tts_config);
     app.set_ai_phishing(settings.ai_phishing_enabled);
+    app.set_breach_scan_enabled(settings.breach_scan_enabled);
     // The AI model pickers show the configured tier models until the probe
     // lands with the endpoint's own list.
     crate::services::publish_ai_tier_models(app, settings);

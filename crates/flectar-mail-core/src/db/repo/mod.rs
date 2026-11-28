@@ -5,6 +5,7 @@ pub mod agent_drafts;
 pub mod ai_usage;
 pub mod auto_replies;
 pub mod blocked;
+pub mod breaches;
 pub mod caldav;
 pub mod calendar;
 pub mod carddav;
