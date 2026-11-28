@@ -59,6 +59,11 @@ mod message_appearance;
 mod motion;
 mod move_picker;
 mod notifications;
+#[cfg(linux_desktop)]
+mod notify_bridge;
+#[cfg(not(linux_desktop))]
+#[path = "notify_bridge_other.rs"]
+mod notify_bridge;
 /// What Android asks of the app without its window.
 #[cfg(background_engine)]
 pub use notifications::engine::{
@@ -5254,6 +5259,13 @@ pub fn run(platform: PlatformContext) -> Result<(), Box<dyn std::error::Error>> 
                         &startup_runtime,
                         core.file_core(),
                         startup_notification_host.clone(),
+                    );
+                    // Tuta has no IMAP, but its desktop app's notifications
+                    // reach the session bus; the bridge reads those aloud.
+                    crate::notify_bridge::start(
+                        &startup_runtime,
+                        core.file_core(),
+                        app.as_weak(),
                     );
                     security_scan::spawn(&startup_runtime, core.file_core());
                     // A headless self-test for the summary path, used while

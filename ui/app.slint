@@ -1090,6 +1090,10 @@ export component AppWindow inherits Window {
     callback save_sidebar_icon_style(bool);
     callback save_notification_settings(bool, bool, string);
     callback save_quiet_hours(bool, string, string);
+    // Tuta's own notifications: the bridge's switch, and the other
+    // applications whose notifications should be read aloud too.
+    callback save_tuta_notifications(bool);
+    callback save_tuta_extra_apps(string);
     callback save_unread_badge(bool);
     callback save_sync_interval(int);
     callback save_undo_send(int);
@@ -1504,6 +1508,10 @@ export component AppWindow inherits Window {
     in-out property <bool> quiet_hours: true;
     in-out property <string> quiet_start: "22:00";
     in-out property <string> quiet_end: "08:00";
+    // Tuta's own notifications: the saved switch, or detection when the user
+    // has never chosen, and other applications to read aloud as well.
+    in-out property <bool> tuta_notifications: false;
+    in-out property <string> tuta_extra_apps: "";
     in-out property <bool> unread_badge_enabled: true;
     in-out property <string> notification_scope: "important";
     in-out property <int> sync_interval_minutes: 5;
@@ -2470,6 +2478,8 @@ export component AppWindow inherits Window {
             quiet_hours <=> root.quiet_hours;
             quiet_start <=> root.quiet_start;
             quiet_end <=> root.quiet_end;
+            tuta_notifications <=> root.tuta_notifications;
+            tuta_extra_apps <=> root.tuta_extra_apps;
             unread_badge_enabled <=> root.unread_badge_enabled;
             notification_scope <=> root.notification_scope;
             sync_interval_minutes <=> root.sync_interval_minutes;
@@ -2593,6 +2603,12 @@ export component AppWindow inherits Window {
             }
             save_quiet_hours(enabled, start, end) => {
                 root.save_quiet_hours(enabled, start, end);
+            }
+            save_tuta_notifications(checked) => {
+                root.save_tuta_notifications(checked);
+            }
+            save_tuta_extra_apps(value) => {
+                root.save_tuta_extra_apps(value);
             }
             save_unread_badge(enabled) => { root.save_unread_badge(enabled); }
             save_sync_interval(minutes) => { root.save_sync_interval(minutes); }

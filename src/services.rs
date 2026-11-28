@@ -109,6 +109,9 @@ fn publish(app: &AppWindow, report: &ServicesReport) {
     services.set_reacher_state(report.reacher.state.as_str().into());
     publish_ai(&services, &report.ai);
     publish_speech(&services, &report.speech);
+    // The Tuta bridge is a shell service, not one the core probe can reach:
+    // its own status says whether the session bus lets it listen.
+    crate::notify_bridge::publish(app);
     // The same report carries the model list, so the pickers need no second
     // request to the endpoint.
     publish_ai_picker(app, &report.ai);
@@ -311,6 +314,8 @@ fn publish_unavailable(app: &AppWindow) {
     services.set_speech_detail(String::new().into());
     services.set_speech_selected(String::new().into());
     services.set_speech_using(String::new().into());
+    // The bridge's own state is independent of the core: report the truth.
+    crate::notify_bridge::publish(app);
     // The configured tiers stay visible; only the served list is unknown.
     let tiers = tier_models_from_ui(app);
     let catalog = ai_catalog();

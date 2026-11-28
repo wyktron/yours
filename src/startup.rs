@@ -118,6 +118,7 @@ impl From<&mail::MailMessage> for WarmStartMessage {
             has_replied: message.has_replied,
             high_importance: message.high_importance,
             security: message.security.clone(),
+            breaches: Vec::new(),
             security_reason: message.security_reason.clone(),
             security_model: message.security_model.clone(),
             security_checked_at: message.security_checked_at,
@@ -153,6 +154,7 @@ impl From<WarmStartMessage> for mail::MailMessage {
             has_replied: message.has_replied,
             high_importance: message.high_importance,
             security: message.security,
+            breaches: Vec::new(),
             security_reason: message.security_reason,
             security_model: message.security_model,
             security_checked_at: message.security_checked_at,
@@ -1349,6 +1351,10 @@ pub(crate) fn apply_settings(app: &AppWindow, settings: &Settings) {
     app.set_quiet_hours(settings.quiet_hours);
     app.set_quiet_start(settings.quiet_start.clone().into());
     app.set_quiet_end(settings.quiet_end.clone().into());
+    // Tuta's own notifications: the saved choice, or detection for a machine
+    // that never chose. The bridge itself reads the setting for each call.
+    app.set_tuta_notifications(crate::notify_bridge::effective_enabled(settings));
+    app.set_tuta_extra_apps(settings.tuta_extra_apps.clone().into());
     app.set_unread_badge_enabled(settings.unread_badge_enabled);
     app.global::<Updates>()
         .set_enabled(settings.check_for_updates);
@@ -1773,6 +1779,7 @@ mod warm_start_tests {
             has_replied: true,
             high_importance: false,
             security: String::new(),
+            breaches: Vec::new(),
             security_reason: String::new(),
             security_model: String::new(),
             security_checked_at: None,

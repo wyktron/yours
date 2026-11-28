@@ -520,6 +520,10 @@ export component SettingsDialog inherits Rectangle {
     in-out property <bool> quiet_hours: true;
     in-out property <string> quiet_start: "22:00";
     in-out property <string> quiet_end: "08:00";
+    // Tuta's own notifications: the saved switch, or detection when the user
+    // has never chosen, and other applications to read aloud as well.
+    in-out property <bool> tuta_notifications: false;
+    in-out property <string> tuta_extra_apps: "";
     in-out property <bool> unread_badge_enabled: true;
     in-out property <string> notification_scope: "important";
     in-out property <int> sync_interval_minutes: 5;
@@ -654,6 +658,8 @@ export component SettingsDialog inherits Rectangle {
     callback save_sidebar_icon_style(bool);
     callback save_notification_settings(bool, bool, string);
     callback save_quiet_hours(bool, string, string);
+    callback save_tuta_notifications(bool);
+    callback save_tuta_extra_apps(string);
     callback save_unread_badge(bool);
     callback save_sync_interval(int);
     callback save_undo_send(int);
@@ -1370,6 +1376,44 @@ export component SettingsDialog inherits Rectangle {
                                             Text { text: @tr("Install espeak-ng or Piper, or run Kokoro on port 8766."); color: root.faint-text; font-size: TypeScale.caption; wrap: word-wrap; }
                                         }
                                         Text { text: root.service-status-label(AppServices.speech-state); color: root.service-status-color(AppServices.speech-state); font-size: TypeScale.caption; font-weight: 600; vertical-alignment: top; }
+                                    }
+
+                                    Rectangle { height: 1px; background: root.border-subtle; }
+                                    // Tuta has no IMAP; its desktop notifications are the
+                                    // only arrival signal Yours can hear.
+                                    HorizontalBox {
+                                        spacing: 10px;
+                                        Rectangle { width: 4px; border-radius: 2px; background: root.service-status-color(AppServices.tuta-state); }
+                                        VerticalBox {
+                                            horizontal-stretch: 1;
+                                            min-width: 0px;
+                                            spacing: 2px;
+                                            Text { text: @tr("Tuta notifications"); color: root.body-text; font-size: TypeScale.body; font-weight: 600; wrap: word-wrap; }
+                                            Text {
+                                                visible: AppServices.tuta-state != "connected" && AppServices.tuta-detail != "";
+                                                text: AppServices.tuta-detail;
+                                                color: root.faint-text;
+                                                font-size: TypeScale.caption;
+                                                wrap: word-wrap;
+                                            }
+                                            Text {
+                                                text: AppServices.tuta-available
+                                                    ? @tr("Tuta has no IMAP, so Yours reads its notifications aloud instead of syncing them.")
+                                                    : @tr("Tuta notifications: not available");
+                                                color: root.faint-text;
+                                                font-size: TypeScale.caption;
+                                                wrap: word-wrap;
+                                            }
+                                        }
+                                        Text {
+                                            text: AppServices.tuta-state == "connected"
+                                                ? @tr("Connected")
+                                                : AppServices.tuta-state == "checking" ? @tr("Checking…") : @tr("Not available");
+                                            color: root.service-status-color(AppServices.tuta-state);
+                                            font-size: TypeScale.caption;
+                                            font-weight: 600;
+                                            vertical-alignment: top;
+                                        }
                                     }
 
                                     HorizontalBox {
@@ -3652,6 +3696,42 @@ export component SettingsDialog inherits Rectangle {
                                             Button {
                                                 text: @tr("Save");
                                                 clicked => { root.save_quiet_hours(root.quiet_hours, root.quiet-start, root.quiet-end); }
+                                            }
+                                        }
+                                    }
+                                    Rectangle { height: 1px; background: root.border-subtle; }
+                                    // Tuta has no IMAP: Yours hears the Tuta app's own
+                                    // notifications on the session bus and reads them.
+                                    SettingsSwitchRow {
+                                        compact: root.compact;
+                                        title: @tr("Announce Tuta notifications");
+                                        description: AppServices.tuta-available
+                                            ? @tr("Reads “You've got email from …” aloud when the Tuta desktop app notifies you, even though Tuta has no IMAP sync.")
+                                            : @tr("Tuta notifications: not available");
+                                        checked: root.tuta_notifications && AppServices.tuta-available;
+                                        enabled: AppServices.tuta-available;
+                                        title-color: root.heading;
+                                        description-color: root.faint-text;
+                                        toggled(checked) => {
+                                            root.tuta_notifications = checked;
+                                            root.save_tuta_notifications(checked);
+                                        }
+                                    }
+                                    HorizontalBox {
+                                        spacing: 8px;
+                                        padding-bottom: 4px;
+                                        FormField {
+                                            horizontal-stretch: 1;
+                                            label: @tr("Also announce notifications from…");
+                                            value <=> root.tuta_extra_apps;
+                                            placeholder: @tr("e.g. Signal, Slack");
+                                            label-color: root.secondary-text;
+                                        }
+                                        VerticalBox {
+                                            alignment: end;
+                                            Button {
+                                                text: @tr("Save");
+                                                clicked => { root.save_tuta_extra_apps(root.tuta_extra_apps); }
                                             }
                                         }
                                     }

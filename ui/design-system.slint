@@ -78,6 +78,11 @@ export global AppServices {
     // The engine chosen in Settings, and the one that would speak right now.
     in-out property <string> speech-selected: "";
     in-out property <string> speech-using: "";
+    // Tuta's own notifications, read off the session bus: "connected" while
+    // the bridge listens, "unavailable" when the bus or its monitor is missing.
+    in-out property <string> tuta-state: "checking";
+    in-out property <string> tuta-detail: "";
+    out property <bool> tuta-available: root.tuta-state == "connected";
     in-out property <bool> checking: true;
     out property <bool> reacher-available: root.reacher-state == "connected";
     // Usable for at least one AI feature. Which features stay enabled is

@@ -2877,6 +2877,16 @@ pub struct Settings {
     /// When quiet hours end, "HH:MM" on the local clock (exclusive).
     #[serde(default = "default_quiet_end")]
     pub quiet_end: String,
+    /// Read Tuta's own desktop notifications aloud. `None` until the user
+    /// decides: a machine where a Tuta app was detected starts with it on,
+    /// and everything else starts off. Tuta has no IMAP, so its desktop
+    /// notifications are the only arrival signal Yours can hear.
+    #[serde(default)]
+    pub tuta_notifications: Option<bool>,
+    /// More applications whose notifications Yours should read aloud, as a
+    /// comma-separated list of names or desktop-entry hints, beyond Tuta's.
+    #[serde(default)]
+    pub tuta_extra_apps: String,
     /// Keep the process running in the system tray when the main window is
     /// closed. Disabled by default so close retains normal desktop semantics.
     #[serde(default)]
@@ -2904,6 +2914,16 @@ pub struct Settings {
     /// the list. Off by default: it reads mail through the configured model.
     #[serde(default)]
     pub ai_phishing_enabled: bool,
+    /// Ask Have I Been Pwned whether senders of new mail appear in known data
+    /// breaches, and mark those rows with a red skull. On by default; the
+    /// lookup needs `hibp_api_key` saved in the credential store.
+    #[serde(default = "default_true")]
+    pub breach_scan_enabled: bool,
+    /// The HIBP API key as a draft between Settings and the core. It is never
+    /// written to this blob: the key itself lives in the platform credential
+    /// store under the app's own account (Slot::HibpApiKey).
+    #[serde(default, skip_serializing, skip_deserializing)]
+    pub hibp_api_key: String,
     /// Compound workflows matched by the AI. The model only returns rule ids;
     /// every mailbox mutation comes from this explicit, user-owned allow-list.
     #[serde(default)]
@@ -3245,6 +3265,8 @@ impl Default for Settings {
             ai_tier_summarize: default_tier_instant(),
             ai_tier_voice: default_tier_cheap(),
             ai_phishing_enabled: false,
+            breach_scan_enabled: true,
+            hibp_api_key: String::new(),
             google_client_id: String::new(),
             google_client_secret: String::new(),
             ms_client_id: String::new(),
@@ -3261,6 +3283,8 @@ impl Default for Settings {
             quiet_hours: true,
             quiet_start: default_quiet_start(),
             quiet_end: default_quiet_end(),
+            tuta_notifications: None,
+            tuta_extra_apps: String::new(),
             sync_interval_minutes: default_sync_interval_minutes(),
             sound_enabled: true,
             close_to_tray: false,
@@ -3713,6 +3737,10 @@ mod tests {
         assert!(s.quiet_hours);
         assert_eq!(s.quiet_start, "22:00");
         assert_eq!(s.quiet_end, "08:00");
+        // Tuta's toggle is unset, so detection decides it, and the extra list
+        // starts empty.
+        assert_eq!(s.tuta_notifications, None);
+        assert_eq!(s.tuta_extra_apps, "");
         assert!(s.auto_advance);
         assert!(s.auto_labels_enabled);
         assert!(s.signature_list.is_empty());

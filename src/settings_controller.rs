@@ -831,6 +831,46 @@ pub(super) fn register_settings_preference_callbacks(
         }
     });
 
+    // Tuta's notifications are their own switch: the bridge listens for the
+    // Tuta app's notifications on the session bus, and the voice reads them.
+    let app_weak = app.as_weak();
+    let state_for_tuta = Rc::clone(state);
+    let runtime_for_tuta = runtime.clone();
+    app.on_save_tuta_notifications(move |checked| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        let saved = save_notification_setting(
+            &app,
+            &state_for_tuta,
+            &runtime_for_tuta,
+            |settings| settings.tuta_notifications = Some(checked),
+        );
+        if saved {
+            app.set_tuta_notifications(checked);
+        }
+    });
+
+    let app_weak = app.as_weak();
+    let state_for_tuta_apps = Rc::clone(state);
+    let runtime_for_tuta_apps = runtime.clone();
+    app.on_save_tuta_extra_apps(move |value| {
+        let Some(app) = app_weak.upgrade() else {
+            return;
+        };
+        let value = value.to_string();
+        let stored = value.clone();
+        let saved = save_notification_setting(
+            &app,
+            &state_for_tuta_apps,
+            &runtime_for_tuta_apps,
+            move |settings| settings.tuta_extra_apps = stored,
+        );
+        if saved {
+            app.set_tuta_extra_apps(value.into());
+        }
+    });
+
     // AI assistant: one model for every feature, the endpoint it runs on, and
     // the phishing screen. The model fields behind the tier names are kept in
     // step, so a model change applies to sorting, summaries and drafts alike.
@@ -1729,6 +1769,27 @@ fn save_tts_setting(
                 "Could not save the read-aloud settings: {}",
                 error,
             ));
+            false
+        }
+        None => false,
+    }
+}
+
+/// Persist a notification preference; its status line speaks about
+/// notifications rather than read-aloud.
+fn save_notification_setting(
+    app: &AppWindow,
+    state: &Rc<RefCell<InboxState>>,
+    runtime: &tokio::runtime::Handle,
+    change: impl FnOnce(&mut flectar_mail_core::models::Settings),
+) -> bool {
+    match write_settings(state, runtime, change) {
+        Some(Ok(())) => {
+            app.set_sync_status(UiMessage::plain("Notification preferences saved."));
+            true
+        }
+        Some(Err(error)) => {
+            app.set_sync_status(UiMessage::detail("Could not save notifications: {}", error));
             false
         }
         None => false,
