@@ -54,6 +54,8 @@ pub(crate) enum Location {
     },
     Contacts,
     Files,
+    /// The Tuta web app, embedded in its own tab: not a mailbox in Yours.
+    Tuta,
 }
 
 fn default_filter() -> String {
@@ -83,6 +85,7 @@ impl Location {
             Self::Calendar { .. } => "calendar",
             Self::Contacts => "contacts",
             Self::Files => "files",
+            Self::Tuta => "tuta",
         }
     }
 }
@@ -649,6 +652,17 @@ pub(crate) fn register(app: &AppWindow, context: TabContext) {
         }
     });
     let owner = Rc::clone(&tabs);
+    global.on_open_tuta(move || {
+        if owner.restored.get() {
+            owner.open_tuta();
+        } else if let Some(app) = owner.app() {
+            // The saved tabs are still being restored, and that restore would
+            // replace the view. Show the page now so the click is never lost;
+            // the tab itself follows once the strip is ready.
+            app.set_active_view("tuta".into());
+        }
+    });
+    let owner = Rc::clone(&tabs);
     global.on_reopen(move || {
         if owner.restored.get() {
             owner.reopen();
@@ -788,6 +802,31 @@ impl Tabs {
             .strip
             .borrow_mut()
             .open(Place::default(), String::new(), None);
+        match opened {
+            Some(index) => self.activate(index),
+            None => self.refuse(),
+        }
+    }
+
+    /// Open the Tuta web app in its own tab, or show the tab that already
+    /// holds it. The page is a tab like any other: Mail opens beside it, and
+    /// closing it takes the page out of the window without stopping it.
+    fn open_tuta(&self) {
+        let existing = self
+            .strip
+            .borrow()
+            .tabs
+            .iter()
+            .position(|tab| matches!(tab.place.location, Location::Tuta));
+        if let Some(index) = existing {
+            self.activate(index);
+            return;
+        }
+        let place = Place {
+            location: Location::Tuta,
+            ..Place::default()
+        };
+        let opened = self.strip.borrow_mut().open(place, "Tuta".to_owned(), None);
         match opened {
             Some(index) => self.activate(index),
             None => self.refuse(),
@@ -1001,6 +1040,10 @@ impl Tabs {
                 place.location = Location::Files;
                 (Some(String::new()), None)
             }
+            "tuta" => {
+                place.location = Location::Tuta;
+                (Some("Tuta".to_owned()), None)
+            }
             _ => {
                 let (mail, title, rows) = self.live_mail(app, with_rows);
                 place = mail;
@@ -1156,7 +1199,7 @@ impl Tabs {
                 ui.set_list_restore(-1.0);
                 self.restore_calendar(&app, date, mode, !behind_settings);
             }
-            Location::Contacts | Location::Files => {
+            Location::Contacts | Location::Files | Location::Tuta => {
                 ui.set_list_restore(-1.0);
                 if !behind_settings {
                     app.set_active_view(location.workspace().into());

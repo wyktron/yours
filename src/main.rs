@@ -120,6 +120,8 @@ mod tabs;
 mod tall_surface_tests;
 mod text_size;
 #[cfg(linux_desktop)]
+pub mod tuta_embed;
+#[cfg(linux_desktop)]
 pub mod tuta_window;
 mod theme;
 mod ui_dispatch;

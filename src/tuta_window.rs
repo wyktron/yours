@@ -25,18 +25,19 @@
 //!
 //! # The tab
 //!
-//! The owner asked for Tuta inside the Yours window. On Wayland a client
-//! cannot reparent another client's surface into its own: there is no
-//! cross-client subsurface or xdg-foreign reparent, and Yours itself runs on
-//! Wayland (`winit`'s Wayland backend), so XReparentWindow has no X11 parent
-//! window to attach to. WebKitGTK has no offscreen render API either
-//! (`webkit_web_view_get_snapshot` is the only way to get the page as an
-//! image), and Slint's winit backend exposes no native parent a GTK widget
-//! could be put into — both require the process's main thread and a surface
-//! they alone own. The tab is therefore the best shippable thing: the web
-//! view's frames through WebKitGTK's own snapshot API, in a tab-shaped page
-//! inside Yours, with a clear note that it is a picture and the window opens
-//! for clicks and typing.
+//! The owner asked for Tuta inside the Yours window, interactive. On a
+//! Wayland-only session that is impossible: a client cannot reparent another
+//! client's surface into its own, WebKitGTK has no offscreen render API, and
+//! Slint's winit backend exposes no native parent a GTK widget could be put
+//! into. There the tab stays a live picture through WebKitGTK's snapshot API,
+//! with a note that says so and opens the window for clicks and typing.
+//!
+//! With XWayland, Yours runs as an X11 client (see src/desktop.rs), and the
+//! page becomes a real tab: the app reparents this process's window into its
+//! own X11 window (src/tuta_embed.rs). The page then paints inside the tab
+//! and receives real clicks, typing and scrolling. This file's half of that
+//! is small: it publishes its window id and maps or unmaps the window when
+//! the app says the tab is showing or was left.
 //!
 //! # Profile
 //!
@@ -72,6 +73,7 @@ use std::{
     },
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc, Mutex, OnceLock,
@@ -79,6 +81,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::tuta_embed;
 use flectar_mail_core::config::Paths;
 use gtk::prelude::*;
 use slint::ComponentHandle;
@@ -101,6 +104,15 @@ use wry::{
 
 /// The argument that turns this executable into the Tuta web app window.
 const ARG: &str = "--tuta-webview";
+/// The app sets this when it will reparent this window into its own: the web
+/// app must then be an X11 client and must stay off screen until it is put in
+/// the tab.
+const EMBED_ENV: &str = "YOURS_TUTA_EMBED";
+/// Bring the page on screen in the app's window; the app has already put this
+/// window inside its own.
+const EMBED_SHOW: &str = "embed show";
+/// Take the page off the app's window, keeping the process and the page alive.
+const EMBED_HIDE: &str = "embed hide";
 /// Keeps the window unmapped on start: the web app runs in the background.
 const HIDDEN_ARG: &str = "--hidden";
 /// The official web app; there is no other Tuta endpoint.
@@ -150,6 +162,10 @@ enum Wake {
     Hide,
     /// Start or stop sending frames for the open tab.
     Frames(bool),
+    /// Map the window inside the app's X11 window: the Tuta tab is showing.
+    EmbedShow,
+    /// Unmap it while the tab is not showing, keeping page and process alive.
+    EmbedHide,
     /// Exit the child (used by manual checks; Yours' exit signal is the
     /// parent-death signal).
     Quit,
@@ -191,6 +207,12 @@ pub fn install(app: &crate::AppWindow, data_dir: &Path) {
     let global = app.global::<crate::TutaWebApp>();
     global.set_available(true);
 
+    // On an X11 session (XWayland included) the page is put inside the app's
+    // own window: a real tab. Wayland-only sessions keep the snapshot tab.
+    let embedder = Rc::new(tuta_embed::Embedder::connect());
+    let embedding = embedder.is_some();
+    global.set_embedding(embedding);
+
     // A test seam: YOURS_TUTA_TAB opens the tab at start-up so the frame path
     // can be checked without a click. The app itself never sets it.
     if std::env::var_os("YOURS_TUTA_TAB").is_some() {
@@ -204,40 +226,48 @@ pub fn install(app: &crate::AppWindow, data_dir: &Path) {
     // the window because a snapshot tab cannot be logged into. The spawn runs
     // on the main thread because the child watches that thread for its
     // parent's exit.
-    if profile_used(data_dir) {
+    if profile_used(data_dir) || embedding {
         let startup_dir = data_dir.to_owned();
-        if let Err(error) = ensure_running(&startup_dir) {
+        if let Err(error) = ensure_running(&startup_dir, embedding) {
             eprintln!("tuta: could not start the web app in the background: {error}");
         }
     }
 
-    // The sidebar's row opens the tab once the web app has been used; on a
-    // first run it shows the interactive window so the owner can log in.
+    // The sidebar's row opens the tab. On a first run without an embedded
+    // tab it shows the interactive window, because a picture cannot be
+    // logged into; with an embed the login happens in the tab itself.
     let open_dir = data_dir.to_owned();
     let open_app = app.as_weak();
+    let open_embedding = embedding;
     global.on_open(move || {
-        if profile_used(&open_dir) {
-            if let Some(app) = open_app.upgrade() {
-                app.set_active_view("tuta".into());
-            }
-            if let Err(error) = ensure_running(&open_dir) {
-                eprintln!("tuta: could not start the web app: {error}");
-            }
-        } else if let Err(error) = show_window(&open_dir) {
-            eprintln!("tuta: could not show the web app window: {error}");
+        if let Some(app) = open_app.upgrade() {
+            open_tuta_tab(&app);
+        }
+        if let Err(error) = ensure_running(&open_dir, open_embedding) {
+            eprintln!("tuta: could not start the web app: {error}");
         }
     });
 
     // "Open window" in the tab shows the interactive window, or brings it
-    // back after it was closed to the background.
+    // back after it was closed to the background. With an embedded tab there
+    // is no window to open: the page is already in the tab.
     let show_dir = data_dir.to_owned();
+    let show_app = app.as_weak();
+    let show_embedding = embedding;
     global.on_show_window(move || {
+        if show_embedding {
+            if let Some(app) = show_app.upgrade() {
+                open_tuta_tab(&app);
+            }
+            return;
+        }
         if let Err(error) = show_window(&show_dir) {
             eprintln!("tuta: could not show the web app window: {error}");
         }
     });
 
     // The tab was opened or left: while it is open, ask the child for frames.
+    // An embedded tab renders itself, so only the snapshot path asks.
     let frames_dir = data_dir.to_owned();
     global.on_live_view(move |live| {
         let socket = socket_path(&frames_dir);
@@ -248,12 +278,176 @@ pub fn install(app: &crate::AppWindow, data_dir: &Path) {
                 send_until(&socket, message, FOCUS_ATTEMPTS);
             });
     });
+
+    // Keep the page in the tab's rectangle while the tab is showing.
+    if embedding {
+        run_embed_tab(app, data_dir, embedder);
+    }
+}
+
+/// Open the Tuta tab, or show the tab that already holds the page.
+fn open_tuta_tab(app: &crate::AppWindow) {
+    let tabs = app.global::<crate::TabsUi>();
+    if tabs.get_enabled() {
+        // The tab strip owns the tab, so the page is a tab like any other.
+        tabs.invoke_open_tuta();
+        return;
+    }
+    // Tabs turned off: the page is still reachable as a workspace view.
+    app.set_active_view("tuta".into());
+}
+
+/// How often the embedded window is compared with the tab's rectangle. Small
+/// enough that a resize does not show as a lag, cheap enough to leave on.
+const EMBED_TICK: Duration = Duration::from_millis(150);
+
+/// Keeps the web app's window inside the Tuta tab while the tab is showing.
+struct EmbedTab {
+    app: slint::Weak<crate::AppWindow>,
+    embedder: Rc<Option<tuta_embed::Embedder>>,
+    data_dir: PathBuf,
+    socket: PathBuf,
+    /// The child window currently embedded.
+    child: Option<u32>,
+    /// The rectangle it was last given, in the window's physical pixels.
+    rect: Option<tuta_embed::Rect>,
+    /// Whether the page is in the tab right now.
+    attached: bool,
+}
+
+impl EmbedTab {
+    /// Put the page in the tab, keep it there, or take it out again.
+    fn tick(&mut self) {
+        let Some(app) = self.app.upgrade() else {
+            return;
+        };
+        let global = app.global::<crate::TutaWebApp>();
+        if app.get_active_view() != "tuta" {
+            if self.attached {
+                self.detach(&global);
+            }
+            return;
+        }
+        // The embedder outlives this borrow: take a handle first, so the
+        // state below can be changed while it is in use.
+        let handle = Rc::clone(&self.embedder);
+        let Some(embedder) = (*handle).as_ref() else {
+            return;
+        };
+        // The child normally runs already; starting it here covers a first
+        // run, where the tab is opened before any launch.
+        if !is_listening(&self.socket) {
+            let _ = ensure_running(&self.data_dir, true);
+            return;
+        }
+        let Some(child) = embedder.child_window(&self.data_dir) else {
+            return;
+        };
+        let Some(rect) = physical_rect(&app, &global) else {
+            return;
+        };
+        if self.child != Some(child) {
+            // A first attach, or a child that restarted under a new window id.
+            if self.attached {
+                self.detach(&global);
+            }
+            if !embedder.reparent(child, rect) {
+                return;
+            }
+            self.child = Some(child);
+            self.rect = Some(rect);
+            self.attached = true;
+            // The child maps its own window once it is inside the app's.
+            let _ = send(&self.socket, EMBED_SHOW);
+        } else if self.rect != Some(rect) || embedder.child_rect(child) != Some(rect) {
+            // A toolkit may size its own window when it is first shown; the
+            // tab's rectangle is the authority, so put it back.
+            if embedder.place(child, rect) {
+                self.rect = Some(rect);
+            }
+        }
+        // The keyboard belongs to the page while Yours' window is the active
+        // one and the pointer is over the page: KWin re-focuses its managed
+        // window, so the page needs the grab to keep keys, and the grab takes
+        // keys from every other window, so it is not held any longer.
+        if embedder.active() && embedder.pointer_over(rect) {
+            embedder.focus_and_grab(child);
+        } else {
+            embedder.release();
+        }
+        global.set_embedded(embedder.mapped(child));
+    }
+
+    /// Take the page out of the tab: unmap it and hand the keyboard back.
+    fn detach(&mut self, global: &crate::TutaWebApp) {
+        if let Some(child) = self.child.take() {
+            let _ = send(&self.socket, EMBED_HIDE);
+            if let Some(embedder) = (*self.embedder).as_ref() {
+                embedder.release();
+                embedder.unmap(child);
+            }
+        }
+        self.rect = None;
+        self.attached = false;
+        global.set_embedded(false);
+    }
+}
+
+/// Start the tab's geometry loop.
+fn run_embed_tab(
+    app: &crate::AppWindow,
+    data_dir: &Path,
+    embedder: Rc<Option<tuta_embed::Embedder>>,
+) {
+    let mut tab = EmbedTab {
+        app: app.as_weak(),
+        embedder,
+        data_dir: data_dir.to_owned(),
+        socket: socket_path(data_dir),
+        child: None,
+        rect: None,
+        attached: false,
+    };
+    let timer = slint::Timer::default();
+    timer.start(slint::TimerMode::Repeated, EMBED_TICK, move || tab.tick());
+    // The app owns the timer: dropping it would stop the geometry updates.
+    Box::leak(Box::new(timer));
+}
+
+/// The tab's rectangle in the window's physical pixels. Slint lays out in
+/// logical pixels; X11 places the embedded window in the window's own pixels,
+/// which the scale factor converts between.
+fn physical_rect(
+    app: &crate::AppWindow,
+    global: &crate::TutaWebApp,
+) -> Option<tuta_embed::Rect> {
+    let width = global.get_embed_width();
+    let height = global.get_embed_height();
+    if !(width >= 2.0 && height >= 2.0) {
+        return None;
+    }
+    let scale = f64::from(app.window().scale_factor().max(0.5));
+    let pixel = |value: f32| (f64::from(value) * scale).round();
+    Some(tuta_embed::Rect {
+        x: pixel(global.get_embed_x()) as i32,
+        y: pixel(global.get_embed_y()) as i32,
+        width: pixel(width).max(1.0) as u32,
+        height: pixel(height).max(1.0) as u32,
+    })
+}
+
+/// The X11 window id of this process's window: the id the app puts inside its
+/// own window.
+fn window_xid(window: &tao::window::Window) -> Option<u32> {
+    let gdk_window = window.gtk_window().window()?;
+    let x11 = gdk_window.downcast::<gdkx11::X11Window>().ok()?;
+    u32::try_from(x11.xid()).ok()
 }
 
 /// Start the web app process if it is not running. The child owns
 /// `tuta/webview.lock` for its whole lifetime, so a second process cannot
 /// start; a lock we can take proves none is running.
-fn ensure_running(data_dir: &Path) -> io::Result<()> {
+fn ensure_running(data_dir: &Path, embed: bool) -> io::Result<()> {
     let socket = socket_path(data_dir);
     if is_listening(&socket) {
         return Ok(());
@@ -272,7 +466,8 @@ fn ensure_running(data_dir: &Path) -> io::Result<()> {
             // file without a listener is debris from a window that was killed.
             remove_our_socket(&socket);
             let executable = std::env::current_exe()?;
-            Command::new(executable)
+            let mut command = Command::new(executable);
+            command
                 .arg(ARG)
                 .arg(data_dir)
                 .arg(HIDDEN_ARG)
@@ -280,8 +475,18 @@ fn ensure_running(data_dir: &Path) -> io::Result<()> {
                 // The window has no console; report nothing through ours.
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()?;
+                .stderr(Stdio::null());
+            if embed {
+                // The page is reparented into the app's X11 window, so this
+                // process must be an X11 client; and the window it publishes
+                // can only be embedded while it is this child's.
+                command
+                    .env(EMBED_ENV, "1")
+                    .env("GDK_BACKEND", "x11")
+                    .env_remove("WAYLAND_DISPLAY");
+                tuta_embed::forget_xid(data_dir);
+            }
+            command.spawn()?;
             *last = Some(Instant::now());
             drop(lock);
             Ok(())
@@ -293,7 +498,7 @@ fn ensure_running(data_dir: &Path) -> io::Result<()> {
 fn show_window(data_dir: &Path) -> io::Result<()> {
     // Starting the child touches the parent-death binding, so it stays on the
     // main thread; asking a starting child to show is retried off it.
-    ensure_running(data_dir)?;
+    ensure_running(data_dir, false)?;
     let socket = socket_path(data_dir);
     let _ = std::thread::Builder::new()
         .name("tuta-show".into())
@@ -314,7 +519,10 @@ fn run() -> Result<(), Box<dyn Error>> {
         _ => Paths::default_dirs()?.data_dir,
     };
     // Yours starts the web app hidden; the sidebar's window button shows it.
-    let hidden = std::env::args_os().nth(3).as_deref() == Some(OsStr::new(HIDDEN_ARG));
+    // An embedded page is never shown by this process on its own: the app
+    // maps the window inside its own, so it starts hidden too.
+    let embed = std::env::var_os(EMBED_ENV).is_some();
+    let hidden = embed || std::env::args_os().nth(3).as_deref() == Some(OsStr::new(HIDDEN_ARG));
     // The child ends with Yours: quitting the app must not leave an orphan
     // web app behind. Manual launches pass no parent.
     let parent = std::env::args_os()
@@ -361,9 +569,11 @@ fn run() -> Result<(), Box<dyn Error>> {
     }
     let window = builder.build(&event_loop)?;
     window.gtk_window().set_icon_name(Some(APP_ID));
-    if hidden {
-        window.gtk_window().realize();
-    } else {
+    // Realize the widget tree without mapping it. The snapshot path can then
+    // paint a hidden window, and an embedded window can publish the id the app
+    // reparents before anything is on screen.
+    window.gtk_window().realize();
+    if !hidden {
         // A shown window is the owner's chance to log in; later launches can
         // keep the web app hidden in the background.
         mark_shown(&data_dir);
@@ -389,6 +599,13 @@ fn run() -> Result<(), Box<dyn Error>> {
         // Best effort: a child widget is realized when its parent is, but the
         // snapshot needs the web view itself realized before the first map.
         webview.webview().realize();
+    }
+    if embed {
+        // The app can only reparent a window whose id it knows. Publishing it
+        // again when the window is shown covers a toolkit that recreated it.
+        if let Some(xid) = window_xid(&window) {
+            tuta_embed::publish_xid(&data_dir, xid);
+        }
     }
 
     // A page notification is handed to the app, not to the session bus. The
@@ -428,6 +645,19 @@ fn run() -> Result<(), Box<dyn Error>> {
                 window.set_visible(true);
                 window.set_focus();
                 mark_shown(&data_dir);
+            }
+            // The app has put this window inside its own, in the Tuta tab's
+            // rectangle: map it there. No window manager sees it, so there is
+            // no second window on the desktop.
+            Event::UserEvent(Wake::EmbedShow) => {
+                window.set_visible(true);
+                if let Some(xid) = window_xid(&window) {
+                    tuta_embed::publish_xid(&data_dir, xid);
+                }
+                webview.webview().grab_focus();
+            }
+            Event::UserEvent(Wake::EmbedHide) => {
+                window.set_visible(false);
             }
             Event::UserEvent(Wake::Hide) => window.set_visible(false),
             Event::UserEvent(Wake::Frames(on)) => frames_on.store(on, Ordering::Relaxed),
@@ -882,6 +1112,8 @@ impl FocusListener {
                     let wake = match String::from_utf8_lossy(&request[..count]).trim() {
                         "show" => Wake::Show,
                         "hide" => Wake::Hide,
+                        "embed show" => Wake::EmbedShow,
+                        "embed hide" => Wake::EmbedHide,
                         "frames on" => Wake::Frames(true),
                         "frames off" => Wake::Frames(false),
                         "quit" => Wake::Quit,

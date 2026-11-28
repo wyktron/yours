@@ -32,6 +32,8 @@ export global TabsUi {
     callback close-others(int);
     callback close-to-right(int);
     callback create();
+    // Open the Tuta web app's page in a tab of its own, or show that tab.
+    callback open-tuta();
     // Reopen the most recently closed tab.
     callback reopen();
     // Move the tab with this id to a new index.
@@ -75,7 +77,9 @@ export global TabsUi {
 export component WorkspaceIcon inherits Image {
     in property <string> workspace;
     in property <bool> filled;
-    source: root.workspace == "calendar"
+    source: root.workspace == "tuta"
+            ? @image-url("../icons/lucide/outline/external-link.svg")
+        : root.workspace == "calendar"
             ? (root.filled ? @image-url("../icons/lucide/filled/calendar.svg") : @image-url("../icons/lucide/outline/calendar.svg"))
         : root.workspace == "files"
             ? (root.filled ? @image-url("../icons/lucide/filled/files.svg") : @image-url("../icons/lucide/outline/files.svg"))

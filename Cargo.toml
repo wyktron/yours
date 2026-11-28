@@ -222,6 +222,9 @@ wayland-protocols = { version = "0.32", default-features = false, features = ["c
 # process's window and GTK event loop. Both are Linux-only: on other hosts the
 # sidebar entry opens the web app in the default browser instead.
 wry = { version = "0.58.2", default-features = false, features = ["os-webview", "x11"] }
+# The embedded Tuta tab publishes this process's X11 window id, which the app
+# reparents into its own window (src/tuta_embed.rs).
+gdkx11 = "0.19"
 tao = "0.38.0"
 gtk = "0.19.0"
 # The embedded window hands the page's notification signal to the bridge

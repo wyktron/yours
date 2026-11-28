@@ -2,14 +2,19 @@
 //
 // Tuta's account exists only as the official web app, which Yours keeps
 // running in a background process (src/tuta_window.rs) so its notifications
-// keep being read aloud. This tab shows that web view through WebKitGTK's
-// snapshot API: frames arrive from the child process about once a second.
+// keep being read aloud. This tab shows that page.
 //
-// It is a live picture, not an embed. On Wayland a client cannot reparent
-// another client's surface into its own window (no cross-client subsurface or
-// xdg-foreign reparent), WebKitGTK has no offscreen render API, and Slint's
-// winit backend exposes no native parent a GTK widget could be placed in. The
-// window therefore stays for clicks and typing; the note below says so.
+// When Yours runs as an X11 client (the normal case on a Wayland session with
+// XWayland) the app reparents the web app's window into its own and holds it
+// over this view's content rectangle (src/tuta_embed.rs). The page is then
+// genuinely inside the tab: clicks, typing, selection and scrolling are the
+// page's own. Nothing is drawn over that rectangle, so nothing sits between
+// the pointer and the page.
+//
+// On a Wayland-only session a client cannot reparent another client's surface,
+// so the tab falls back to frames from WebKitGTK's snapshot API: a live
+// picture, with an explicit note saying so and the button that opens the
+// interactive window for clicking and typing.
 import { AppTheme, LayoutMetrics } from "../design-system.slint";
 import { TypeScale } from "../typography.slint";
 import { Button } from "../components/button.slint";
@@ -23,7 +28,56 @@ export component TutaWebAppView inherits Rectangle {
 
     background: AppTheme.page-bg;
 
-    VerticalLayout {
+    // The page, when the session can put it inside the tab.
+    if TutaWebApp.embedding : Rectangle {
+        // The web app's window is an X11 window the app places over this
+        // rectangle. Publishing the rectangle is what keeps the two in step:
+        // the timer follows every layout change, resize and tab switch.
+        page := Rectangle {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            background: #141516;
+            clip: true;
+        }
+
+        Timer {
+            interval: 100ms;
+            running: true;
+            triggered => {
+                TutaWebApp.embed-x = page.absolute-position.x;
+                TutaWebApp.embed-y = page.absolute-position.y;
+                TutaWebApp.embed-width = page.width;
+                TutaWebApp.embed-height = page.height;
+            }
+        }
+
+        // Only until the page's window is in place: the embedded window
+        // covers this, so it is the honest state of the tab, not a control.
+        if !TutaWebApp.embedded : VerticalLayout {
+            alignment: center;
+            spacing: 6px;
+
+            Text {
+                text: @tr("Attaching the Tuta web app…");
+                color: AppTheme.title;
+                font-size: TypeScale.body;
+                horizontal-alignment: center;
+            }
+
+            Text {
+                text: @tr("The page is interactive as soon as its window is placed in this tab.");
+                color: AppTheme.muted;
+                font-size: TypeScale.caption;
+                horizontal-alignment: center;
+            }
+        }
+    }
+
+    // The snapshot fallback: a Wayland-only session, where the page cannot be
+    // reparented into the window and the tab can only be a picture of it.
+    if !TutaWebApp.embedding : VerticalLayout {
         padding: 0px;
         spacing: 0px;
 
@@ -40,7 +94,7 @@ export component TutaWebAppView inherits Rectangle {
                 Image {
                     width: 20px;
                     height: 20px;
-                    source: @image-url("../icons/lucide/outline/mail.svg");
+                    source: @image-url("../icons/lucide/outline/external-link.svg");
                     image-fit: contain;
                 }
 
@@ -75,6 +129,8 @@ export component TutaWebAppView inherits Rectangle {
             }
         }
 
+        // Why the tab is a picture: this is the Wayland fallback and the note
+        // has to say so, because the page cannot be clicked here.
         Rectangle {
             height: 30px;
             background: AppTheme.accent-pale;
@@ -84,7 +140,7 @@ export component TutaWebAppView inherits Rectangle {
                 padding-right: LayoutMetrics.compact-inset;
 
                 Text {
-                    text: @tr("Live snapshot, refreshed about once a second. It is not interactive: open the interactive window to click or type in Tuta.");
+                    text: @tr("Wayland session without XWayland: the tab is a live picture, not the page. Clicks and typing need “Open interactive window”.");
                     color: AppTheme.secondary;
                     font-size: TypeScale.caption;
                     vertical-alignment: center;

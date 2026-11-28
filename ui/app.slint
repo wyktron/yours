@@ -1438,9 +1438,10 @@ export component AppWindow inherits Window {
         if root.active_view != "mail" { MailAttachments.command("close", ""); }
         root.product-changed(root.active_view);
         TabsUi.navigated();
-        // The Tuta tab is painted from the background web app's frames, and
-        // only asks for them while it is showing.
-        TutaWebApp.live-view(root.active_view == "tuta");
+        // The Tuta tab is painted from the background web app's frames only
+        // where the page cannot be embedded in the window; an embedded page
+        // draws itself, so the snapshot is only asked for while it shows.
+        TutaWebApp.live-view(root.active_view == "tuta" && !TutaWebApp.embedding);
     }
     in-out property <string> settings_tab: "General";
     // Set by the host when first-use consent can be withdrawn from About.
@@ -2393,8 +2394,10 @@ export component AppWindow inherits Window {
 
         // Tuta has no mail account in Yours: its mail is the web app, which
         // runs in the background so its notifications keep being read aloud.
-        // This tab is the live picture of that web app; the window itself
-        // stays available for clicking and typing.
+        // On an X11 session this tab is the page itself, because the app
+        // reparents the web app's window into this one; on a Wayland-only
+        // session it is the live picture and the window stays available for
+        // clicking and typing.
         if root.active_view == "tuta" : WorkspaceFrame {
             compact: root.compact-layout;
             reserve-compact-navigation: root.compact-primary-nav-visible;

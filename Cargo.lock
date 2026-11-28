@@ -2401,6 +2401,7 @@ dependencies = [
  "flectar-spell",
  "fontique",
  "futures-util",
+ "gdkx11",
  "gtk",
  "html5ever 0.40.1",
  "i-slint-core",

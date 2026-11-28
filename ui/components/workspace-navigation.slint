@@ -440,7 +440,8 @@ component TabItem inherits Rectangle {
 
     private property <string> workspace: root.entry.active && root.live-workspace != ""
         ? root.live-workspace : root.entry.workspace;
-    private property <string> workspace-name: root.workspace == "calendar" ? @tr("Calendar")
+    private property <string> workspace-name: root.workspace == "tuta" ? @tr("Tuta")
+        : root.workspace == "calendar" ? @tr("Calendar")
         : root.workspace == "files" ? @tr("Files")
         : root.workspace == "contacts" ? @tr("Contacts")
         : root.workspace == "settings" ? @tr("Settings")

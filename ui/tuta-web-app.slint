@@ -3,12 +3,25 @@
 // (src/tuta_window.rs) so its notifications are read aloud even when no
 // window is on screen, and the sidebar opens it as a tab inside the window.
 export global TutaWebApp {
-    // Only hosts that can embed WebKitGTK show the entry; elsewhere the
-    // sidebar leaves it out rather than offering a dead button.
+    // Only hosts that can keep the web app running show the entry; elsewhere
+    // the sidebar leaves it out rather than offering a dead button.
     in-out property <bool> available: false;
+    // Yours is an X11 client on this session, so the web app's window can be
+    // reparented into Yours' own window and the tab can be the page itself.
+    in-out property <bool> embedding: false;
+    // The page is inside the tab right now. While it is, the tab is the page:
+    // clicks, typing and scrolling land in it.
+    in-out property <bool> embedded: false;
+    // The tab's content rectangle in logical window pixels, published by the
+    // Tuta view while it shows. The app places the embedded window there and
+    // keeps it there through every resize and layout change.
+    in-out property <length> embed-x: 0px;
+    in-out property <length> embed-y: 0px;
+    in-out property <length> embed-width: 0px;
+    in-out property <length> embed-height: 0px;
     // The web view's latest snapshot, sent by the background process. This is
-    // a picture of the page, not the page itself: Wayland cannot reparent one
-    // client's surface into another, so clicking and typing need the window.
+    // a picture of the page, not the page itself, and only a session that
+    // cannot embed it (Wayland without XWayland) shows it.
     in-out property <image> frame;
     in-out property <bool> has-frame: false;
     // Open the tab (the background process is already running).
@@ -16,6 +29,7 @@ export global TutaWebApp {
     // Show the interactive window, or bring it back after it hid to the
     // background.
     callback show-window();
-    // The tab is showing or was left: frames are only produced while it is.
+    // The tab is showing or was left: frames are only produced for the
+    // snapshot path, which only runs while the tab shows.
     callback live-view(bool);
 }

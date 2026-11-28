@@ -17,6 +17,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // initialized libraries yet. Never mutate this from a tray callback.
         unsafe { std::env::set_var("SLINT_DESTROY_WINDOW_ON_HIDE", "1") };
     }
+    // The Tuta tab is a real, interactive page only when Yours is an X11
+    // client: with XWayland available the app reparents the web app's window
+    // into its own. Prefer X11 there; YOURS_TUTA_X11=0 keeps Wayland and the
+    // snapshot tab. This runs before the backend picks its window system.
+    #[cfg(linux_desktop)]
+    flectar_mail::tuta_embed::prefer_x11_for_tuta();
     // SAFETY: as above, no other thread exists yet.
     #[cfg(desktop)]
     unsafe {
